@@ -1,6 +1,18 @@
 [workspace]
 resolver = "3"
-members = ["crates/ngx-compress-core"]
+members = [
+    "crates/ngx-compress-core",
+    "crates/ngx-compress-codecs",
+    "crates/ngx-compress-ffi",
+    "crates/ngx-compress-module",
+]
+# The nginx-linked crates need an NGINX source tree to build, so the default
+# set keeps `cargo test`/`clippy` on the host hermetic and fast. The ffi and
+# module crates are built explicitly inside the Docker environment.
+default-members = [
+    "crates/ngx-compress-core",
+    "crates/ngx-compress-codecs",
+]
 
 [workspace.package]
 version = "0.1.0"

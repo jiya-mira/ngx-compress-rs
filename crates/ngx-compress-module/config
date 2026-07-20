@@ -1,0 +1,27 @@
+# shellcheck source=auto/rust
+. $ngx_addon_dir/auto/rust
+
+# ngx_addon_name determines the build directory and must be set before any
+# modules are defined.
+ngx_addon_name=ngx_http_compress
+
+if [ $HTTP = YES ]; then
+    # HTTP_AUX_FILTER places the module among the output filters near the top of
+    # the chain (like a loaded dynamic module), so its header/body filters run
+    # before the terminal header serializer. A plain HTTP type lands in the
+    # HTTP_MODULES block ahead of all filters in a static build and would install
+    # below the serializer, dropping any headers it adds. M2 will pin the exact
+    # position relative to gzip once real body compression lands.
+    ngx_module_type=HTTP_AUX_FILTER
+    ngx_module_name=ngx_http_compress_module
+    ngx_module_incs=
+    ngx_module_deps=
+    ngx_module_libs="-lm -ldl -lpthread"
+
+    # ngx-rust target: build the module crate as a staticlib.
+    ngx_rust_target_type=LIB
+    ngx_rust_target_name=ngx_compress_module
+    ngx_rust_target_features=
+
+    ngx_rust_module
+fi

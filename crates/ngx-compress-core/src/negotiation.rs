@@ -77,8 +77,9 @@ impl AcceptEncoding {
             field_present: true,
         };
 
+        // Parsing the external Accept-Encoding header (RFC 9110 list syntax). style:allow-delimited-split
         for item in value.split(',') {
-            let mut parts = item.trim().split(';');
+            let mut parts = item.trim().split(';'); // style:allow-delimited-split
             let token = parts.next().unwrap_or_default().trim();
             if token.is_empty() {
                 continue;

@@ -1,0 +1,23 @@
+[package]
+name = "ngx-compress-codecs"
+description = "Streaming codec adapters for ngx-compress-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ngx-compress-core = { path = "../ngx-compress-core" }
+
+# Per-codec build-time selection. Each flag will gain its optional dependency on
+# an established compression library in M2 (gzip/deflate via flate2, br via
+# brotli, zstd via zstd). Kept declared now so the on-demand build seam exists.
+[features]
+default = []
+gzip = []
+deflate = []
+brotli = []
+zstd = []
+
+[lints]
+workspace = true

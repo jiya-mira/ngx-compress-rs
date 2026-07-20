@@ -1,0 +1,35 @@
+[package]
+name = "ngx-compress-module"
+description = "NGINX dynamic module entrypoint for ngx-compress-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+ngx = "0.5"
+nginx-sys = "0.5"
+ngx-compress-core = { path = "../ngx-compress-core" }
+ngx-compress-codecs = { path = "../ngx-compress-codecs" }
+ngx-compress-ffi = { path = "../ngx-compress-ffi" }
+
+[features]
+# `export-modules` emits the `ngx_modules` table so a standalone `cargo` build
+# of the cdylib is self-contained. The NGINX buildsystem passes
+# `--no-default-features` and generates that table itself, so the flow through
+# `config`/`config.make` links a plain staticlib.
+default = ["export-modules"]
+export-modules = []
+
+# Boundary crate: unsafe is required for the NGINX module ABI and callbacks.
+# Every unsafe block documents its invariant with a `// SAFETY:` comment.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
