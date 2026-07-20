@@ -1,0 +1,92 @@
+{
+  "crates/ngx-compress-codecs/src/identity.rs": {
+    "mtime": 1784566545.6111586,
+    "ast_hash": "089df4311909a3092edb62eb6107c6c3",
+    "semantic_hash": "089df4311909a3092edb62eb6107c6c3"
+  },
+  "crates/ngx-compress-codecs/src/lib.rs": {
+    "mtime": 1784564610.9002783,
+    "ast_hash": "f01bbf04b7fdce244de7f8e6248ebef1",
+    "semantic_hash": "f01bbf04b7fdce244de7f8e6248ebef1"
+  },
+  "crates/ngx-compress-core/src/codec.rs": {
+    "mtime": 1784564562.734088,
+    "ast_hash": "b5225ad0ea530dc6f2860766f82a73f0",
+    "semantic_hash": "b5225ad0ea530dc6f2860766f82a73f0"
+  },
+  "crates/ngx-compress-core/src/lib.rs": {
+    "mtime": 1784564570.018666,
+    "ast_hash": "6e50f1f3fbf1d629acf1350f390bc6db",
+    "semantic_hash": "6e50f1f3fbf1d629acf1350f390bc6db"
+  },
+  "crates/ngx-compress-core/src/negotiation.rs": {
+    "mtime": 1784567572.2864213,
+    "ast_hash": "23d920b7e87719f8a2351ab35bfc3cbb",
+    "semantic_hash": "23d920b7e87719f8a2351ab35bfc3cbb"
+  },
+  "crates/ngx-compress-core/src/progress.rs": {
+    "mtime": 1784546228.3015356,
+    "ast_hash": "daee4883a45255eb46db155eb9315f54",
+    "semantic_hash": "daee4883a45255eb46db155eb9315f54"
+  },
+  "crates/ngx-compress-ffi/src/filter.rs": {
+    "mtime": 1784567531.2311883,
+    "ast_hash": "88a5f2e755c183c3e4029a65418c7666",
+    "semantic_hash": "88a5f2e755c183c3e4029a65418c7666"
+  },
+  "crates/ngx-compress-ffi/src/lib.rs": {
+    "mtime": 1784565033.6842299,
+    "ast_hash": "d4d63cc43f83607c145ceb9ac91b4dbe",
+    "semantic_hash": "d4d63cc43f83607c145ceb9ac91b4dbe"
+  },
+  "crates/ngx-compress-module/auto/rust": {
+    "mtime": 1784565374.8395514,
+    "ast_hash": "696fd0017a308d5fa0aec08794fca6f6",
+    "semantic_hash": "696fd0017a308d5fa0aec08794fca6f6"
+  },
+  "crates/ngx-compress-module/build.rs": {
+    "mtime": 1784566486.3743722,
+    "ast_hash": "9899a2d24db85f1d1e94da3437dd4f2e",
+    "semantic_hash": "9899a2d24db85f1d1e94da3437dd4f2e"
+  },
+  "crates/ngx-compress-module/src/http.rs": {
+    "mtime": 1784567506.5192375,
+    "ast_hash": "fbe5619d17022bbb964d4d843d0723bd",
+    "semantic_hash": "fbe5619d17022bbb964d4d843d0723bd"
+  },
+  "crates/ngx-compress-module/src/lib.rs": {
+    "mtime": 1784565315.8846135,
+    "ast_hash": "35a200f0e9d5657ce543374c273aa135",
+    "semantic_hash": "35a200f0e9d5657ce543374c273aa135"
+  },
+  "docker/build-and-test.sh": {
+    "mtime": 1784567038.6611638,
+    "ast_hash": "9703396b69f70c86bc331f201c6c038a",
+    "semantic_hash": "9703396b69f70c86bc331f201c6c038a"
+  },
+  "docker/lint.sh": {
+    "mtime": 1784567184.86673,
+    "ast_hash": "320bae6e94fb91110ff933df54a46b51",
+    "semantic_hash": "320bae6e94fb91110ff933df54a46b51"
+  },
+  "AGENTS.md": {
+    "mtime": 1784546773.90364,
+    "ast_hash": "3a57b50efb34a7efc313095066185cc5",
+    "semantic_hash": "3a57b50efb34a7efc313095066185cc5"
+  },
+  "README.md": {
+    "mtime": 1784546773.9028182,
+    "ast_hash": "8098e107d14896fcbdaece7009fab3ae",
+    "semantic_hash": "8098e107d14896fcbdaece7009fab3ae"
+  },
+  "docs/architecture.md": {
+    "mtime": 1784546796.7307127,
+    "ast_hash": "aa529709b940affbcf46216e4d5029f9",
+    "semantic_hash": "aa529709b940affbcf46216e4d5029f9"
+  },
+  "docs/design.md": {
+    "mtime": 1784551224.4231637,
+    "ast_hash": "039aa93a3e7285eac38c85148d267364",
+    "semantic_hash": "039aa93a3e7285eac38c85148d267364"
+  }
+}

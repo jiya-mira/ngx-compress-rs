@@ -1,0 +1,16 @@
+{
+  "0": "Accept-Encoding Negotiation",
+  "1": "NGINX Module & Filters",
+  "2": "Progress Contract",
+  "3": "Identity Codec Tests",
+  "4": "FFI Filter Chain",
+  "5": "Module Configuration",
+  "6": "Codec Trait Seam",
+  "7": "NGINX Rust Build Helper",
+  "8": "Docker Build & Smoke",
+  "9": "Docker Lint Runner",
+  "10": "Module Build Script",
+  "11": "Crate Root A",
+  "12": "Crate Root B",
+  "13": "6. Local testing plan"
+}
