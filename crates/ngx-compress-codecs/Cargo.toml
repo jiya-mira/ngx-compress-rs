@@ -8,25 +8,41 @@ publish.workspace = true
 
 [dependencies]
 ngx-compress-core = { path = "../ngx-compress-core" }
-flate2 = { version = "1", optional = true }
-brotli = { version = "7", optional = true }
+flate2 = { version = "1", optional = true, default-features = false }
+brotli = { version = "8", optional = true, default-features = false }
 zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]
 # Decoders used by the round-trip integration tests to verify output.
 flate2 = "1"
-brotli = "7"
+brotli = "8"
 zstd = "0.13"
 
-# Per-codec build-time selection over established compression libraries. The
-# `identity` coding is always available because it carries no dependency.
-# gzip and deflate share flate2 (gzip adds its own framing over raw deflate).
+# Two orthogonal dimensions, both build-time:
+#   1. Which codings: gzip / deflate / brotli / zstd (identity is always on).
+#   2. Backend: `vendored` (default, self-compiled with SIMD/vectorized paths)
+#      xor `system-libs` (Stage B: link the distro's shared libraries).
+# The two backends are mutually exclusive to keep the build matrix flat.
 [features]
-default = []
+default = ["vendored"]
 gzip = ["dep:flate2"]
 deflate = ["dep:flate2"]
 brotli = ["dep:brotli"]
 zstd = ["dep:zstd"]
+# Self-compiled backends with their high-value performance features enabled.
+# zlib-ng (gzip/deflate) and libzstd carry their own SIMD paths on stable. The
+# brotli crate's `simd` feature needs nightly (portable_simd), so on stable we
+# enable only its stable `vector_scratch_space` fast path.
+#
+# zstd's `fat-lto` is intentionally NOT enabled: it compiles libzstd to LTO
+# bitcode objects that NGINX's plain linker cannot resolve when it links our
+# staticlib (undefined ZSTD_* symbols). Cargo's profile `lto = "fat"` still
+# applies to the Rust crates; the C lib stays as ordinary objects.
+vendored = [
+    "flate2?/zlib-ng",
+    "brotli?/std",
+    "brotli?/vector_scratch_space",
+]
 
 [lints]
 workspace = true

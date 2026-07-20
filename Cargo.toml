@@ -27,3 +27,13 @@ unsafe_code = "forbid"
 all = "warn"
 pedantic = "warn"
 
+# Release builds favor speed. NOTE: the NGINX buildsystem compiles through the
+# `ngx-release` profile (inherits `release`), so lto/opt-level/codegen-units
+# apply there too; auto/rust forces `strip = "none"` for that flow, so `strip`
+# below only affects standalone cargo builds.
+[profile.release]
+lto = "fat"
+opt-level = 3
+strip = "symbols"
+codegen-units = 1
+
