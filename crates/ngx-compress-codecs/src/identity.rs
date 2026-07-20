@@ -1,4 +1,6 @@
-use ngx_compress_core::{ContentCoding, Operation, StepResult, StepState, StreamingCodec};
+use ngx_compress_core::{
+    CodecError, ContentCoding, Operation, StepResult, StepState, StreamingCodec,
+};
 
 /// The `identity` coding: bytes pass through unchanged.
 ///
@@ -12,7 +14,12 @@ impl StreamingCodec for Identity {
         ContentCoding::Identity
     }
 
-    fn step(&mut self, operation: Operation, input: &[u8], output: &mut [u8]) -> StepResult {
+    fn step(
+        &mut self,
+        operation: Operation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> Result<StepResult, CodecError> {
         let moved = input.len().min(output.len());
         output[..moved].copy_from_slice(&input[..moved]);
 
@@ -23,11 +30,11 @@ impl StreamingCodec for Identity {
             Operation::Flush | Operation::Finish => StepState::Complete,
         };
 
-        StepResult {
+        Ok(StepResult {
             consumed: moved,
             produced: moved,
             state,
-        }
+        })
     }
 
     fn reset(&mut self) {}
@@ -43,7 +50,9 @@ mod tests {
     fn stepped(operation: Operation, input: &[u8], capacity: usize) -> (Vec<u8>, StepResult) {
         let mut output = vec![0_u8; capacity];
         let mut codec = Identity;
-        let result = codec.step(operation, input, &mut output);
+        let Ok(result) = codec.step(operation, input, &mut output) else {
+            unreachable!("identity codec never returns an error");
+        };
         assert!(
             validate_progress(operation, input.len(), capacity, result).is_ok(),
             "identity step must satisfy the progress contract"

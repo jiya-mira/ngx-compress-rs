@@ -8,16 +8,25 @@ publish.workspace = true
 
 [dependencies]
 ngx-compress-core = { path = "../ngx-compress-core" }
+flate2 = { version = "1", optional = true }
+brotli = { version = "7", optional = true }
+zstd = { version = "0.13", optional = true }
 
-# Per-codec build-time selection. Each flag will gain its optional dependency on
-# an established compression library in M2 (gzip/deflate via flate2, br via
-# brotli, zstd via zstd). Kept declared now so the on-demand build seam exists.
+[dev-dependencies]
+# Decoders used by the round-trip integration tests to verify output.
+flate2 = "1"
+brotli = "7"
+zstd = "0.13"
+
+# Per-codec build-time selection over established compression libraries. The
+# `identity` coding is always available because it carries no dependency.
+# gzip and deflate share flate2 (gzip adds its own framing over raw deflate).
 [features]
 default = []
-gzip = []
-deflate = []
-brotli = []
-zstd = []
+gzip = ["dep:flate2"]
+deflate = ["dep:flate2"]
+brotli = ["dep:brotli"]
+zstd = ["dep:zstd"]
 
 [lints]
 workspace = true

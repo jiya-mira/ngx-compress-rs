@@ -1,5 +1,17 @@
 use crate::{ContentCoding, Operation, StepResult};
 
+/// An unrecoverable failure reported by a codec adapter.
+///
+/// Compression backends can fail (internal library error, invalid state). A
+/// codec surfaces the failure here instead of panicking so the FFI boundary can
+/// map it to a documented NGINX status rather than unwinding across the C ABI.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CodecError {
+    /// The underlying compression backend reported an error and the stream
+    /// cannot continue.
+    Backend,
+}
+
 /// A streaming encoder adapter over an established compression library.
 ///
 /// This trait is the stable extension seam described in the crate design: a new
@@ -13,9 +25,18 @@ pub trait StreamingCodec {
     fn coding(&self) -> ContentCoding;
 
     /// Advances the encoder by one step, reading from `input` and writing into
-    /// `output`. The returned [`StepResult`] must never claim to consume more
-    /// than `input.len()` or produce more than `output.len()`.
-    fn step(&mut self, operation: Operation, input: &[u8], output: &mut [u8]) -> StepResult;
+    /// `output`. On success the returned [`StepResult`] must never claim to
+    /// consume more than `input.len()` or produce more than `output.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CodecError`] when the backend fails unrecoverably.
+    fn step(
+        &mut self,
+        operation: Operation,
+        input: &[u8],
+        output: &mut [u8],
+    ) -> Result<StepResult, CodecError>;
 
     /// Returns the adapter to its initial state so a worker can reuse the
     /// context across requests without reallocating it.
