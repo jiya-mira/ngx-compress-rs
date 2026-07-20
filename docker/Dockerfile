@@ -19,7 +19,7 @@ ENV http_proxy=${HTTP_PROXY} \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl gcc make ripgrep \
-        clang libclang-dev \
+        clang libclang-dev python3 \
         libpcre2-dev zlib1g-dev libssl-dev \
         zstd brotli gzip \
     && rm -rf /var/lib/apt/lists/*
