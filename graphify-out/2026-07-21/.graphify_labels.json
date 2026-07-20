@@ -12,5 +12,22 @@
   "10": "Module Build Script",
   "11": "Crate Root A",
   "12": "Crate Root B",
-  "13": "6. Local testing plan"
+  "13": "6. Local testing plan",
+  "14": "Result",
+  "15": "Brotli",
+  "16": "Zstd",
+  "17": "compress",
+  "18": "Operation",
+  "19": "StepResult",
+  "20": "Vec",
+  "21": "Resolved",
+  "22": "c_void",
+  "23": "ngx_chain_t",
+  "24": "ngx_http_request_t",
+  "25": "ngx_int_t",
+  "26": "Option",
+  "27": "Self",
+  "28": "ngx_command_t",
+  "29": "ngx_conf_t",
+  "30": "Result"
 }
