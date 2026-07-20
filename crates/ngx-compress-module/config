@@ -21,7 +21,7 @@ if [ $HTTP = YES ]; then
     # ngx-rust target: build the module crate as a staticlib.
     ngx_rust_target_type=LIB
     ngx_rust_target_name=ngx_compress_module
-    ngx_rust_target_features=
+    ngx_rust_target_features="gzip deflate brotli zstd"
 
     ngx_rust_module
 fi

@@ -1,7 +1,11 @@
 //! NGINX dynamic module entrypoint for `ngx-compress-rs`.
 //!
-//! M1 installs an identity pass-through header and body filter to prove module
-//! registration, filter ordering, configuration merge, and build integration
-//! under both static and dynamic linking. Codec transformation arrives in M2.
+//! The header filter negotiates a content coding from the request's
+//! `Accept-Encoding` and the location's `compress_*` configuration; the body
+//! filter streams the response through the selected codec with free/busy chain
+//! backpressure. Builds as both a static and a dynamic NGINX module.
 
-mod http;
+mod conf;
+mod filter;
+mod registration;
+mod select;
