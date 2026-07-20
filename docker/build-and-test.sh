@@ -49,6 +49,8 @@ http {
             compress_brotli on;
             compress_zstd on;
             compress_min_length 20;
+            compress_buffers 16 8k;
+            compress_types text/plain application/json;
         }
     }
 }

@@ -3,12 +3,14 @@
 //! body through the selected codec with free/busy chain backpressure.
 
 use core::ffi::c_void;
+use core::ptr::NonNull;
 use core::{ptr, slice, str};
 
 use ngx::core::Status;
 use ngx::ffi::{
-    NGX_HTTP_OK, ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t, ngx_chain_update_chains,
-    ngx_http_request_t, ngx_int_t, ngx_palloc, ngx_pool_cleanup_add,
+    NGX_HTTP_OK, ngx_array_t, ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t,
+    ngx_chain_update_chains, ngx_http_request_t, ngx_int_t, ngx_palloc, ngx_pool_cleanup_add,
+    ngx_str_t,
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf, Request};
 use ngx_compress_core::{AcceptEncoding, Operation, StepState, StreamingCodec};
@@ -18,8 +20,6 @@ use crate::conf::{CompressConfig, Resolved};
 use crate::registration::{Module, ngx_http_compress_module};
 use crate::select;
 
-const BUF_SIZE: usize = 8_192;
-
 /// Per-request compression state, owned via the request `ctx` slot and dropped
 /// by a registered pool cleanup so the codec's resources are released.
 struct RequestCtx {
@@ -27,6 +27,7 @@ struct RequestCtx {
     out: *mut ngx_chain_t,
     busy: *mut ngx_chain_t,
     free: *mut ngx_chain_t,
+    buffer_size: usize,
     done: bool,
 }
 
@@ -63,7 +64,7 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
     // allocation failure the request is aborted rather than mis-framed.
     unsafe {
         clear_content_length(request);
-        if install_ctx(request, codec).is_none() {
+        if install_ctx(request, codec, resolved.buffer_size).is_none() {
             return Status::NGX_ERROR.0;
         }
         filter::next_header(request)
@@ -227,12 +228,12 @@ unsafe fn free_buf(request: *mut ngx_http_request_t, ctx: &mut RequestCtx) -> *m
         }
         let buf = (*link).buf;
         if (*buf).start.is_null() {
-            let memory = ngx_palloc(pool, BUF_SIZE).cast::<u8>();
+            let memory = ngx_palloc(pool, ctx.buffer_size).cast::<u8>();
             if memory.is_null() {
                 return ptr::null_mut();
             }
             (*buf).start = memory;
-            (*buf).end = memory.add(BUF_SIZE);
+            (*buf).end = memory.add(ctx.buffer_size);
             (*buf).tag = ptr::addr_of!(ngx_http_compress_module).cast_mut().cast();
         }
         (*buf).pos = (*buf).start;
@@ -259,11 +260,11 @@ unsafe fn eligible(request: *mut ngx_http_request_t, resolved: &Resolved) -> boo
         if length >= 0 && usize::try_from(length).unwrap_or(0) < resolved.min_length {
             return false;
         }
-        compressible(&(*request).headers_out.content_type)
+        compressible(&(*request).headers_out.content_type, resolved.types)
     }
 }
 
-fn compressible(content_type: &ngx::ffi::ngx_str_t) -> bool {
+fn compressible(content_type: &ngx_str_t, types: Option<NonNull<ngx_array_t>>) -> bool {
     // SAFETY: content_type.data points to len valid bytes (or is empty).
     let bytes = unsafe { slice::from_raw_parts(content_type.data, content_type.len) };
     let head = bytes.split(|&b| b == b';').next().unwrap_or(bytes);
@@ -271,6 +272,14 @@ fn compressible(content_type: &ngx::ffi::ngx_str_t) -> bool {
         return false;
     };
     let kind = kind.trim();
+    match types {
+        // SAFETY: `array` is a pool-owned ngx_array_t of ngx_str_t entries.
+        Some(array) => unsafe { type_in_list(kind, array) },
+        None => builtin_compressible(kind),
+    }
+}
+
+fn builtin_compressible(kind: &str) -> bool {
     kind.starts_with("text/")
         || matches!(
             kind,
@@ -282,6 +291,19 @@ fn compressible(content_type: &ngx::ffi::ngx_str_t) -> bool {
                 | "application/wasm"
                 | "image/svg+xml"
         )
+}
+
+unsafe fn type_in_list(kind: &str, array: NonNull<ngx_array_t>) -> bool {
+    // SAFETY: iterate the pool-owned array of ngx_str_t MIME entries.
+    unsafe {
+        let array = array.as_ptr();
+        let entries = (*array).elts.cast::<ngx_str_t>();
+        (0..(*array).nelts).any(|index| {
+            let entry = &*entries.add(index);
+            let bytes = slice::from_raw_parts(entry.data, entry.len);
+            bytes == b"*" || str::from_utf8(bytes).is_ok_and(|mime| mime.eq_ignore_ascii_case(kind))
+        })
+    }
 }
 
 unsafe fn accept_encoding(request: *mut ngx_http_request_t) -> AcceptEncoding {
@@ -322,6 +344,7 @@ unsafe extern "C" fn cleanup(data: *mut c_void) {
 unsafe fn install_ctx(
     request: *mut ngx_http_request_t,
     codec: Box<dyn StreamingCodec>,
+    buffer_size: usize,
 ) -> Option<()> {
     // SAFETY: allocates a cleanup handler tied to the request pool.
     unsafe {
@@ -334,6 +357,7 @@ unsafe fn install_ctx(
             out: ptr::null_mut(),
             busy: ptr::null_mut(),
             free: ptr::null_mut(),
+            buffer_size,
             done: false,
         }));
         (*cleanup_handler).handler = Some(cleanup);

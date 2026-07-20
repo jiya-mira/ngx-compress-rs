@@ -5,14 +5,14 @@ use core::ptr;
 
 use ngx::core::Status;
 use ngx::ffi::{
-    NGX_CONF_TAKE1, NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET, NGX_HTTP_MAIN_CONF,
-    NGX_HTTP_MODULE, NGX_HTTP_SRV_CONF, ngx_command_t, ngx_conf_t, ngx_http_module_t, ngx_int_t,
-    ngx_module_t, ngx_str_t, ngx_uint_t,
+    NGX_CONF_1MORE, NGX_CONF_TAKE1, NGX_CONF_TAKE2, NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET,
+    NGX_HTTP_MAIN_CONF, NGX_HTTP_MODULE, NGX_HTTP_SRV_CONF, ngx_command_t, ngx_conf_t,
+    ngx_http_module_t, ngx_int_t, ngx_module_t, ngx_str_t, ngx_uint_t,
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf};
 use ngx::ngx_string;
 
-use crate::conf::{CompressConfig, set_directive};
+use crate::conf::{CompressConfig, set_buffers, set_directive, set_types};
 use crate::filter::{body_filter, header_filter};
 
 /// The module type, used by the filters as their config/ctx key. style:allow-pub-crate
@@ -50,7 +50,24 @@ const fn directive(name: ngx_str_t) -> ngx_command_t {
     }
 }
 
-static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 13] = [
+const fn multi(name: ngx_str_t, extra: ngx_uint_t, setter: SetFn) -> ngx_command_t {
+    ngx_command_t {
+        name,
+        type_: (NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF) as ngx_uint_t | extra,
+        set: Some(setter),
+        conf: NGX_HTTP_LOC_CONF_OFFSET,
+        offset: 0,
+        post: ptr::null_mut(),
+    }
+}
+
+type SetFn = extern "C" fn(
+    *mut ngx_conf_t,
+    *mut ngx_command_t,
+    *mut core::ffi::c_void,
+) -> *mut core::ffi::c_char;
+
+static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 15] = [
     directive(ngx_string!("compress")),
     directive(ngx_string!("compress_gzip")),
     directive(ngx_string!("compress_gzip_comp_level")),
@@ -63,6 +80,16 @@ static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 13] = [
     directive(ngx_string!("compress_zstd_comp_level")),
     directive(ngx_string!("compress_min_length")),
     directive(ngx_string!("compress_vary")),
+    multi(
+        ngx_string!("compress_buffers"),
+        NGX_CONF_TAKE2 as ngx_uint_t,
+        set_buffers,
+    ),
+    multi(
+        ngx_string!("compress_types"),
+        NGX_CONF_1MORE as ngx_uint_t,
+        set_types,
+    ),
     ngx_command_t::empty(),
 ];
 

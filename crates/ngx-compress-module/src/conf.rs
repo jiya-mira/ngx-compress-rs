@@ -5,9 +5,14 @@
 //! directive name to keep the command table flat.
 
 use core::ffi::{c_char, c_void};
+use core::mem::size_of;
+use core::ptr::NonNull;
 
 use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
-use ngx::ffi::{NGX_LOG_EMERG, ngx_conf_t, ngx_str_t};
+use ngx::ffi::{
+    NGX_LOG_EMERG, ngx_array_create, ngx_array_push, ngx_array_t, ngx_command_t, ngx_conf_t,
+    ngx_parse_size, ngx_str_t,
+};
 use ngx::http::{Merge, MergeConfigError};
 use ngx::ngx_conf_log_error;
 
@@ -18,6 +23,7 @@ const DEFAULT_BROTLI_LEVEL: u32 = 6;
 const DEFAULT_BROTLI_WINDOW: u32 = 22;
 const DEFAULT_ZSTD_LEVEL: i32 = 3;
 const DEFAULT_MIN_LENGTH: usize = 20;
+const DEFAULT_BUFFER_SIZE: usize = 8_192;
 
 /// Location configuration for the compress module. Fields are private; the
 /// setters and accessors below are the crate-internal surface. style:allow-pub-crate
@@ -35,6 +41,11 @@ pub(crate) struct CompressConfig {
     zstd_level: Option<i32>,
     min_length: Option<usize>,
     vary: Option<bool>,
+    // (count, size) of per-request output buffers; only `size` is used today.
+    buffers: Option<(usize, usize)>,
+    // Pool-allocated array of allowed MIME types; `None` falls back to the
+    // built-in compressible set. Copy pointer, owned by the config pool.
+    types: Option<NonNull<ngx_array_t>>,
 }
 
 /// A resolved, defaults-applied snapshot used on the request path. Each codec
@@ -46,6 +57,8 @@ pub(crate) struct Resolved {
     pub enabled: bool,
     pub min_length: usize,
     pub vary: bool,
+    pub buffer_size: usize,
+    pub types: Option<NonNull<ngx_array_t>>,
     pub gzip: Option<u32>,
     pub deflate: Option<u32>,
     pub brotli: Option<(u32, u32)>,
@@ -60,6 +73,8 @@ impl CompressConfig {
             enabled: self.enable.unwrap_or(false),
             min_length: self.min_length.unwrap_or(DEFAULT_MIN_LENGTH),
             vary: self.vary.unwrap_or(true),
+            buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
+            types: self.types,
             gzip: on_level(self.gzip, self.gzip_level, DEFAULT_GZIP_LEVEL),
             deflate: on_level(self.deflate, self.deflate_level, DEFAULT_DEFLATE_LEVEL),
             brotli: self.brotli.unwrap_or(false).then(|| {
@@ -94,6 +109,8 @@ impl Merge for CompressConfig {
         merge_opt(&mut self.zstd_level, prev.zstd_level);
         merge_opt(&mut self.min_length, prev.min_length);
         merge_opt(&mut self.vary, prev.vary);
+        merge_opt(&mut self.buffers, prev.buffers);
+        merge_opt(&mut self.types, prev.types);
         Ok(())
     }
 }
@@ -186,5 +203,63 @@ fn set_usize(slot: &mut Option<usize>, value: &str) -> bool {
             true
         }
         Err(_) => false,
+    }
+}
+
+/// `compress_buffers <count> <size>` (NGX_CONF_TAKE2). style:allow-pub-crate
+pub(crate) extern "C" fn set_buffers(
+    cf: *mut ngx_conf_t,
+    _cmd: *mut ngx_command_t,
+    conf: *mut c_void,
+) -> *mut c_char {
+    // SAFETY: nginx passes a valid cf and our CompressConfig; TAKE2 guarantees
+    // args[1] (count) and args[2] (size) exist.
+    unsafe {
+        let config = &mut *conf.cast::<CompressConfig>();
+        let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
+        let mut size_arg = args[2];
+        let size = ngx_parse_size(&raw mut size_arg);
+        match (
+            args[1].to_str().ok().and_then(|c| c.parse::<usize>().ok()),
+            size,
+        ) {
+            (Some(count), size) if count > 0 && size > 0 => {
+                config.buffers =
+                    Some((count, usize::try_from(size).unwrap_or(DEFAULT_BUFFER_SIZE)));
+                NGX_CONF_OK
+            }
+            _ => {
+                ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid compress_buffers value");
+                NGX_CONF_ERROR
+            }
+        }
+    }
+}
+
+/// `compress_types <mime>...` (NGX_CONF_1MORE). style:allow-pub-crate
+pub(crate) extern "C" fn set_types(
+    cf: *mut ngx_conf_t,
+    _cmd: *mut ngx_command_t,
+    conf: *mut c_void,
+) -> *mut c_char {
+    // SAFETY: nginx passes a valid cf and our CompressConfig; builds a pool-owned
+    // array of the MIME arguments and copies each ngx_str into it.
+    unsafe {
+        let config = &mut *conf.cast::<CompressConfig>();
+        let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
+        let array = ngx_array_create((*cf).pool, args.len() - 1, size_of::<ngx_str_t>());
+        if array.is_null() {
+            return NGX_CONF_ERROR;
+        }
+        for mime in &args[1..] {
+            // style:allow-for-in
+            let slot = ngx_array_push(array).cast::<ngx_str_t>();
+            if slot.is_null() {
+                return NGX_CONF_ERROR;
+            }
+            *slot = *mime;
+        }
+        config.types = NonNull::new(array);
+        NGX_CONF_OK
     }
 }
