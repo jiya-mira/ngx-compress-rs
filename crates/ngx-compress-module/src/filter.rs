@@ -80,12 +80,26 @@ pub(crate) unsafe extern "C" fn body_filter(
     request: *mut ngx_http_request_t,
     chain: *mut ngx_chain_t,
 ) -> ngx_int_t {
-    // SAFETY: reads the module ctx slot for this request.
-    let Some(ctx) = (unsafe { request_ctx(request) }) else {
+    // SAFETY: scopes the unique ctx borrow to this callback invocation so it
+    // cannot escape with a lifetime chosen by the caller.
+    let run = |ctx: &mut RequestCtx| {
+        // SAFETY: nginx supplied `request` and `chain`; `ctx` is uniquely
+        // borrowed for the duration of this callback.
+        unsafe { body_filter_with_ctx(request, chain, ctx) }
+    };
+    let Some(rc) = (unsafe { with_request_ctx(request, run) }) else {
         // SAFETY: install() ran during postconfiguration.
         return unsafe { filter::next_body(request, chain) };
     };
+    rc
+}
 
+/// Runs the body filter with a callback-scoped request-context borrow.
+unsafe fn body_filter_with_ctx(
+    request: *mut ngx_http_request_t,
+    chain: *mut ngx_chain_t,
+    ctx: &mut RequestCtx,
+) -> ngx_int_t {
     // SAFETY: walks the input chain, feeding each buffer to the codec.
     if unsafe { compress_chain(request, ctx, chain) }.is_err() {
         return Status::NGX_ERROR.0;
@@ -112,6 +126,104 @@ pub(crate) unsafe extern "C" fn body_filter(
     rc
 }
 
+/// A validated, callback-scoped view of one readable nginx input buffer.
+struct InputBuffer<'a> {
+    raw: &'a mut ngx_buf_t,
+    bytes: &'a [u8],
+    operation: Operation,
+}
+
+impl<'a> InputBuffer<'a> {
+    /// Converts a borrowed nginx buffer into a lifetime-bound readable view.
+    ///
+    /// # Safety
+    ///
+    /// Non-empty `pos..last` must belong to one live allocation for `'a`.
+    unsafe fn new(raw: &'a mut ngx_buf_t) -> Result<Self, ()> {
+        let operation = operation_for(raw);
+        let pos = raw.pos;
+        let last = raw.last;
+        let bytes = if pos == last {
+            &[]
+        } else {
+            let len = last.addr().checked_sub(pos.addr()).ok_or(())?;
+            if pos.is_null() {
+                return Err(());
+            }
+            // SAFETY: the caller guarantees that validated pos..last is one
+            // live readable allocation tied to the borrowed nginx buffer.
+            unsafe { slice::from_raw_parts(pos, len) }
+        };
+        Ok(Self {
+            raw,
+            bytes,
+            operation,
+        })
+    }
+
+    fn operation(&self) -> Operation {
+        self.operation
+    }
+
+    fn bytes(&self) -> &[u8] {
+        self.bytes
+    }
+
+    fn consume(self) {
+        self.raw.pos = self.raw.last;
+    }
+}
+
+/// A validated, callback-scoped view of one writable nginx output buffer.
+struct OutputBuffer<'a> {
+    raw: &'a mut ngx_buf_t,
+    capacity: &'a mut [u8],
+}
+
+impl<'a> OutputBuffer<'a> {
+    /// Converts a borrowed nginx temp buffer into a lifetime-bound writable view.
+    ///
+    /// # Safety
+    ///
+    /// Non-empty `last..end` must belong to one live writable allocation for
+    /// `'a`, and this borrow must be the only access to that region.
+    unsafe fn new(raw: &'a mut ngx_buf_t) -> Result<Self, ()> {
+        let last = raw.last;
+        let end = raw.end;
+        let capacity = if last == end {
+            &mut []
+        } else {
+            let len = end.addr().checked_sub(last.addr()).ok_or(())?;
+            if last.is_null() {
+                return Err(());
+            }
+            // SAFETY: the caller guarantees that validated last..end is one
+            // live, uniquely borrowed writable allocation.
+            unsafe { slice::from_raw_parts_mut(last, len) }
+        };
+        Ok(Self { raw, capacity })
+    }
+
+    fn capacity(&mut self) -> &mut [u8] {
+        self.capacity
+    }
+
+    fn commit(&mut self, produced: usize, last: bool, flush: bool) -> Result<(), ()> {
+        if produced > self.capacity.len() {
+            return Err(());
+        }
+        // SAFETY: `produced` was validated against this view's capacity, which
+        // is the live allocation beginning at raw.last.
+        self.raw.last = unsafe { self.raw.last.add(produced) };
+        if last {
+            self.raw.set_last_buf(1);
+        } else if flush {
+            self.raw.set_flush(1);
+        }
+        Ok(())
+    }
+}
+
 /// Drives the codec over the whole input chain, appending output buffers to
 /// `ctx.out`. Marks each input buffer consumed as it is accepted.
 ///
@@ -125,11 +237,13 @@ unsafe fn compress_chain(
     mut chain: *mut ngx_chain_t,
 ) -> Result<(), ()> {
     while !chain.is_null() {
-        // SAFETY: `chain` is a valid link; read its buffer and input region.
-        let (buf, operation, input) = unsafe {
-            let buf = (*chain).buf;
-            (buf, operation_for(buf), input_slice(buf))
+        // SAFETY: `chain` is a valid link and its buffer remains live while the
+        // callback-scoped view is used.
+        let input = unsafe {
+            let buf = (*chain).buf.as_mut().ok_or(())?;
+            InputBuffer::new(buf)?
         };
+        let operation = input.operation();
         let mut offset = 0;
 
         loop {
@@ -138,13 +252,19 @@ unsafe fn compress_chain(
             if link.is_null() {
                 return Err(());
             }
-            // SAFETY: `link`'s buffer is valid; `writable` is its [last, end) tail.
-            let (out_buf, capacity) = unsafe {
-                let out_buf = (*link).buf;
-                (out_buf, writable(out_buf))
+            // SAFETY: `link` owns a live temp buffer whose last..end region is
+            // uniquely writable until this output view is dropped.
+            let mut output = unsafe {
+                let buf = (*link).buf.as_mut().ok_or(())?;
+                OutputBuffer::new(buf)?
             };
-            let step = checked_step(&mut *ctx.codec, operation, &input[offset..], capacity)
-                .map_err(|_| ())?;
+            let step = checked_step(
+                &mut *ctx.codec,
+                operation,
+                &input.bytes()[offset..],
+                output.capacity(),
+            )
+            .map_err(|_| ())?;
             offset += step.consumed;
 
             let complete = step.state == StepState::Complete;
@@ -155,16 +275,9 @@ unsafe fn compress_chain(
             // non-boundary buffer (a codec step that buffered input without
             // output) would trip nginx's "zero size buf" alert.
             if step.produced > 0 || last || flush {
-                // SAFETY: commit produced bytes, flag boundaries, link into `out`.
-                unsafe {
-                    advance(out_buf, step.produced);
-                    if last {
-                        (*out_buf).set_last_buf(1);
-                    } else if flush {
-                        (*out_buf).set_flush(1);
-                    }
-                    append(&mut ctx.out, link);
-                }
+                output.commit(step.produced, last, flush)?;
+                // SAFETY: link the committed pool-owned buffer into `ctx.out`.
+                unsafe { append(&mut ctx.out, link) };
             } else {
                 // SAFETY: return the unused empty buffer to the free list.
                 unsafe { recycle(&mut ctx.free, link) };
@@ -179,48 +292,22 @@ unsafe fn compress_chain(
             }
         }
 
-        // SAFETY: input fully consumed; advance to the next chain link.
-        unsafe {
-            (*buf).pos = (*buf).last;
-            chain = (*chain).next;
-        }
+        input.consume();
+        // SAFETY: input is consumed and `chain` remains a valid link.
+        chain = unsafe { (*chain).next };
     }
     Ok(())
 }
 
 /// Chooses the codec operation for an input buffer from its nginx flags.
-unsafe fn operation_for(buf: *mut ngx_buf_t) -> Operation {
-    // SAFETY: `buf` is a valid buffer pointer; read its boundary flags.
-    unsafe {
-        if (*buf).last_buf() != 0 {
-            Operation::Finish
-        } else if (*buf).flush() != 0 || (*buf).last_in_chain() != 0 {
-            Operation::Flush
-        } else {
-            Operation::Continue
-        }
+fn operation_for(buf: &ngx_buf_t) -> Operation {
+    if buf.last_buf() != 0 {
+        Operation::Finish
+    } else if buf.flush() != 0 || buf.last_in_chain() != 0 {
+        Operation::Flush
+    } else {
+        Operation::Continue
     }
-}
-
-unsafe fn input_slice<'a>(buf: *mut ngx_buf_t) -> &'a [u8] {
-    // SAFETY: pos..last is the readable region; empty when pos == last.
-    unsafe {
-        let len = usize::try_from((*buf).last.offset_from((*buf).pos)).unwrap_or(0);
-        slice::from_raw_parts((*buf).pos, len)
-    }
-}
-
-unsafe fn writable<'a>(buf: *mut ngx_buf_t) -> &'a mut [u8] {
-    // SAFETY: last..end is the unused writable region of a temp buffer.
-    unsafe {
-        let len = usize::try_from((*buf).end.offset_from((*buf).last)).unwrap_or(0);
-        slice::from_raw_parts_mut((*buf).last, len)
-    }
-}
-
-unsafe fn advance(buf: *mut ngx_buf_t, produced: usize) {
-    // SAFETY: `produced` bytes were just written after `last`, within `end`.
-    unsafe { (*buf).last = (*buf).last.add(produced) };
 }
 
 unsafe fn append(out: &mut *mut ngx_chain_t, link: *mut ngx_chain_t) {
@@ -401,9 +488,12 @@ unsafe fn install_ctx(
     }
 }
 
-unsafe fn request_ctx<'a>(request: *mut ngx_http_request_t) -> Option<&'a mut RequestCtx> {
-    // SAFETY: read the ctx slot as a raw pointer (never via &T), so &mut is
-    // sound — single-threaded request, sole owner until pool cleanup.
+unsafe fn with_request_ctx<R>(
+    request: *mut ngx_http_request_t,
+    use_ctx: impl for<'ctx> FnOnce(&'ctx mut RequestCtx) -> R,
+) -> Option<R> {
+    // SAFETY: nginx owns a valid ctx table for this request. The higher-ranked
+    // callback keeps the unique borrow scoped here and prevents it escaping in R.
     unsafe {
         let index = Module::module().ctx_index;
         let raw = (*(*request).ctx.add(index)).cast::<RequestCtx>();
@@ -411,6 +501,6 @@ unsafe fn request_ctx<'a>(request: *mut ngx_http_request_t) -> Option<&'a mut Re
             return None;
         }
         let ctx = &mut *raw;
-        if ctx.done { None } else { Some(ctx) }
+        if ctx.done { None } else { Some(use_ctx(ctx)) }
     }
 }
