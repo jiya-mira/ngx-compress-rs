@@ -1,0 +1,25 @@
+# Standalone benchmark harness for calibrating the `compress` profile tiers.
+# Its own workspace (like `fuzz/`) so it is not part of the module build and
+# does not pull codec-vendoring into the default `cargo` set.
+[package]
+name = "ngx-compress-bench"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+ngx-compress-core = { path = "../crates/ngx-compress-core" }
+ngx-compress-codecs = { path = "../crates/ngx-compress-codecs", features = [
+    "gzip",
+    "brotli",
+    "zstd",
+] }
+
+[[bin]]
+name = "codec-matrix"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3

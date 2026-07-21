@@ -16,3 +16,6 @@ fuzz/Cargo.lock
 
 # Test::Nginx working directory
 t/servroot/
+
+# Standalone benchmark harness build artifacts
+bench/target/
