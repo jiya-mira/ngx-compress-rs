@@ -6,3 +6,4 @@
 //! panic unwind across the C ABI.
 
 pub mod filter;
+pub mod guard;

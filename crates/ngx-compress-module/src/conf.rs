@@ -167,21 +167,32 @@ pub(crate) extern "C" fn set_directive(
     _cmd: *mut ngx::ffi::ngx_command_t,
     conf: *mut c_void,
 ) -> *mut c_char {
-    // SAFETY: nginx passes a valid cf and a pointer to our CompressConfig; every
-    // directive is NGX_CONF_TAKE1, so args[0] (name) and args[1] (value) exist.
-    unsafe {
-        let config = &mut *conf.cast::<CompressConfig>();
+    ngx_compress_ffi::guard::callback(NGX_CONF_ERROR, || {
+        // SAFETY: nginx supplies valid configuration pointers to this setter.
+        unsafe { set_directive_inner(cf, conf) }
+    })
+}
+
+unsafe fn set_directive_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_char {
+    // SAFETY: TAKE1 guarantees name and value entries in the live args array.
+    let values = unsafe {
         let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
-        let (Ok(name), Ok(value)) = (args[0].to_str(), args[1].to_str()) else {
-            ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress directive value is not UTF-8");
-            return NGX_CONF_ERROR;
-        };
-        if apply(config, name, value) {
-            NGX_CONF_OK
-        } else {
-            ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid value for compress directive");
-            NGX_CONF_ERROR
-        }
+        args.first()
+            .and_then(|name| name.to_str().ok())
+            .zip(args.get(1).and_then(|value| value.to_str().ok()))
+            .map(|(name, value)| (name.to_owned(), value.to_owned()))
+    };
+    let Some((name, value)) = values else {
+        ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress directive value is not UTF-8");
+        return NGX_CONF_ERROR;
+    };
+    // SAFETY: nginx allocated and initialized this module configuration.
+    let config = unsafe { &mut *conf.cast::<CompressConfig>() };
+    if apply(config, &name, &value) {
+        NGX_CONF_OK
+    } else {
+        ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid value for compress directive");
+        NGX_CONF_ERROR
     }
 }
 
@@ -288,27 +299,35 @@ pub(crate) extern "C" fn set_buffers(
     _cmd: *mut ngx_command_t,
     conf: *mut c_void,
 ) -> *mut c_char {
-    // SAFETY: nginx passes a valid cf and our CompressConfig; TAKE2 guarantees
-    // args[1] (count) and args[2] (size) exist.
-    unsafe {
-        let config = &mut *conf.cast::<CompressConfig>();
+    ngx_compress_ffi::guard::callback(NGX_CONF_ERROR, || {
+        // SAFETY: nginx supplies valid configuration pointers to this setter.
+        unsafe { set_buffers_inner(cf, conf) }
+    })
+}
+
+unsafe fn set_buffers_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_char {
+    // SAFETY: TAKE2 guarantees count and size entries in the live args array.
+    let parsed = unsafe {
         let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
-        let mut size_arg = args[2];
+        let Some((count_arg, size)) = args.get(1).zip(args.get(2)) else {
+            return NGX_CONF_ERROR;
+        };
+        let count = count_arg
+            .to_str()
+            .ok()
+            .and_then(|count| count.parse::<usize>().ok());
+        let mut size_arg = *size;
         let size = ngx_parse_size(&raw mut size_arg);
-        match (
-            args[1].to_str().ok().and_then(|c| c.parse::<usize>().ok()),
-            size,
-        ) {
-            (Some(count), size) if count > 0 && size > 0 => {
-                config.buffers =
-                    Some((count, usize::try_from(size).unwrap_or(DEFAULT_BUFFER_SIZE)));
-                NGX_CONF_OK
-            }
-            _ => {
-                ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid compress_buffers value");
-                NGX_CONF_ERROR
-            }
-        }
+        count.zip((size > 0).then_some(size))
+    };
+    if let Some((count, size)) = parsed.filter(|(count, _)| *count > 0) {
+        // SAFETY: nginx allocated and initialized this module configuration.
+        let config = unsafe { &mut *conf.cast::<CompressConfig>() };
+        config.buffers = Some((count, usize::try_from(size).unwrap_or(DEFAULT_BUFFER_SIZE)));
+        NGX_CONF_OK
+    } else {
+        ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid compress_buffers value");
+        NGX_CONF_ERROR
     }
 }
 
@@ -318,22 +337,34 @@ pub(crate) extern "C" fn set_types(
     _cmd: *mut ngx_command_t,
     conf: *mut c_void,
 ) -> *mut c_char {
-    // SAFETY: nginx passes a valid cf and our CompressConfig; 1MORE guarantees
-    // at least one MIME argument. Copy values into Rust ownership at the FFI
-    // boundary so no ngx_array/ngx_str pointers reach the request path.
-    unsafe {
-        let config = &mut *conf.cast::<CompressConfig>();
+    ngx_compress_ffi::guard::callback(NGX_CONF_ERROR, || {
+        // SAFETY: nginx supplies valid configuration pointers to this setter.
+        unsafe { set_types_inner(cf, conf) }
+    })
+}
+
+unsafe fn set_types_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_char {
+    // SAFETY: 1MORE guarantees at least one MIME entry in the live args array;
+    // copy every value before leaving the FFI prefetch scope.
+    let values = unsafe {
         let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
-        let values = args[1..]
-            .iter()
-            .map(|mime| mime.to_str().map(str::to_owned))
-            .collect::<Result<Vec<_>, _>>();
-        if let Ok(values) = values {
-            config.types = Some(Arc::new(MimeTypes::new(values)));
-            NGX_CONF_OK
-        } else {
-            ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress_types value is not UTF-8");
-            NGX_CONF_ERROR
-        }
+        args.get(1..)
+            .filter(|values| !values.is_empty())
+            .map(|values| {
+                values
+                    .iter()
+                    .map(|mime| mime.to_str().map(str::to_owned))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()
+    };
+    if let Ok(Some(values)) = values {
+        // SAFETY: nginx allocated and initialized this module configuration.
+        let config = unsafe { &mut *conf.cast::<CompressConfig>() };
+        config.types = Some(Arc::new(MimeTypes::new(values)));
+        NGX_CONF_OK
+    } else {
+        ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress_types value is not UTF-8");
+        NGX_CONF_ERROR
     }
 }

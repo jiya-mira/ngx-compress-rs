@@ -64,8 +64,10 @@ pub(crate) unsafe fn register(cf: *mut ngx_conf_t) -> Result<(), ()> {
 
 /// Content-phase entry point.
 unsafe extern "C" fn handler(request: *mut ngx_http_request_t) -> ngx_int_t {
-    // SAFETY: nginx passes a valid request to a content-phase handler.
-    unsafe { serve(request) }
+    ngx_compress_ffi::guard::callback(ERROR, || {
+        // SAFETY: nginx passes a valid request to a content-phase handler.
+        unsafe { serve(request) }
+    })
 }
 
 unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {

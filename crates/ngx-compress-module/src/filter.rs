@@ -37,6 +37,13 @@ struct RequestCtx {
 
 // Installed into the header filter chain by registration. style:allow-pub-crate
 pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) -> ngx_int_t {
+    ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
+        // SAFETY: nginx supplied the request pointer to this callback.
+        unsafe { header_filter_inner(request) }
+    })
+}
+
+unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     // SAFETY: install() ran during postconfiguration; used for every fall-through.
     let pass = || unsafe { filter::next_header(request) };
 
@@ -81,6 +88,16 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
 
 // Installed into the body filter chain by registration. style:allow-pub-crate
 pub(crate) unsafe extern "C" fn body_filter(
+    request: *mut ngx_http_request_t,
+    chain: *mut ngx_chain_t,
+) -> ngx_int_t {
+    ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
+        // SAFETY: nginx supplied both pointers to this callback.
+        unsafe { body_filter_inner(request, chain) }
+    })
+}
+
+unsafe fn body_filter_inner(
     request: *mut ngx_http_request_t,
     chain: *mut ngx_chain_t,
 ) -> ngx_int_t {
@@ -432,14 +449,16 @@ unsafe fn clear_content_length(request: *mut ngx_http_request_t) {
 }
 
 unsafe extern "C" fn cleanup(data: *mut c_void) {
-    if !data.is_null() {
-        // SAFETY: `data` is the RequestCtx pointer we leaked in install_ctx.
-        let ctx = *unsafe { Box::from_raw(data.cast::<RequestCtx>()) };
-        // Return the codec to this worker's pool for reuse; `reset` on the next
-        // acquire clears its state. The raw chain pointers are pool-owned and
-        // need no drop.
-        worker::release(ctx.key, ctx.codec);
-    }
+    ngx_compress_ffi::guard::callback((), || {
+        if !data.is_null() {
+            // SAFETY: `data` is the RequestCtx pointer we leaked in install_ctx.
+            let ctx = *unsafe { Box::from_raw(data.cast::<RequestCtx>()) };
+            // Return the codec to this worker's pool for reuse; `reset` on the next
+            // acquire clears its state. The raw chain pointers are pool-owned and
+            // need no drop.
+            worker::release(ctx.key, ctx.codec);
+        }
+    });
 }
 
 // SAFETY: `request` must be valid; invoked once per request by the header filter.

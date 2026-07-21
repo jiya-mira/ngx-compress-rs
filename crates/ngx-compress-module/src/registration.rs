@@ -25,16 +25,24 @@ impl HttpModule for Module {
     }
 
     unsafe extern "C" fn postconfiguration(cf: *mut ngx_conf_t) -> ngx_int_t {
-        // SAFETY: postconfiguration runs once in the single-threaded master before
-        // workers fork; installing filters and the content handler is safe.
-        unsafe {
-            ngx_compress_ffi::filter::install(Some(header_filter), Some(body_filter));
-            if crate::static_file::register(cf).is_err() {
-                return Status::NGX_ERROR.0;
-            }
-        }
-        Status::NGX_OK.0
+        ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
+            // SAFETY: nginx supplied the configuration pointer while still
+            // single-threaded.
+            unsafe { postconfiguration_inner(cf) }
+        })
     }
+}
+
+unsafe fn postconfiguration_inner(cf: *mut ngx_conf_t) -> ngx_int_t {
+    // SAFETY: postconfiguration runs once in the single-threaded master before
+    // workers fork; installing filters and the content handler is safe.
+    unsafe {
+        ngx_compress_ffi::filter::install(Some(header_filter), Some(body_filter));
+        if crate::static_file::register(cf).is_err() {
+            return Status::NGX_ERROR.0;
+        }
+    }
+    Status::NGX_OK.0
 }
 
 // SAFETY: LocationConf is a plain POD config that ngx-rust allocates, default-
