@@ -20,6 +20,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 publish = false
+license = "Apache-2.0"
+repository = "https://github.com/jiya-mira/ngx-compress-rs"
+homepage = "https://github.com/jiya-mira/ngx-compress-rs"
+readme = "README.md"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -37,4 +41,3 @@ lto = "fat"
 opt-level = 3
 strip = "symbols"
 codegen-units = 1
-

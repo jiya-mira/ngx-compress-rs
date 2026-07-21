@@ -3,8 +3,9 @@
 This document finalizes the module design, the user-facing configuration
 schema, and the local testing plan. It builds on the component boundaries and
 milestones in [architecture.md](architecture.md); read that first for the
-integration model and the `nginx/ngx-rust` research. Nothing here is
-implemented yet — this is the agreed specification for M1 onward.
+integration model and the `nginx/ngx-rust` research. M0 through M3 are now
+implemented; this document records the resulting behavior as well as explicitly
+deferred work.
 
 ## 1. Filter architecture
 
@@ -325,8 +326,7 @@ Pure-Rust layers stay hermetic and fast; NGINX-dependent layers are gated so
 
 ### L0 — Protocol core (now, plain `cargo`)
 
-Unit tests already cover negotiation and progress invariants. Add property
-tests (`proptest`):
+Unit and property tests (`proptest`) cover negotiation and progress invariants:
 
 - parser never panics on arbitrary input; duplicate codings keep the highest
   `q`; `q` values stay monotonic and in range.
@@ -347,11 +347,13 @@ Per codec:
 ### L2 — NGINX integration (M1+, needs an NGINX source tree)
 
 Harness: **Test::Nginx** (the official Perl framework, matching
-`nginx/nginx-acme`) for authoritative coverage, plus a thin Rust harness
-(`assert-cmd` + `reqwest`) spawning a pinned NGINX for the fast developer loop.
+`nginx/nginx-acme`) plus shell-driven Docker integration and edge suites against
+a pinned NGINX source tree.
 
-Coverage: filter order, backpressure, reload, client disconnect, chunked
-upstreams, and HTTP/1.1 / HTTP/2 / HTTP/3 interoperability.
+Current coverage includes compression round-trips, dynamic/static link modes,
+filter order for dynamic SSI, backpressure, client disconnect, truncated and
+chunked upstream responses, and HTTP/1.1 / HTTP/2 interoperability. Reload and
+HTTP/3 remain release-matrix work.
 
 ### Docker build-and-integration environment (static + dynamic)
 
@@ -366,8 +368,9 @@ filter order differs between them:
 3. **Smoke** — `curl -H 'Accept-Encoding: zstd,br,gzip'`, assert the correct
    `Content-Encoding`, decode the body with the system `zstd`/`brotli`/`gzip`
    CLI back to the original, and assert `Vary` is present.
-4. **Divergence tests** — filter order, reload, client disconnect, and chunked
-   transfer are each exercised under both link modes.
+4. **Edge tests** — the supported dynamic target exercises filter order,
+   backpressure, client disconnect, truncated/chunked upstream responses, and
+   HTTP/2. Both link modes run the ordinary compression and sidecar smoke suite.
 
 The dynamic build is the first release target; static support is validated in
 parallel but the release matrix in architecture.md prefers dynamic modules.

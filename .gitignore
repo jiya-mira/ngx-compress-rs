@@ -1,22 +1,39 @@
-/target/
-**/*.rs.bk
+# Rust and native build output
+**/target/
+*.rs.bk
+*.so
+*.dylib
+*.dll
+*.profraw
+/build/
+/dist/
+/artifacts/
+/coverage/
 
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
 
-.DS_Store
+# Editors and operating systems
 /.idea/
+/.vscode/
+/.fleet/
+*.iml
+.DS_Store
+Thumbs.db
 
-# graphify: track graph.json / GRAPH_REPORT.md; ignore local machine state
-graphify-out/cache/
-graphify-out/.graphify_*
+# Local code-graph output (regenerable with graphify)
+/graphify-out/
 
-# cargo-fuzz (nightly, separate workspace)
-fuzz/target/
-fuzz/corpus/
-fuzz/artifacts/
-fuzz/Cargo.lock
+# cargo-fuzz runtime state (nightly, separate workspace)
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/Cargo.lock
 
-# Test::Nginx working directory
-t/servroot/
-
-# Standalone benchmark harness build artifacts
-bench/target/
+# Test::Nginx and local runtime state
+/t/servroot/
+*.log
+*.pid
