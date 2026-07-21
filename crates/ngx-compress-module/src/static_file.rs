@@ -34,6 +34,54 @@ const DECLINED: ngx_int_t = Status::NGX_DECLINED.0;
 const OK: ngx_int_t = Status::NGX_OK.0;
 const ERROR: ngx_int_t = Status::NGX_ERROR.0;
 
+/// Checked mapped-path buffer with room reserved for one sidecar extension.
+struct MappedPath(ngx_str_t);
+
+impl MappedPath {
+    /// Maps the request URI and appends `extension` inside nginx's reserved tail.
+    ///
+    /// # Safety
+    ///
+    /// `request` must be valid. NGINX must honor the documented reserved-tail
+    /// contract of `ngx_http_map_uri_to_path`.
+    unsafe fn with_extension(
+        request: *mut ngx_http_request_t,
+        extension: &str,
+    ) -> Result<Self, ()> {
+        let mut path = ngx_str_t {
+            len: 0,
+            data: ptr::null_mut(),
+        };
+        let mut root = 0usize;
+        // SAFETY: caller supplies a valid request; path/root are live outputs.
+        let last = unsafe {
+            ngx_http_map_uri_to_path(request, &raw mut path, &raw mut root, extension.len())
+        };
+        if last.is_null() || path.data.is_null() {
+            return Err(());
+        }
+        let base_len = last.addr().checked_sub(path.data.addr()).ok_or(())?;
+        let total_len = base_len.checked_add(extension.len()).ok_or(())?;
+
+        // SAFETY: map_uri_to_path reserved extension.len() bytes plus its NUL
+        // terminator beginning at `last`.
+        unsafe {
+            ptr::copy_nonoverlapping(extension.as_ptr(), last, extension.len());
+            *last.add(extension.len()) = 0;
+        }
+        path.len = total_len;
+        Ok(Self(path))
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut ngx_str_t {
+        &raw mut self.0
+    }
+
+    fn into_raw(self) -> ngx_str_t {
+        self.0
+    }
+}
+
 /// `500 Internal Server Error` as an `ngx_int_t` return code.
 fn server_error() -> ngx_int_t {
     ngx_int_t::try_from(NGX_HTTP_INTERNAL_SERVER_ERROR).unwrap_or(ERROR)
@@ -103,23 +151,10 @@ unsafe fn prefetch_request(request: *mut ngx_http_request_t) -> Option<StaticReq
         let get_head = (NGX_HTTP_GET | NGX_HTTP_HEAD) as ngx_uint_t;
         Some(StaticRequestFacts {
             method_supported: (*request).method & get_head != 0,
-            uri: copy_ngx_bytes(&(*request).uri)?,
+            uri: ngx_compress_ffi::string::copy_bytes(&(*request).uri)?,
             accept_encoding: accept_encoding(request),
         })
     }
-}
-
-/// Copies an nginx byte string into Rust ownership without assuming UTF-8.
-unsafe fn copy_ngx_bytes(value: &ngx_str_t) -> Option<Vec<u8>> {
-    if value.len == 0 {
-        return Some(Vec::new());
-    }
-    if value.data.is_null() {
-        return None;
-    }
-    // SAFETY: the caller guarantees that non-empty data is live for len bytes;
-    // to_vec removes the external lifetime before policy sees the value.
-    Some(unsafe { core::slice::from_raw_parts(value.data, value.len) }.to_vec())
 }
 
 /// Attempts to open and serve the sidecar for one coding. `Some(rc)` means we
@@ -134,22 +169,14 @@ unsafe fn try_serve(
     // SAFETY: builds the sidecar path, opens it via the location's file cache,
     // and, if present, emits the file as the response body.
     unsafe {
-        let mut path = ngx_str_t {
-            len: 0,
-            data: ptr::null_mut(),
-        };
-        let mut root = 0usize;
-        let last = ngx_http_map_uri_to_path(request, &raw mut path, &raw mut root, ext.len());
-        if last.is_null() {
+        let Ok(mut path) = MappedPath::with_extension(request, ext) else {
             return Some(server_error());
-        }
-        // `last` reuses the mapped path's NUL slot; append the extension + NUL.
-        let bytes = ext.as_bytes();
-        ptr::copy_nonoverlapping(bytes.as_ptr(), last, bytes.len());
-        *last.add(bytes.len()) = 0;
-        path.len = usize::try_from(last.offset_from(path.data)).unwrap_or(0) + bytes.len();
+        };
 
         let clcf = core_loc_conf(request);
+        if clcf.is_null() {
+            return Some(server_error());
+        }
         let mut of: ngx_open_file_info_t = core::mem::zeroed();
         of.read_ahead = (*clcf).read_ahead;
         of.directio = (*clcf).directio;
@@ -158,7 +185,7 @@ unsafe fn try_serve(
 
         if ngx_open_cached_file(
             (*clcf).open_file_cache,
-            &raw mut path,
+            path.as_mut_ptr(),
             &raw mut of,
             (*request).pool,
         ) != OK
@@ -166,7 +193,7 @@ unsafe fn try_serve(
         {
             return None;
         }
-        Some(send_file(request, coding, path, &of))
+        Some(send_file(request, coding, path.into_raw(), &of))
     }
 }
 

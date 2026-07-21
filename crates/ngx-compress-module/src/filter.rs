@@ -3,12 +3,12 @@
 //! body through the selected codec with free/busy chain backpressure.
 
 use core::ffi::c_void;
-use core::{ptr, slice, str};
+use core::{ptr, slice};
 
 use ngx::core::Status;
 use ngx::ffi::{
     NGX_HTTP_OK, ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t, ngx_chain_update_chains,
-    ngx_http_request_t, ngx_int_t, ngx_palloc, ngx_pool_cleanup_add, ngx_str_t,
+    ngx_http_request_t, ngx_int_t, ngx_palloc, ngx_pool_cleanup_add,
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf, Request};
 use ngx_compress_core::{
@@ -67,10 +67,14 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
 
     // SAFETY: create the request wrapper only for the submit phase.
     let req = unsafe { Request::from_ngx_http_request(request) };
+    // Adding Vary first makes a later Content-Encoding allocation failure safe
+    // to pass through: an extra Vary is harmless, while a lone encoding is not.
+    if plan.vary && req.add_header_out("Vary", "Accept-Encoding").is_none() {
+        return pass();
+    }
     if req
         .add_header_out("Content-Encoding", plan.coding.as_str())
         .is_none()
-        || (plan.vary && req.add_header_out("Vary", "Accept-Encoding").is_none())
     {
         return pass();
     }
@@ -402,25 +406,13 @@ unsafe fn prefetch_header(request: *mut ngx_http_request_t) -> Option<Snapshot> 
                 successful: u32::try_from((*request).headers_out.status).ok()? == NGX_HTTP_OK,
                 already_encoded: !(*request).headers_out.content_encoding.is_null(),
                 content_length,
-                content_type: copy_ngx_str(&(*request).headers_out.content_type)?,
+                content_type: ngx_compress_ffi::string::copy_string(
+                    &(*request).headers_out.content_type,
+                )?,
             },
             accept_encoding: accept_encoding(request),
         })
     }
-}
-
-/// Copies a small nginx string into Rust ownership at the request boundary.
-unsafe fn copy_ngx_str(value: &ngx_str_t) -> Option<String> {
-    if value.len == 0 {
-        return Some(String::new());
-    }
-    if value.data.is_null() {
-        return None;
-    }
-    // SAFETY: the caller guarantees that non-empty ngx_str data is live for len
-    // bytes; the returned String has no dependency on that external lifetime.
-    let bytes = unsafe { slice::from_raw_parts(value.data, value.len) };
-    str::from_utf8(bytes).ok().map(str::to_owned)
 }
 
 // Shared with the static-sidecar handler. style:allow-pub-crate
@@ -431,7 +423,7 @@ pub(crate) unsafe fn accept_encoding(request: *mut ngx_http_request_t) -> Accept
         if header.is_null() {
             return AcceptEncoding::absent();
         }
-        copy_ngx_str(&(*header).value)
+        ngx_compress_ffi::string::copy_string(&(*header).value)
             .map_or_else(AcceptEncoding::absent, |text| AcceptEncoding::parse(&text))
     }
 }
