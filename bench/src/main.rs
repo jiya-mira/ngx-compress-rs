@@ -93,7 +93,7 @@ fn row(
     let Some((out, mbps)) = bench(codec, input) else {
         return format!("| {label} | {level} | - | (encode error) | - | - |\n");
     };
-    // style:allow-as-cast (small lossless usize/u64 -> f64 for reporting)
+    // style:allow-as-cast (reporting accepts approximate integer-to-f64 conversion)
     let ratio = 100.0 * out as f64 / input.len() as f64;
     let win = if window == 0 {
         "-".to_string()
@@ -114,7 +114,7 @@ fn bench(codec: &mut dyn StreamingCodec, input: &[u8]) -> Option<(usize, f64)> {
         iterations += 1;
     }
     let secs = start.elapsed().as_secs_f64();
-    // style:allow-as-cast (byte/iteration counts -> f64 for a throughput figure)
+    // style:allow-as-cast (throughput reporting accepts approximate integer-to-f64 conversion)
     let bytes = input.len() as f64 * iterations as f64;
     Some((out_len, bytes / secs / 1.0e6))
 }

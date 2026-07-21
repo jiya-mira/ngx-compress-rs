@@ -6,6 +6,7 @@ use ngx::ffi::ngx_str_t;
 ///
 /// For a non-empty value, `data` must point to `len` live readable bytes.
 #[must_use]
+// SAFETY: the caller must uphold the pointer and length contract above.
 pub unsafe fn copy_bytes(value: &ngx_str_t) -> Option<Vec<u8>> {
     if value.len == 0 {
         return Some(Vec::new());
@@ -23,6 +24,7 @@ pub unsafe fn copy_bytes(value: &ngx_str_t) -> Option<Vec<u8>> {
 ///
 /// For a non-empty value, `data` must point to `len` live readable bytes.
 #[must_use]
+// SAFETY: the caller must uphold the pointer and length contract above.
 pub unsafe fn copy_string(value: &ngx_str_t) -> Option<String> {
     // SAFETY: forwards the caller's ngx_str allocation guarantee.
     String::from_utf8(unsafe { copy_bytes(value)? }).ok()

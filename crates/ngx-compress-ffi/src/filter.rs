@@ -24,7 +24,7 @@ static mut NEXT_BODY_FILTER: ngx_http_output_body_filter_pt = None;
 /// Must be called exactly once, from a module's `postconfiguration` callback,
 /// while NGINX is still single-threaded. `header` and `body` must remain valid
 /// for the lifetime of the process.
-// SAFETY: caller contract is documented in the `# Safety` section above. style:allow-unsafe
+// SAFETY: caller contract is documented in the `# Safety` section above.
 pub unsafe fn install(
     header: ngx_http_output_header_filter_pt,
     body: ngx_http_output_body_filter_pt,

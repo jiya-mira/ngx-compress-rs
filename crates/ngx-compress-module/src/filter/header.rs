@@ -2,31 +2,13 @@
 
 //! Safe header-filter policy: turn owned response facts into a complete plan.
 
-use ngx_compress_core::{
-    AcceptEncoding, CompressionPolicy, ContentCoding, ResponseFacts, StreamingCodec, eligible,
-};
+use ngx_compress_core::{CompressionPolicy, eligible};
 
+use super::{Plan, Snapshot, select};
 use crate::config::Resolved;
-use crate::select;
-use crate::worker::CodecKey;
-
-/// Owned values prefetched from one nginx request/response.
-pub(crate) struct Snapshot {
-    pub facts: ResponseFacts,
-    pub accept_encoding: AcceptEncoding,
-}
-
-/// Complete safe-core decision consumed by the FFI submit layer.
-pub(crate) struct Plan {
-    pub codec: Box<dyn StreamingCodec>,
-    pub key: CodecKey,
-    pub coding: ContentCoding,
-    pub vary: bool,
-    pub buffer_size: usize,
-}
 
 /// Applies eligibility, negotiation, and codec selection without raw nginx data.
-pub(crate) fn decide(resolved: &Resolved<'_>, snapshot: &Snapshot) -> Option<Plan> {
+pub(in crate::filter) fn decide(resolved: &Resolved<'_>, snapshot: &Snapshot) -> Option<Plan> {
     let policy = CompressionPolicy {
         enabled: resolved.enabled,
         min_length: resolved.min_length,

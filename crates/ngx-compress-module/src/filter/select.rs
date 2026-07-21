@@ -3,8 +3,9 @@
 //! Server-side codec selection: honor the client's `Accept-Encoding` quality
 //! values, break ties by the default priority order, and build the codec.
 
+use super::CodecKey;
+use super::worker;
 use crate::config::Resolved;
-use crate::worker::{self, CodecKey};
 use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
 
 /// Default tie-break order for equal client quality (no server standard exists).
@@ -17,8 +18,8 @@ const PRIORITY: [ContentCoding; 4] = [
 
 /// Selects a coding and provides its codec (reused from the worker pool when
 /// possible) with the key needed to return it on cleanup, or `None` for
-/// identity. style:allow-pub-crate
-pub(crate) fn choose(
+/// identity.
+pub(in crate::filter) fn choose(
     resolved: &Resolved<'_>,
     accept: &AcceptEncoding,
 ) -> Option<(Box<dyn StreamingCodec>, CodecKey)> {

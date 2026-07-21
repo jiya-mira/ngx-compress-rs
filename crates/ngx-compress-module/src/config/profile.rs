@@ -13,25 +13,25 @@
 //! behavior for configs written before profiles existed.
 
 /// A preset bundle applied when a named profile is selected. Enabling codecs is
-/// still gated by the compiled-in Cargo features at selection time. style:allow-pub-crate
+/// still gated by the compiled-in Cargo features at selection time.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Preset {
-    pub gzip: bool,
-    pub brotli: bool,
-    pub zstd: bool,
-    pub gzip_level: u32,
-    pub deflate_level: u32,
-    pub brotli_level: u32,
-    pub brotli_window: u32,
-    pub zstd_level: i32,
-    pub min_length: usize,
+pub(in crate::config) struct Preset {
+    pub(in crate::config) gzip: bool,
+    pub(in crate::config) brotli: bool,
+    pub(in crate::config) zstd: bool,
+    pub(in crate::config) gzip_level: u32,
+    pub(in crate::config) deflate_level: u32,
+    pub(in crate::config) brotli_level: u32,
+    pub(in crate::config) brotli_window: u32,
+    pub(in crate::config) zstd_level: i32,
+    pub(in crate::config) min_length: usize,
 }
 
 /// Which named preset the `compress` directive selected. `Custom` is
 /// `compress on` — no preset, honor explicit directives and built-in defaults
-/// only. style:allow-pub-crate
+/// only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Profile {
+pub(in crate::config) enum Profile {
     Custom,
     Fast,
     Balanced,
@@ -40,8 +40,7 @@ pub(crate) enum Profile {
 
 impl Profile {
     /// Parses a `compress` argument that names a profile (not `on`/`off`).
-    // style:allow-pub-crate
-    pub(crate) fn parse(value: &str) -> Option<Self> {
+    pub(in crate::config) fn parse(value: &str) -> Option<Self> {
         if value.eq_ignore_ascii_case("fast") {
             Some(Self::Fast)
         } else if value.eq_ignore_ascii_case("balanced") {
@@ -65,8 +64,7 @@ impl Profile {
     /// is intentionally left opt-in (never enabled by a preset) since clients
     /// almost never request raw `deflate`; its level is still supplied for
     /// configs that turn it on explicitly.
-    // style:allow-pub-crate
-    pub(crate) fn preset(self) -> Option<Preset> {
+    pub(in crate::config) fn preset(self) -> Option<Preset> {
         let preset = match self {
             Self::Custom => return None,
             Self::Fast => Preset {

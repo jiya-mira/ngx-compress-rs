@@ -1,3 +1,10 @@
+#![cfg(any(
+    feature = "gzip",
+    feature = "deflate",
+    feature = "brotli",
+    feature = "zstd"
+))]
+
 //! Round-trip tests: drive each codec through the streaming step contract with
 //! varying output buffer sizes (to exercise backpressure), then decode the
 //! result with a reference decoder and assert it equals the input.

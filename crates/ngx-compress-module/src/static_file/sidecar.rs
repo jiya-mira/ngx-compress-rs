@@ -1,40 +1,18 @@
-// style:allow-file-size (one cohesive content-phase handler + its FFI plumbing)
-//! Precompressed-sidecar serving (`compress_static`).
-//!
-//! A NGINX content-phase handler, in the spirit of `gzip_static`: for `GET`/`HEAD`
-//! it looks for a precompressed sidecar next to the requested file (`x.js.zst`,
-//! `x.js.br`, `x.js.gz`) that the client accepts, and serves it directly with the
-//! right `Content-Encoding` — no runtime compression. If none exists it declines
-//! so the normal static handler serves the original.
-//!
-//! Serving happens before the output filters run, so our own header filter sees
-//! `Content-Encoding` already set and passes the bytes through untouched.
+//! NGINX path mapping, cached-file lookup, and sidecar response submission.
 
 use core::mem::size_of;
 use core::ptr;
 
-use ngx::core::Status;
 use ngx::ffi::{
-    NGX_HTTP_GET, NGX_HTTP_HEAD, NGX_HTTP_INTERNAL_SERVER_ERROR, NGX_HTTP_OK, ngx_array_push,
-    ngx_buf_t, ngx_chain_t, ngx_conf_t, ngx_file_t, ngx_http_conf_ctx_t, ngx_http_core_main_conf_t,
-    ngx_http_core_module, ngx_http_discard_request_body, ngx_http_handler_pt,
-    ngx_http_map_uri_to_path, ngx_http_output_filter, ngx_http_phases_NGX_HTTP_CONTENT_PHASE,
-    ngx_http_request_t, ngx_http_send_header, ngx_http_set_content_type, ngx_http_set_etag,
-    ngx_int_t, ngx_list_push, ngx_open_cached_file, ngx_open_file_info_t, ngx_pcalloc, ngx_str_t,
-    ngx_table_elt_t, ngx_uint_t,
+    NGX_HTTP_INTERNAL_SERVER_ERROR, NGX_HTTP_OK, ngx_buf_t, ngx_chain_t, ngx_file_t,
+    ngx_http_core_module, ngx_http_discard_request_body, ngx_http_map_uri_to_path,
+    ngx_http_output_filter, ngx_http_request_t, ngx_http_send_header, ngx_http_set_content_type,
+    ngx_http_set_etag, ngx_int_t, ngx_list_push, ngx_open_cached_file, ngx_open_file_info_t,
+    ngx_pcalloc, ngx_str_t, ngx_table_elt_t, ngx_uint_t,
 };
-use ngx::http::{HttpModuleLocationConf, Request};
-use ngx_compress_core::{
-    ContentCoding, StaticCandidate, StaticMode, StaticRequestFacts, static_candidates,
-};
+use ngx_compress_core::ContentCoding;
 
-use crate::config::CompressConfig;
-use crate::filter::accept_encoding;
-use crate::registration::Module;
-
-const DECLINED: ngx_int_t = Status::NGX_DECLINED.0;
-const OK: ngx_int_t = Status::NGX_OK.0;
-const ERROR: ngx_int_t = Status::NGX_ERROR.0;
+use super::{ERROR, OK};
 
 /// Checked mapped-path buffer with room reserved for one sidecar extension.
 struct MappedPath(ngx_str_t);
@@ -46,6 +24,7 @@ impl MappedPath {
     ///
     /// `request` must be valid. NGINX must honor the documented reserved-tail
     /// contract of `ngx_http_map_uri_to_path`.
+    // SAFETY: the caller must uphold the request and reserved-tail contract above.
     unsafe fn with_extension(
         request: *mut ngx_http_request_t,
         extension: &str,
@@ -84,97 +63,18 @@ impl MappedPath {
     }
 }
 
-/// `500 Internal Server Error` as an `ngx_int_t` return code.
-fn server_error() -> ngx_int_t {
-    ngx_int_t::try_from(NGX_HTTP_INTERNAL_SERVER_ERROR).unwrap_or(ERROR)
-}
-
-/// Registers the content-phase handler; call from postconfiguration.
-///
-/// # Safety
-///
-/// `cf` must be the valid `ngx_conf_t` nginx passes to postconfiguration.
-// style:allow-pub-crate
-pub(crate) unsafe fn register(cf: *mut ngx_conf_t) -> Result<(), ()> {
-    // SAFETY: caller contract documented above; runs once, single-threaded.
-    unsafe {
-        let ctx = (*cf).ctx.cast::<ngx_http_conf_ctx_t>();
-        let core_index = (*ptr::addr_of!(ngx_http_core_module)).ctx_index;
-        let cmcf = (*(*ctx).main_conf.add(core_index)).cast::<ngx_http_core_main_conf_t>();
-        let phase = ngx_http_phases_NGX_HTTP_CONTENT_PHASE as usize; // style:allow-as-cast
-        let slot =
-            ngx_array_push(&raw mut (*cmcf).phases[phase].handlers).cast::<ngx_http_handler_pt>();
-        if slot.is_null() {
-            return Err(());
-        }
-        *slot = Some(handler);
-        Ok(())
-    }
-}
-
-/// Content-phase entry point.
-unsafe extern "C" fn handler(request: *mut ngx_http_request_t) -> ngx_int_t {
-    ngx_compress_ffi::guard::callback(ERROR, || {
-        // SAFETY: nginx passes a valid request to a content-phase handler.
-        unsafe { serve(request) }
-    })
-}
-
-unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
-    // SAFETY: scope the official wrapper to reading configuration; the resolved
-    // snapshot borrows only configuration-owned MIME data.
-    let resolved = unsafe {
-        let req = Request::from_ngx_http_request(request);
-        Module::location_conf(req).map(CompressConfig::resolve)
-    };
-    let Some(resolved) = resolved else {
-        return DECLINED;
-    };
-    if resolved.static_mode == StaticMode::Off {
-        return DECLINED;
-    }
-    // SAFETY: copy the method, URI, and Accept-Encoding into Rust-owned facts.
-    let Some(snapshot) = (unsafe { prefetch_request(request) }) else {
-        return DECLINED;
-    };
-
-    // style:allow-for-in
-    for StaticCandidate { coding, extension } in static_candidates(resolved.static_mode, &snapshot)
-    {
-        // SAFETY: submit layer probes and possibly emits this complete candidate.
-        if let Some(rc) = unsafe { try_serve(request, coding, extension) } {
-            return rc;
-        }
-    }
-    DECLINED
-}
-
-/// Copies all static-sidecar policy inputs out of nginx request memory.
-unsafe fn prefetch_request(request: *mut ngx_http_request_t) -> Option<StaticRequestFacts> {
-    // SAFETY: nginx supplied a valid request and a live URI ngx_str.
-    unsafe {
-        let get_head = (NGX_HTTP_GET | NGX_HTTP_HEAD) as ngx_uint_t;
-        Some(StaticRequestFacts {
-            method_supported: (*request).method & get_head != 0,
-            uri: ngx_compress_ffi::string::copy_bytes(&(*request).uri)?,
-            accept_encoding: accept_encoding(request),
-        })
-    }
-}
-
 /// Attempts to open and serve the sidecar for one coding. `Some(rc)` means we
-/// handled the request (served it or hit an error); `None` means no such sidecar
-/// — try the next candidate.
-// SAFETY: `request` is a valid nginx request; the body upholds the FFI contract.
-unsafe fn try_serve(
+/// handled the request; `None` means no such sidecar, so try the next candidate.
+// SAFETY: `request` must be a valid NGINX request for the full probe and submit.
+pub(in crate::static_file) unsafe fn try_serve(
     request: *mut ngx_http_request_t,
     coding: ContentCoding,
-    ext: &str,
+    extension: &str,
 ) -> Option<ngx_int_t> {
     // SAFETY: builds the sidecar path, opens it via the location's file cache,
     // and, if present, emits the file as the response body.
     unsafe {
-        let Ok(mut path) = MappedPath::with_extension(request, ext) else {
+        let Ok(mut path) = MappedPath::with_extension(request, extension) else {
             return Some(server_error());
         };
 
@@ -203,7 +103,7 @@ unsafe fn try_serve(
 }
 
 /// Emits an opened sidecar file as the response body.
-// SAFETY: `request` is valid and `of` describes a file opened by the caller.
+// SAFETY: `request` must be valid and `of` must describe a live opened file.
 unsafe fn send_file(
     request: *mut ngx_http_request_t,
     coding: ContentCoding,
@@ -256,6 +156,7 @@ unsafe fn send_file(
 }
 
 /// Adds `Content-Encoding: <coding>` to the response and records it.
+// SAFETY: `request` must own a live, mutable output-header list.
 unsafe fn add_content_encoding(request: *mut ngx_http_request_t, coding: ContentCoding) -> bool {
     // SAFETY: pushes a header onto the (uninitialized) headers_out list slot.
     unsafe {
@@ -274,7 +175,7 @@ unsafe fn add_content_encoding(request: *mut ngx_http_request_t, coding: Content
 }
 
 /// The core module's per-location config, holding the open-file cache and roots.
-// SAFETY: `request` is a valid nginx request with a populated `loc_conf` array.
+// SAFETY: `request` must have a populated location-configuration array.
 unsafe fn core_loc_conf(
     request: *mut ngx_http_request_t,
 ) -> *mut ngx::ffi::ngx_http_core_loc_conf_t {
@@ -283,6 +184,11 @@ unsafe fn core_loc_conf(
         let index = (*ptr::addr_of!(ngx_http_core_module)).ctx_index;
         (*(*request).loc_conf.add(index)).cast()
     }
+}
+
+/// `500 Internal Server Error` as an `ngx_int_t` return code.
+fn server_error() -> ngx_int_t {
+    ngx_int_t::try_from(NGX_HTTP_INTERNAL_SERVER_ERROR).unwrap_or(ERROR)
 }
 
 /// Wraps a `'static` string as an `ngx_str_t`; its bytes outlive the response.

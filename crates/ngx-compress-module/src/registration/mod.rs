@@ -1,6 +1,8 @@
 //! The `ngx_http_compress_module` static definition, its directive table, and
 //! installation of the header/body filters during postconfiguration.
 
+mod conf;
+
 use core::ptr;
 
 use ngx::core::Status;
@@ -12,9 +14,9 @@ use ngx::ffi::{
 use ngx::http::{HttpModule, HttpModuleLocationConf};
 use ngx::ngx_string;
 
-use crate::conf::{set_buffers, set_directive, set_types};
 use crate::config::CompressConfig;
-use crate::filter::{body_filter, header_filter};
+
+use self::conf::{set_buffers, set_directive, set_types};
 
 /// The module type, used by the filters as their config/ctx key. style:allow-pub-crate
 pub(crate) struct Module;
@@ -38,7 +40,7 @@ unsafe fn postconfiguration_inner(cf: *mut ngx_conf_t) -> ngx_int_t {
     // SAFETY: postconfiguration runs once in the single-threaded master before
     // workers fork; installing filters and the content handler is safe.
     unsafe {
-        ngx_compress_ffi::filter::install(Some(header_filter), Some(body_filter));
+        crate::filter::install();
         if crate::static_file::register(cf).is_err() {
             return Status::NGX_ERROR.0;
         }
@@ -126,6 +128,8 @@ ngx::ngx_modules!(ngx_http_compress_module);
 
 #[used]
 #[allow(non_upper_case_globals)]
+// Rust callers are crate-local, but NGINX resolves this exported ABI symbol.
+#[allow(unreachable_pub)]
 #[cfg_attr(not(feature = "export-modules"), unsafe(no_mangle))]
 pub static mut ngx_http_compress_module: ngx_module_t = ngx_module_t {
     ctx: ptr::addr_of!(NGX_HTTP_COMPRESS_MODULE_CTX)

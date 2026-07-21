@@ -16,29 +16,9 @@
 
 use core::cell::RefCell;
 
-use ngx_compress_core::{CodecError, ContentCoding, StreamingCodec};
+use ngx_compress_core::{CodecError, StreamingCodec};
 
-/// Identifies an interchangeable codec: same coding and same parameters, so a
-/// pooled instance is a drop-in for a fresh one after `reset`. style:allow-pub-crate
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CodecKey {
-    coding: ContentCoding,
-    // Compression level; zstd allows negative fast levels, hence `i32`.
-    level: i32,
-    // Brotli window bits; `0` for codings without a window parameter.
-    window: u32,
-}
-
-impl CodecKey {
-    /// style:allow-pub-crate
-    pub(crate) fn new(coding: ContentCoding, level: i32, window: u32) -> Self {
-        Self {
-            coding,
-            level,
-            window,
-        }
-    }
-}
+use super::CodecKey;
 
 struct Entry {
     key: CodecKey,
@@ -56,8 +36,10 @@ thread_local! {
 }
 
 /// Takes a reset, ready-to-use codec matching `key` from this worker's pool, or
-/// `None` if none is idle (the caller then builds a fresh one). style:allow-pub-crate
-pub(crate) fn acquire(key: CodecKey) -> Result<Option<Box<dyn StreamingCodec>>, CodecError> {
+/// `None` if none is idle (the caller then builds a fresh one).
+pub(in crate::filter) fn acquire(
+    key: CodecKey,
+) -> Result<Option<Box<dyn StreamingCodec>>, CodecError> {
     POOL.with(|pool| {
         let mut pool = pool.borrow_mut();
         let Some(index) = pool.iter().position(|entry| entry.key == key) else {
@@ -72,8 +54,8 @@ pub(crate) fn acquire(key: CodecKey) -> Result<Option<Box<dyn StreamingCodec>>, 
 }
 
 /// Returns a finished codec to this worker's pool for later reuse, dropping it if
-/// the pool is at capacity. style:allow-pub-crate
-pub(crate) fn release(key: CodecKey, codec: Box<dyn StreamingCodec>) {
+/// the pool is at capacity.
+pub(in crate::filter) fn release(key: CodecKey, codec: Box<dyn StreamingCodec>) {
     POOL.with(|pool| {
         let mut pool = pool.borrow_mut();
         if pool.len() < MAX_IDLE {

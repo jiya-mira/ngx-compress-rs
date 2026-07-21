@@ -6,9 +6,9 @@ use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
 use ngx::ffi::{NGX_LOG_EMERG, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
 use ngx::ngx_conf_log_error;
 
-use crate::config::CompressConfig;
+use crate::config::{CompressConfig, ConfigUpdate};
 
-pub(crate) extern "C" fn set_directive(
+pub(in crate::registration) extern "C" fn set_directive(
     cf: *mut ngx_conf_t,
     _cmd: *mut ngx_command_t,
     conf: *mut c_void,
@@ -36,7 +36,7 @@ unsafe fn set_directive_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_
     };
     // SAFETY: nginx allocated and initialized this module configuration.
     let config = unsafe { &mut *conf.cast::<CompressConfig>() };
-    if config.apply(&name, &value) {
+    if config.apply(ConfigUpdate::Named { name, value }) {
         NGX_CONF_OK
     } else {
         ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid value for compress directive");
@@ -44,7 +44,7 @@ unsafe fn set_directive_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_
     }
 }
 
-pub(crate) extern "C" fn set_buffers(
+pub(in crate::registration) extern "C" fn set_buffers(
     cf: *mut ngx_conf_t,
     _cmd: *mut ngx_command_t,
     conf: *mut c_void,
@@ -71,7 +71,7 @@ unsafe fn set_buffers_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_ch
     if let Some((count, size)) = parsed.filter(|(count, size)| *count > 0 && *size > 0) {
         // SAFETY: nginx allocated and initialized this module configuration.
         let config = unsafe { &mut *conf.cast::<CompressConfig>() };
-        config.set_buffers(count, size);
+        config.apply(ConfigUpdate::Buffers { count, size });
         NGX_CONF_OK
     } else {
         ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid compress_buffers value");
@@ -79,7 +79,7 @@ unsafe fn set_buffers_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_ch
     }
 }
 
-pub(crate) extern "C" fn set_types(
+pub(in crate::registration) extern "C" fn set_types(
     cf: *mut ngx_conf_t,
     _cmd: *mut ngx_command_t,
     conf: *mut c_void,
@@ -108,7 +108,7 @@ unsafe fn set_types_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_char
     if let Ok(Some(values)) = values {
         // SAFETY: nginx allocated and initialized this module configuration.
         let config = unsafe { &mut *conf.cast::<CompressConfig>() };
-        config.set_types(values);
+        config.apply(ConfigUpdate::Types(values));
         NGX_CONF_OK
     } else {
         ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress_types value is not UTF-8");

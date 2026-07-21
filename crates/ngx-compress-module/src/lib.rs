@@ -5,12 +5,7 @@
 //! filter streams the response through the selected codec with free/busy chain
 //! backpressure. Builds as both a static and a dynamic NGINX module.
 
-mod conf;
 mod config;
 mod filter;
-mod header;
-mod profile;
 mod registration;
-mod select;
 mod static_file;
-mod worker;
