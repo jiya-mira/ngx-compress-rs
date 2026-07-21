@@ -317,11 +317,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ngx-compress-brotli-sys"
+version = "0.1.0"
+dependencies = [
+ "ngx-compress-core",
+]
+
+[[package]]
 name = "ngx-compress-codecs"
 version = "0.1.0"
 dependencies = [
  "brotli",
  "flate2",
+ "ngx-compress-brotli-sys",
  "ngx-compress-core",
  "zstd",
 ]

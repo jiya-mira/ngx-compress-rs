@@ -11,6 +11,8 @@ ngx-compress-core = { path = "../ngx-compress-core" }
 flate2 = { version = "1", optional = true, default-features = false }
 brotli = { version = "8", optional = true, default-features = false }
 zstd = { version = "0.13", optional = true }
+# System libbrotli FFI adapter, used only for `br` in the system-libs backend.
+ngx-compress-brotli-sys = { path = "../ngx-compress-brotli-sys", optional = true }
 
 [dev-dependencies]
 # Decoders used by the round-trip integration tests to verify output.
@@ -44,14 +46,13 @@ vendored = [
     "brotli?/vector_scratch_space",
 ]
 # Link the distro's prebuilt shared libraries instead of compiling them:
-# flate2 -> system libz, zstd -> system libzstd (pkg-config). brotli has no C
-# library (the crate is pure Rust), so it stays vendored in both modes; there is
-# nothing to share. Mutually exclusive with `vendored`.
+# flate2 -> system libz, zstd -> system libzstd (pkg-config), and `br` through
+# the system-libbrotli FFI adapter (linked with -lbrotlienc by the NGINX build).
+# Mutually exclusive with `vendored`.
 system-libs = [
     "flate2?/zlib",
-    "brotli?/std",
-    "brotli?/vector_scratch_space",
     "zstd?/pkg-config",
+    "dep:ngx-compress-brotli-sys",
 ]
 
 [lints]

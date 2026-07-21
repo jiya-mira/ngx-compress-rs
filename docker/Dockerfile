@@ -20,7 +20,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl gcc make cmake ripgrep pkg-config \
         clang libclang-dev python3 \
-        libpcre2-dev zlib1g-dev libssl-dev libzstd-dev \
+        libpcre2-dev zlib1g-dev libssl-dev libzstd-dev libbrotli-dev \
         zstd brotli gzip \
     && rm -rf /var/lib/apt/lists/*
 

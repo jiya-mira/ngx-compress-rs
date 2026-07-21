@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/ngx-compress-core",
     "crates/ngx-compress-codecs",
+    "crates/ngx-compress-brotli-sys",
     "crates/ngx-compress-ffi",
     "crates/ngx-compress-module",
 ]

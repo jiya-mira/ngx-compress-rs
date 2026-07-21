@@ -330,12 +330,18 @@ Two orthogonal, build-time dimensions, kept flat to avoid a per-codec matrix:
      optimized C library. Enforced by a `compile_error!` against enabling both
      backends.
    - `system-libs`: flate2 links the distro's shared `libz`, zstd links shared
-     `libzstd` (pkg-config). brotli has no C library, so it stays pure Rust in
-     both modes — there is nothing to share. The module `config` adds
-     `-lz -lzstd` to `ngx_module_libs` so the staticlib→module flow yields a
-     `.so` with `NEEDED libz.so`/`libzstd.so` (cargo's `-sys` link directives
-     are otherwise dropped when building a staticlib). `docker/verify-backends.sh`
-     builds both and checks `ldd` plus end-to-end compression.
+     `libzstd` (pkg-config), and `br` links shared `libbrotlienc` through a
+     dedicated `ngx-compress-brotli-sys` boundary crate. That crate only
+     *declares and calls* the libbrotli C encoder API (it neither compiles C nor
+     exports symbols — unlike the pure-Rust `brotli` crate's `ffi-api`, whose
+     `no_mangle` exports would risk symbol collisions in the NGINX process). The
+     module `config` adds `-lz -lzstd -lbrotlienc -lbrotlicommon` to
+     `ngx_module_libs` so the staticlib→module flow yields a `.so` with `NEEDED`
+     entries for the shared objects (cargo's `-sys` link directives are otherwise
+     dropped when building a staticlib). The pure-Rust brotli codec is used for
+     `vendored` and the FFI adapter for `system-libs`, cfg-switched behind the
+     same `Brotli` name so callers are unaffected. `docker/verify-backends.sh`
+     builds both backends and checks `ldd` plus end-to-end compression.
 
 The release profile is `lto = "fat"`, `opt-level = 3`, `codegen-units = 1`,
 `strip = "symbols"`. The NGINX flow builds through `ngx-release` (inherits

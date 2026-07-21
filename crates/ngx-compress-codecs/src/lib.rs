@@ -21,10 +21,16 @@ pub use flate::Deflate;
 #[cfg(feature = "gzip")]
 pub use flate::Gzip;
 
-#[cfg(feature = "brotli")]
+// `br` backend depends on the build mode: vendored uses the pure-Rust brotli
+// crate; system-libs uses the libbrotli FFI adapter. Both export `Brotli` with
+// the same `new(quality, window)` signature, so callers are unaffected.
+#[cfg(all(feature = "brotli", not(feature = "system-libs")))]
 mod brotli_codec;
-#[cfg(feature = "brotli")]
+#[cfg(all(feature = "brotli", not(feature = "system-libs")))]
 pub use brotli_codec::Brotli;
+
+#[cfg(all(feature = "brotli", feature = "system-libs"))]
+pub use ngx_compress_brotli_sys::SystemBrotli as Brotli;
 
 #[cfg(feature = "zstd")]
 mod zstd_codec;

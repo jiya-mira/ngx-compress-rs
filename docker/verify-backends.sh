@@ -35,7 +35,7 @@ events { worker_connections 64; }
 http {
     default_type text/plain;
     server { listen $PORT; root $WWW;
-        location / { compress on; compress_gzip on; compress_zstd on; compress_min_length 20; } }
+        location / { compress on; compress_gzip on; compress_brotli on; compress_zstd on; compress_min_length 20; } }
 }
 EOF
     "$1" -p "$run" -c "$run/n.conf" &
@@ -46,11 +46,15 @@ EOF
         i=$((i + 1)); sleep 0.1
     done
     rc=0
-    for enc in gzip zstd; do
+    for enc in gzip zstd br; do
         curl -sf --noproxy '*' -H "Accept-Encoding: $enc" -D "$run/h" -o "$run/c" \
             "http://127.0.0.1:$PORT/index.txt" || { echo "FAIL [$3 $enc] request"; rc=1; continue; }
         grep -qi "^content-encoding: *$enc" "$run/h" || { echo "FAIL [$3 $enc] no CE"; rc=1; continue; }
-        if [ "$enc" = gzip ]; then gzip -dc < "$run/c" > "$run/d"; else zstd -dc < "$run/c" > "$run/d"; fi
+        case "$enc" in
+            gzip) gzip -dc < "$run/c" > "$run/d" ;;
+            zstd) zstd -dc < "$run/c" > "$run/d" ;;
+            br) brotli -dc < "$run/c" > "$run/d" ;;
+        esac
         cmp -s "$run/d" "$WWW/index.txt" && echo "PASS [$3 $enc]" || { echo "FAIL [$3 $enc] decode"; rc=1; }
     done
     kill "$ngx_pid" 2>/dev/null || true
@@ -78,7 +82,10 @@ printf '\n=== SYSTEM-LIBS backend ===\n'
 so=$(build system system)
 ls -l "$so"
 echo "shared codec libraries:"
-ldd "$so" | grep -iE 'libz\.|libzstd' || { echo "FAIL: libz/libzstd not linked as shared objects"; exit 1; }
+ldd "$so" | grep -iE 'libz\.|libzstd|libbrotli' || { echo "FAIL: shared codec libs not linked"; exit 1; }
+for lib in 'libz\.' libzstd libbrotlienc; do
+    ldd "$so" | grep -qiE "$lib" || { echo "FAIL: $lib not a shared dependency"; exit 1; }
+done
 smoke /tmp/ngx-system/objs/nginx "$so" system || exit 1
 
 printf '\n=== BOTH BACKENDS OK ===\n'

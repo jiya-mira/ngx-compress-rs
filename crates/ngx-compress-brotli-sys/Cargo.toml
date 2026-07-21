@@ -1,0 +1,21 @@
+[package]
+name = "ngx-compress-brotli-sys"
+description = "System libbrotli FFI adapter (StreamingCodec) for ngx-compress-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ngx-compress-core = { path = "../ngx-compress-core" }
+
+# Boundary crate: it declares the libbrotli C encoder API and calls it. The
+# symbols are resolved at final link against the distro's shared library (the
+# NGINX build adds -lbrotlienc -lbrotlicommon); no C is compiled, nothing is
+# exported. Every unsafe block documents its invariant.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
