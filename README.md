@@ -111,6 +111,7 @@ an NGINX source/configure tree. Do not replace the host-side commands above with
 - [Architecture and milestones](docs/architecture.md)
 - [Detailed module design](docs/design.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
+- [Release-readiness checklist](docs/release-readiness.md)
 
 The governing rule is `NGINX/codec FFI -> validated prefetch -> safe Rust core ->
 typed submit plan -> NGINX/codec FFI`. Panics must not unwind across C callbacks,
