@@ -12,7 +12,8 @@ use ngx::ffi::{
 use ngx::http::{HttpModule, HttpModuleLocationConf};
 use ngx::ngx_string;
 
-use crate::conf::{CompressConfig, set_buffers, set_directive, set_types};
+use crate::conf::{set_buffers, set_directive, set_types};
+use crate::config::CompressConfig;
 use crate::filter::{body_filter, header_filter};
 
 /// The module type, used by the filters as their config/ctx key. style:allow-pub-crate

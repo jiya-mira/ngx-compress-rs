@@ -6,7 +6,7 @@ use ngx_compress_core::{
     AcceptEncoding, CompressionPolicy, ContentCoding, ResponseFacts, StreamingCodec, eligible,
 };
 
-use crate::conf::Resolved;
+use crate::config::Resolved;
 use crate::select;
 use crate::worker::CodecKey;
 

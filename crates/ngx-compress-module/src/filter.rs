@@ -17,7 +17,7 @@ use ngx_compress_core::{
 };
 use ngx_compress_ffi::filter;
 
-use crate::conf::CompressConfig;
+use crate::config::CompressConfig;
 use crate::header::{self, Snapshot};
 use crate::registration::{Module, ngx_http_compress_module};
 use crate::worker::{self, CodecKey};

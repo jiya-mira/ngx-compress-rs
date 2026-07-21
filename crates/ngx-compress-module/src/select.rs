@@ -1,7 +1,9 @@
+#![forbid(unsafe_code)]
+
 //! Server-side codec selection: honor the client's `Accept-Encoding` quality
 //! values, break ties by the default priority order, and build the codec.
 
-use crate::conf::Resolved;
+use crate::config::Resolved;
 use crate::worker::{self, CodecKey};
 use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
 

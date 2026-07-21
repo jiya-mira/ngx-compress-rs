@@ -26,7 +26,7 @@ use ngx::ffi::{
 use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::{ContentCoding, StaticCandidate, StaticRequestFacts, static_candidates};
 
-use crate::conf::CompressConfig;
+use crate::config::CompressConfig;
 use crate::filter::accept_encoding;
 use crate::registration::Module;
 

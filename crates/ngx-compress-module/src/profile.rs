@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Named presets for the `compress` directive.
 //!
 //! `compress fast|balanced|max` selects a [`Profile`]; its [`Preset`] supplies a

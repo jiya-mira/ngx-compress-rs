@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Worker-local reuse of codec contexts.
 //!
 //! Allocating an encoder per request is wasteful: zstd rebuilds a `CCtx` and
