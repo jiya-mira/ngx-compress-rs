@@ -38,6 +38,7 @@ pub(crate) enum Profile {
 
 impl Profile {
     /// Parses a `compress` argument that names a profile (not `on`/`off`).
+    // style:allow-pub-crate
     pub(crate) fn parse(value: &str) -> Option<Self> {
         if value.eq_ignore_ascii_case("fast") {
             Some(Self::Fast)
@@ -58,6 +59,7 @@ impl Profile {
     /// change. `deflate` is intentionally left opt-in (never enabled by a
     /// preset) since clients almost never request raw `deflate`; its level is
     /// still supplied for configs that turn it on explicitly.
+    // style:allow-pub-crate
     pub(crate) fn preset(self) -> Option<Preset> {
         let preset = match self {
             Self::Custom => return None,

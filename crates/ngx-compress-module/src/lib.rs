@@ -10,4 +10,5 @@ mod filter;
 mod profile;
 mod registration;
 mod select;
+mod static_file;
 mod worker;

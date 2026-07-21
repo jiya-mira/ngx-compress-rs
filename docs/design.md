@@ -283,6 +283,34 @@ compress_priority zstd br gzip;
 Dictionary directives (`dcb`/`dcz`) are deliberately out of scope here and are
 specified with the M4 dictionary milestone.
 
+### 4.7 Precompressed static (`compress_static`)
+
+A content-phase handler (in the spirit of `gzip_static`) that serves a
+precompressed sidecar file when one exists next to the requested file, instead
+of compressing at runtime.
+
+| `compress_static` | Meaning |
+| --- | --- |
+| `off` (default) | never serve sidecars |
+| `on` | serve a sidecar only when the client accepts that coding |
+| `always` | serve the highest-priority existing sidecar even without a matching `Accept-Encoding` (e.g. behind a decompressing proxy) |
+
+- For `GET`/`HEAD`, it probes `<file>.zst`, `<file>.br`, `<file>.gz` in
+  server-priority order (zstd > br > gzip), among codings the client accepts,
+  and serves the first that exists with the matching `Content-Encoding`,
+  `Last-Modified`, and `ETag`. If none is usable it declines and the normal
+  static handler serves the original.
+- It is independent of the runtime `compress` switch: `compress off;
+  compress_static on;` serves sidecars with no runtime compression. When both
+  are on, serving a sidecar sets `Content-Encoding` before the body filters, so
+  the runtime compressor skips the response (no double compression).
+- deflate has no conventional sidecar extension and is not probed.
+- The handler must run before nginx's built-in static handler to intercept a
+  request whose original file exists. This holds in both the dynamic and static
+  builds (verified end-to-end), because the module's `ngx_module_order` places it
+  early enough in the content phase — unlike the subrequest *filter*-position
+  caveat in §8, which only the dynamic build resolves.
+
 ## 6. Local testing plan
 
 Pure-Rust layers stay hermetic and fast; NGINX-dependent layers are gated so
@@ -410,11 +438,13 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
   point (non-subrequest responses are correct in both modes; the build test
   records this as a documented caveat, not a failure). Consistent with the
   design's dynamic-first stance. Revisit if static SSI support is required.
-- Static precompressed serving (`.br` / `.gz` / `.zst` sidecar) — M3, a
-  content-phase handler (`compress_static on|off|always`) that serves a
+- Static precompressed serving (`.br` / `.gz` / `.zst` sidecar) — M3, done. A
+  content-phase handler (`compress_static on|off|always`, §4.7) that serves a
   precompressed sidecar file when one exists and the client accepts it, like
-  `gzip_static`. Kept out of the M1/M2 header/body filter because it replaces the
-  file being served rather than transforming a stream.
+  `gzip_static`. It is a content handler, not the M1/M2 header/body filter,
+  because it replaces the file being served rather than transforming a stream.
+  Verified in both dynamic and static builds (it correctly precedes nginx's
+  static handler in both).
 - Named profiles (`compress fast|balanced|max`) — M3, done. A turnkey preset
   over the per-codec knobs (§4.2.1); explicit directives override, preset numbers
   are benchmark-calibrated.

@@ -36,6 +36,30 @@ setup_www() {
         i=$((i + 1))
     done
     printf 'HEAD\n<!--#include virtual="/inc.txt" -->\nTAIL\n' > "$WWW/page.shtml"
+
+    # Precompressed-sidecar fixtures. The sidecars decode to payloads DISTINCT
+    # from the original file, so a matching decoded body proves we served the
+    # sidecar file (not a runtime re-compress of the original).
+    mkdir -p "$WWW/static" "$WWW/astatic"
+    : > "$WWW/static/asset.txt"
+    i=0
+    while [ "$i" -lt 400 ]; do
+        printf 'ORIGINAL PLAINTEXT ASSET LINE %04d\n' "$i" >> "$WWW/static/asset.txt"
+        i=$((i + 1))
+    done
+    : > /tmp/sgz.txt; : > /tmp/sbr.txt
+    i=0
+    while [ "$i" -lt 300 ]; do
+        printf 'GZIP SIDECAR DISTINCT PAYLOAD %04d\n' "$i" >> /tmp/sgz.txt
+        printf 'BROTLI SIDECAR DISTINCT PAYLOAD %04d\n' "$i" >> /tmp/sbr.txt
+        i=$((i + 1))
+    done
+    gzip -c /tmp/sgz.txt > "$WWW/static/asset.txt.gz"
+    brotli -c /tmp/sbr.txt > "$WWW/static/asset.txt.br"
+    # A second copy for the `always` location.
+    cp "$WWW/static/asset.txt" "$WWW/astatic/asset.txt"
+    cp "$WWW/static/asset.txt.gz" "$WWW/astatic/asset.txt.gz"
+    cp "$WWW/static/asset.txt.br" "$WWW/astatic/asset.txt.br"
 }
 
 write_conf() {
@@ -69,6 +93,16 @@ http {
             compress on;
             compress_gzip on;
             compress_min_length 20;
+        }
+        # Sidecar serving with runtime compression OFF, so only compress_static
+        # can add a Content-Encoding.
+        location /static/ {
+            compress off;
+            compress_static on;
+        }
+        location /astatic/ {
+            compress off;
+            compress_static always;
         }
     }
 }
@@ -129,6 +163,51 @@ check_ssi() {
     echo "PASS [$1 ssi]: subrequest assembled then compressed correctly"
 }
 
+check_static() {
+    # $1 = mode label. Verifies precompressed-sidecar serving. compress is OFF in
+    # these locations, so any Content-Encoding proves the sidecar handler ran
+    # (and ran before nginx's static handler).
+    # 1) gzip sidecar chosen and served verbatim.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static/asset.txt" || { echo "FAIL [$1 static gzip]: request failed"; return 1; }
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static gzip]: no Content-Encoding (static handler served original?)"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" > "$RUN_DIR/d.txt" 2>/dev/null
+    cmp -s "$RUN_DIR/d.txt" /tmp/sgz.txt \
+        || { echo "FAIL [$1 static gzip]: served body is not the .gz sidecar"; return 1; }
+    echo "PASS [$1 static gzip]: sidecar served (before static handler)"
+
+    # 2) priority: with gzip+br acceptable, the higher-priority br sidecar wins.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip, br' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static/asset.txt" || { echo "FAIL [$1 static prio]: request failed"; return 1; }
+    grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static prio]: expected br sidecar"; return 1; }
+    brotli -dc < "$RUN_DIR/c.bin" > "$RUN_DIR/d.txt" 2>/dev/null
+    cmp -s "$RUN_DIR/d.txt" /tmp/sbr.txt \
+        || { echo "FAIL [$1 static prio]: served body is not the .br sidecar"; return 1; }
+    echo "PASS [$1 static prio]: br chosen over gzip"
+
+    # 3) `on` + no Accept-Encoding: decline, static serves the original.
+    curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static/asset.txt" || { echo "FAIL [$1 static none]: request failed"; return 1; }
+    if grep -qi '^content-encoding:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static none]: unexpected Content-Encoding without Accept-Encoding"; return 1
+    fi
+    cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
+        || { echo "FAIL [$1 static none]: original not served intact"; return 1; }
+    echo "PASS [$1 static none]: declines to original when unaccepted"
+
+    # 4) `always` + no Accept-Encoding: serve the highest-priority sidecar anyway.
+    curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/astatic/asset.txt" || { echo "FAIL [$1 static always]: request failed"; return 1; }
+    grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static always]: expected br sidecar without Accept-Encoding"; return 1; }
+    brotli -dc < "$RUN_DIR/c.bin" > "$RUN_DIR/d.txt" 2>/dev/null
+    cmp -s "$RUN_DIR/d.txt" /tmp/sbr.txt \
+        || { echo "FAIL [$1 static always]: served body is not the .br sidecar"; return 1; }
+    echo "PASS [$1 static always]: serves sidecar regardless of Accept-Encoding"
+}
+
 smoke() {
     # $1 = nginx binary, $2 = mode label, $3 = load_module line
     [ -x "$1" ] || { echo "FAIL [$2]: nginx binary $1 not found"; return 1; }
@@ -146,6 +225,7 @@ smoke() {
         check "$2" "$coding" || rc=1
     done
     check_identity "$2" || rc=1
+    check_static "$2" || rc=1
 
     # Worker-local codec reuse: with master_process off there is a single worker,
     # so repeating a coding makes requests 2..N pop a reset codec from the pool.

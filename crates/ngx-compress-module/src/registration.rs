@@ -24,10 +24,15 @@ impl HttpModule for Module {
         unsafe { &*ptr::addr_of!(ngx_http_compress_module) }
     }
 
-    unsafe extern "C" fn postconfiguration(_cf: *mut ngx_conf_t) -> ngx_int_t {
-        // SAFETY: postconfiguration runs once in the single-threaded master
-        // before workers fork, so installing into the filter chains is safe.
-        unsafe { ngx_compress_ffi::filter::install(Some(header_filter), Some(body_filter)) };
+    unsafe extern "C" fn postconfiguration(cf: *mut ngx_conf_t) -> ngx_int_t {
+        // SAFETY: postconfiguration runs once in the single-threaded master before
+        // workers fork; installing filters and the content handler is safe.
+        unsafe {
+            ngx_compress_ffi::filter::install(Some(header_filter), Some(body_filter));
+            if crate::static_file::register(cf).is_err() {
+                return Status::NGX_ERROR.0;
+            }
+        }
         Status::NGX_OK.0
     }
 }
@@ -67,8 +72,9 @@ type SetFn = extern "C" fn(
     *mut core::ffi::c_void,
 ) -> *mut core::ffi::c_char;
 
-static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 15] = [
+static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 16] = [
     directive(ngx_string!("compress")),
+    directive(ngx_string!("compress_static")),
     directive(ngx_string!("compress_gzip")),
     directive(ngx_string!("compress_gzip_comp_level")),
     directive(ngx_string!("compress_deflate")),

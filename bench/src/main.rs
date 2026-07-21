@@ -36,7 +36,10 @@ fn main() {
     }
 
     let mut report = String::new();
-    report.push_str(&format!("# codec compression matrix\n\ninput: {} bytes\n\n", input.len()));
+    report.push_str(&format!(
+        "# codec compression matrix\n\ninput: {} bytes\n\n",
+        input.len()
+    ));
     report.push_str("| codec | level | window | ratio % | out bytes | MB/s |\n");
     report.push_str("|---|---|---|---|---|---|\n");
 
@@ -80,13 +83,23 @@ fn load() -> Vec<u8> {
 }
 
 /// Benchmarks one codec configuration and formats a Markdown table row.
-fn row(label: &str, level: i64, window: u32, input: &[u8], codec: &mut dyn StreamingCodec) -> String {
+fn row(
+    label: &str,
+    level: i64,
+    window: u32,
+    input: &[u8],
+    codec: &mut dyn StreamingCodec,
+) -> String {
     let Some((out, mbps)) = bench(codec, input) else {
         return format!("| {label} | {level} | - | (encode error) | - | - |\n");
     };
     // style:allow-as-cast (small lossless usize/u64 -> f64 for reporting)
     let ratio = 100.0 * out as f64 / input.len() as f64;
-    let win = if window == 0 { "-".to_string() } else { window.to_string() };
+    let win = if window == 0 {
+        "-".to_string()
+    } else {
+        window.to_string()
+    };
     format!("| {label} | {level} | {win} | {ratio:.1} | {out} | {mbps:.0} |\n")
 }
 

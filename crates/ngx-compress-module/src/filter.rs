@@ -334,7 +334,8 @@ unsafe fn type_in_list(kind: &str, array: NonNull<ngx_array_t>) -> bool {
     }
 }
 
-unsafe fn accept_encoding(request: *mut ngx_http_request_t) -> AcceptEncoding {
+// Shared with the static-sidecar handler. style:allow-pub-crate
+pub(crate) unsafe fn accept_encoding(request: *mut ngx_http_request_t) -> AcceptEncoding {
     // SAFETY: reads the request Accept-Encoding header element if present.
     unsafe {
         let header = (*request).headers_in.accept_encoding;

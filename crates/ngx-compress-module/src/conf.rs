@@ -19,6 +19,17 @@ use ngx::ngx_conf_log_error;
 
 use crate::profile::Profile;
 
+/// Precompressed-sidecar serving mode for `compress_static`. style:allow-pub-crate
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StaticMode {
+    /// Never serve sidecars.
+    Off,
+    /// Serve a sidecar only when the client accepts that coding.
+    On,
+    /// Serve the best existing sidecar even without a matching Accept-Encoding.
+    Always,
+}
+
 /// Default per-codec compression levels (aligned with the upstream modules).
 const DEFAULT_GZIP_LEVEL: u32 = 6;
 const DEFAULT_DEFLATE_LEVEL: u32 = 6;
@@ -35,6 +46,8 @@ pub(crate) struct CompressConfig {
     enable: Option<bool>,
     // The named preset selected by `compress <profile>`; fills unset fields.
     profile: Option<Profile>,
+    // Precompressed-sidecar serving mode (`compress_static`).
+    static_mode: Option<StaticMode>,
     gzip: Option<bool>,
     gzip_level: Option<u32>,
     deflate: Option<bool>,
@@ -63,6 +76,7 @@ pub(crate) struct Resolved {
     pub min_length: usize,
     pub vary: bool,
     pub buffer_size: usize,
+    pub static_mode: StaticMode,
     pub types: Option<NonNull<ngx_array_t>>,
     pub gzip: Option<u32>,
     pub deflate: Option<u32>,
@@ -86,6 +100,7 @@ impl CompressConfig {
                 .unwrap_or(DEFAULT_MIN_LENGTH),
             vary: self.vary.unwrap_or(true),
             buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
+            static_mode: self.static_mode.unwrap_or(StaticMode::Off),
             types: self.types,
             gzip: on_level(
                 self.gzip.or(preset.map(|p| p.gzip)),
@@ -98,16 +113,20 @@ impl CompressConfig {
                 self.deflate_level.or(preset.map(|p| p.deflate_level)),
                 DEFAULT_DEFLATE_LEVEL,
             ),
-            brotli: self.brotli.or(preset.map(|p| p.brotli)).unwrap_or(false).then(|| {
-                (
-                    self.brotli_level
-                        .or(preset.map(|p| p.brotli_level))
-                        .unwrap_or(DEFAULT_BROTLI_LEVEL),
-                    self.brotli_window
-                        .or(preset.map(|p| p.brotli_window))
-                        .unwrap_or(DEFAULT_BROTLI_WINDOW),
-                )
-            }),
+            brotli: self
+                .brotli
+                .or(preset.map(|p| p.brotli))
+                .unwrap_or(false)
+                .then(|| {
+                    (
+                        self.brotli_level
+                            .or(preset.map(|p| p.brotli_level))
+                            .unwrap_or(DEFAULT_BROTLI_LEVEL),
+                        self.brotli_window
+                            .or(preset.map(|p| p.brotli_window))
+                            .unwrap_or(DEFAULT_BROTLI_WINDOW),
+                    )
+                }),
             zstd: self
                 .zstd
                 .or(preset.map(|p| p.zstd))
@@ -129,6 +148,7 @@ impl Merge for CompressConfig {
     fn merge(&mut self, prev: &Self) -> Result<(), MergeConfigError> {
         merge_opt(&mut self.enable, prev.enable);
         merge_opt(&mut self.profile, prev.profile);
+        merge_opt(&mut self.static_mode, prev.static_mode);
         merge_opt(&mut self.gzip, prev.gzip);
         merge_opt(&mut self.gzip_level, prev.gzip_level);
         merge_opt(&mut self.deflate, prev.deflate);
@@ -180,6 +200,7 @@ pub(crate) extern "C" fn set_directive(
 fn apply(config: &mut CompressConfig, name: &str, value: &str) -> bool {
     match name {
         "compress" => set_compress(config, value),
+        "compress_static" => set_static(&mut config.static_mode, value),
         "compress_gzip" => set_flag(&mut config.gzip, value),
         "compress_deflate" => set_flag(&mut config.deflate, value),
         "compress_brotli" => set_flag(&mut config.brotli, value),
@@ -214,6 +235,21 @@ fn set_compress(config: &mut CompressConfig, value: &str) -> bool {
     } else {
         false
     }
+}
+
+/// `compress_static off | on | always`.
+fn set_static(slot: &mut Option<StaticMode>, value: &str) -> bool {
+    let mode = if value.eq_ignore_ascii_case("off") {
+        StaticMode::Off
+    } else if value.eq_ignore_ascii_case("on") {
+        StaticMode::On
+    } else if value.eq_ignore_ascii_case("always") {
+        StaticMode::Always
+    } else {
+        return false;
+    };
+    *slot = Some(mode);
+    true
 }
 
 fn set_flag(slot: &mut Option<bool>, value: &str) -> bool {
