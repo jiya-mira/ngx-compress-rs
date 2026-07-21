@@ -60,9 +60,11 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
     {
         return pass();
     }
-    // SAFETY: clears the now-invalid length and installs request state; on
-    // allocation failure the request is aborted rather than mis-framed.
+    // SAFETY: require in-memory input (materialize file/sendfile buffers before
+    // this filter, as the gzip module does), clear the now-invalid length, and
+    // install request state; on allocation failure abort rather than mis-frame.
     unsafe {
+        (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
         if install_ctx(request, codec, resolved.buffer_size).is_none() {
             return Status::NGX_ERROR.0;
@@ -85,6 +87,12 @@ pub(crate) unsafe extern "C" fn body_filter(
     // SAFETY: walks the input chain, feeding each buffer to the codec.
     if unsafe { compress_chain(request, ctx, chain) }.is_err() {
         return Status::NGX_ERROR.0;
+    }
+
+    // Nothing produced yet and nothing pending: the codec buffered this input.
+    // Return OK without invoking the next filter, or it would see an empty chain.
+    if ctx.out.is_null() && ctx.busy.is_null() {
+        return Status::NGX_OK.0;
     }
 
     // SAFETY: forwards the produced output chain and reclaims consumed buffers.
@@ -138,25 +146,35 @@ unsafe fn compress_chain(
                 .step(operation, &input[offset..], capacity)
                 .map_err(|_| ())?;
             offset += step.consumed;
-            // SAFETY: commit the produced bytes and link the buffer into `out`.
-            unsafe {
-                advance(out_buf, step.produced);
-                append(&mut ctx.out, link);
-            }
 
             let complete = step.state == StepState::Complete;
-            if operation == Operation::Finish && complete {
-                // SAFETY: flag the final buffer so nginx ends the response.
-                unsafe { (*out_buf).set_last_buf(1) };
+            let last = operation == Operation::Finish && complete;
+            let flush = operation == Operation::Flush && complete;
+
+            // Only emit a buffer that carries data or a boundary flag; an empty
+            // non-boundary buffer (a codec step that buffered input without
+            // output) would trip nginx's "zero size buf" alert.
+            if step.produced > 0 || last || flush {
+                // SAFETY: commit produced bytes, flag boundaries, link into `out`.
+                unsafe {
+                    advance(out_buf, step.produced);
+                    if last {
+                        (*out_buf).set_last_buf(1);
+                    } else if flush {
+                        (*out_buf).set_flush(1);
+                    }
+                    append(&mut ctx.out, link);
+                }
+            } else {
+                // SAFETY: return the unused empty buffer to the free list.
+                unsafe { recycle(&mut ctx.free, link) };
+            }
+
+            if last {
                 ctx.done = true;
                 break;
             }
-            if operation == Operation::Flush && complete {
-                // SAFETY: flag a flush boundary on the output buffer.
-                unsafe { (*out_buf).set_flush(1) };
-                break;
-            }
-            if step.state == StepState::NeedsInput {
+            if flush || step.state == StepState::NeedsInput {
                 break;
             }
         }
@@ -214,6 +232,14 @@ unsafe fn append(out: &mut *mut ngx_chain_t, link: *mut ngx_chain_t) {
             tail = &mut (**tail).next;
         }
         *tail = link;
+    }
+}
+
+unsafe fn recycle(free: &mut *mut ngx_chain_t, link: *mut ngx_chain_t) {
+    // SAFETY: prepend an unused buffer link back onto the free chain for reuse.
+    unsafe {
+        (*link).next = *free;
+        *free = link;
     }
 }
 

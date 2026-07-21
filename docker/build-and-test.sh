@@ -19,10 +19,12 @@ log() { printf '\n=== %s ===\n' "$1"; }
 
 setup_www() {
     mkdir -p "$WWW"
+    # ~1 MB so the codecs stream across many buffers (multi-step buffering),
+    # not just a single output buffer.
     : > "$WWW/index.txt"
     i=0
-    while [ "$i" -lt 220 ]; do
-        printf 'The quick brown fox jumps over the lazy dog 0123456789\n' >> "$WWW/index.txt"
+    while [ "$i" -lt 19000 ]; do
+        printf 'The quick brown fox jumps over the lazy dog %06d\n' "$i" >> "$WWW/index.txt"
         i=$((i + 1))
     done
     # Subrequest fixtures: an SSI page including inc.txt. Compressing before the
