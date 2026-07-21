@@ -364,3 +364,18 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 - Per-response-class priority (dynamic vs cacheable) refining the default
   order — M3.
 - Dictionary transport directives and lifecycle — M4.
+- Symmetric decode ("unboxing") — proposed **M5**, to be discussed. This module
+  is compress-only; enabling it does not make NGINX decompress anything (the
+  client transparently decodes the response). A decode capability would be a
+  gunzip-equivalent that also covers `br`/`zstd` (the built-in
+  `ngx_http_gunzip_module` only handles gzip) and/or request-body decoding.
+  Decision so far: build it **inside this repo/workspace**, not a separate repo —
+  it reuses ~70–80% of the foundation (the direction-agnostic `validate_progress`
+  contract; the same flate2/brotli/zstd crates, which also provide decoders; the
+  FFI filter-chain and free/busy backpressure; the vendored/system-libs
+  backends; the docker/lint harness). Likely shape: a feature-gated sibling
+  module crate (e.g. `ngx_http_decompress_module`) with a `StreamingDecoder`
+  trait mirroring `StreamingCodec`. Requires its own design pass because decode
+  has a distinct security surface — bounded output/work budgets are mandatory
+  (decompression bombs) — and the filter position/scope differ by target
+  (upstream response vs request body). Not started.
