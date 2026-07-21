@@ -90,8 +90,8 @@
     "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/flate.rs": {
-    "mtime": 1784568636.972081,
-    "ast_hash": "2fd03d9f46c7ac0ac1da175c62f44fab",
+    "mtime": 1784605011.015671,
+    "ast_hash": "e3845a15f8e459e1160e4c5a2babfc0e",
     "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/zstd_codec.rs": {
@@ -105,8 +105,8 @@
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/conf.rs": {
-    "mtime": 1784592621.2645912,
-    "ast_hash": "6bf034166262ed2c20026bb7ddd54d7e",
+    "mtime": 1784605015.821273,
+    "ast_hash": "3b03addbb1f24d6ea23da1fe7a5238bc",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter.rs": {

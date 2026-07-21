@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/lib.rs": {
-    "mtime": 1784591943.860353,
-    "ast_hash": "326aba2072712291451f05e1bd1d6428",
+    "mtime": 1784604479.0691211,
+    "ast_hash": "f1f26da2ae8b0b96e42c8ffd9e5d68c8",
     "semantic_hash": ""
   },
   "crates/ngx-compress-core/src/codec.rs": {
@@ -80,8 +80,8 @@
     "semantic_hash": "aa529709b940affbcf46216e4d5029f9"
   },
   "docs/design.md": {
-    "mtime": 1784592673.78706,
-    "ast_hash": "6172365aa8e011331ee4fb166a50ccc9",
+    "mtime": 1784604912.1340466,
+    "ast_hash": "8b894ab20fb1ee20920ec75f17275c49",
     "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/brotli_codec.rs": {
@@ -125,8 +125,18 @@
     "semantic_hash": ""
   },
   "docker/verify-backends.sh": {
-    "mtime": 1784592036.2293997,
-    "ast_hash": "2fff7524cd58ca41836980155b298756",
+    "mtime": 1784604518.4853659,
+    "ast_hash": "a6df5c4a05200bd37cbb602078861c92",
+    "semantic_hash": ""
+  },
+  "crates/ngx-compress-brotli-sys/src/encoder.rs": {
+    "mtime": 1784604878.14064,
+    "ast_hash": "200a5927960f8d9ee3cbdb8bca7c52eb",
+    "semantic_hash": ""
+  },
+  "crates/ngx-compress-brotli-sys/src/lib.rs": {
+    "mtime": 1784604884.2060997,
+    "ast_hash": "2067b6985568b7360c1fd75beed78cd0",
     "semantic_hash": ""
   }
 }
