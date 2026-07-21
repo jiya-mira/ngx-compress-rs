@@ -358,6 +358,16 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 
 ## 8. Deferred / open items
 
+- Static-build subrequest filter position — known limitation. The body filter is
+  ordered at the gzip slot (after `postpone_filter`) via `ngx_module_order` so
+  subrequest-assembled responses (SSI includes, `add_after_body`) are compressed
+  after assembly. NGINX honors this for **dynamic** modules (re-sorted at load
+  time), the supported target — verified by an SSI round-trip test. **Static**
+  builds keep the compile-time array order, which places the filter above
+  `postpone`, so a static build compresses subrequest responses at the wrong
+  point (non-subrequest responses are correct in both modes; the build test
+  records this as a documented caveat, not a failure). Consistent with the
+  design's dynamic-first stance. Revisit if static SSI support is required.
 - Static precompressed serving (`.br` / `.gz` sidecar) — M3, with a
   `compress_static` directive; kept out of the M1/M2 header filter to keep it
   simple.

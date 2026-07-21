@@ -6,16 +6,40 @@
 ngx_addon_name=ngx_http_compress
 
 if [ $HTTP = YES ]; then
-    # HTTP_AUX_FILTER places the module among the output filters near the top of
-    # the chain (like a loaded dynamic module), so its header/body filters run
-    # before the terminal header serializer. A plain HTTP type lands in the
-    # HTTP_MODULES block ahead of all filters in a static build and would install
-    # below the serializer, dropping any headers it adds. M2 will pin the exact
-    # position relative to gzip once real body compression lands.
-    ngx_module_type=HTTP_AUX_FILTER
+    # Position the body filter at the gzip slot — after ngx_http_postpone_filter,
+    # so subrequests (SSI includes, add_after_body, ...) are fully assembled into
+    # the response stream before we compress it. Running earlier would compress
+    # main-request buffers before subrequest output is spliced in, corrupting the
+    # stream. This is the same ngx_module_order google/ngx_brotli uses.
+    #
+    # NOTE: NGINX honors this order for DYNAMIC modules (re-sorted at load time),
+    # which is the supported build target. For STATICALLY added modules NGINX uses
+    # the compile-time array order and does not move the module below postpone, so
+    # a static build compresses subrequest-assembled responses at the wrong point.
+    # Non-subrequest responses compress correctly in both modes; prefer the
+    # dynamic module if you serve SSI/subrequest responses.
+    ngx_module_type=HTTP_FILTER
     ngx_module_name=ngx_http_compress_module
     ngx_module_incs=
     ngx_module_deps=
+    # Same ordering google/ngx_brotli uses: list our module first, then the full
+    # downstream filter chain it must precede in the array (so it installs before
+    # them and therefore runs after them — after postpone/ssi splice subrequests).
+    ngx_module_order="ngx_http_compress_module \
+                      ngx_http_postpone_filter_module \
+                      ngx_http_ssi_filter_module \
+                      ngx_http_charset_filter_module \
+                      ngx_http_xslt_filter_module \
+                      ngx_http_image_filter_module \
+                      ngx_http_sub_filter_module \
+                      ngx_http_addition_filter_module \
+                      ngx_http_gunzip_filter_module \
+                      ngx_http_userid_filter_module \
+                      ngx_http_headers_filter_module \
+                      ngx_http_copy_filter_module \
+                      ngx_http_range_body_filter_module \
+                      ngx_http_not_modified_filter_module \
+                      ngx_http_slice_filter_module"
 
     # ngx-rust target: build the module crate as a staticlib.
     ngx_rust_target_type=LIB
