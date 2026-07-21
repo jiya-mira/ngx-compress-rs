@@ -59,8 +59,8 @@ fn main() {
     }
 
     report.push_str(
-        "\nCurrent tier placeholders — fast: gzip 4 / br 4 w18 / zstd 1; \
-         balanced: gzip 6 / br 6 w22 / zstd 3; max: gzip 9 / br 11 w24 / zstd 19.\n",
+        "\nCalibrated tiers — fast: gzip 4 / br 4 w18 / zstd 3; \
+         balanced: gzip 6 / br 5 w22 / zstd 6; max: gzip 9 / br 11 w24 / zstd 19.\n",
     );
     println!("{report}"); // style:allow-stdio-log
 }

@@ -53,12 +53,16 @@ impl Profile {
 
     /// The tuning bundle for a named tier; `Custom` contributes nothing.
     ///
-    /// The concrete numbers are placeholders pending the M3 benchmark
-    /// calibration; the tier *ordering* (fast < balanced < max on CPU and ratio)
-    /// is the stable contract, so re-tuning a tier's values is not a breaking
-    /// change. `deflate` is intentionally left opt-in (never enabled by a
-    /// preset) since clients almost never request raw `deflate`; its level is
-    /// still supplied for configs that turn it on explicitly.
+    /// Levels were calibrated with the `bench/` harness on a real web corpus
+    /// (HTML, CSS, minified/unminified JS, JSON): `fast` sits just below brotli's
+    /// q4→q5 speed cliff and at gzip's converged ratio; `balanced` pays the q5
+    /// jump and a higher zstd level for ~1–2% more ratio while staying fast;
+    /// `max` uses each codec's ceiling for offline/precompressible responses. The
+    /// tier *ordering* (fast < balanced < max on CPU and ratio) is the stable
+    /// contract, so re-tuning a tier's values is not a breaking change. `deflate`
+    /// is intentionally left opt-in (never enabled by a preset) since clients
+    /// almost never request raw `deflate`; its level is still supplied for
+    /// configs that turn it on explicitly.
     // style:allow-pub-crate
     pub(crate) fn preset(self) -> Option<Preset> {
         let preset = match self {
@@ -71,7 +75,7 @@ impl Profile {
                 deflate_level: 4,
                 brotli_level: 4,
                 brotli_window: 18,
-                zstd_level: 1,
+                zstd_level: 3,
                 min_length: 256,
             },
             Self::Balanced => Preset {
@@ -80,9 +84,9 @@ impl Profile {
                 zstd: true,
                 gzip_level: 6,
                 deflate_level: 6,
-                brotli_level: 6,
+                brotli_level: 5,
                 brotli_window: 22,
-                zstd_level: 3,
+                zstd_level: 6,
                 min_length: 256,
             },
             Self::Max => Preset {

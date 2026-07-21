@@ -196,11 +196,18 @@ already-validated per-codec knobs, adding no request-path logic. Folding it into
 pattern of a directive that takes more than `on`/`off`, and lets `compress on`
 naturally mean the "custom" (no-preset) mode.
 
-| Tier | Enables | Intent | Levels (placeholder, benchmark-calibrated) |
+| Tier | Enables | Intent | Levels (calibrated via `bench/` on a real web corpus) |
 | --- | --- | --- | --- |
-| `fast` | gzip, br, zstd | high-QPS dynamic, CPU-frugal | gzip 4 / br 4 w18 / zstd 1, min_length 256 |
-| `balanced` | gzip, br, zstd | general default | gzip 6 / br 6 w22 / zstd 3, min_length 256 |
+| `fast` | gzip, br, zstd | high-QPS dynamic, CPU-frugal | gzip 4 / br 4 w18 / zstd 3, min_length 256 |
+| `balanced` | gzip, br, zstd | general default | gzip 6 / br 5 w22 / zstd 6, min_length 256 |
 | `max` | gzip, br, zstd | cacheable/precompressed, CPU offline | gzip 9 / br 11 w24 / zstd 19, min_length 128 |
+
+Calibration basis (HTML/CSS/JS/JSON, x86-64): brotli has a sharp speed cliff at
+q4→q5 (q5 buys ~1–2% ratio for ~40–60% throughput) and again at q9→q10 (q10/q11
+drop to 1–6 MB/s — offline only); gzip ratio is converged by L6 (L7–9 add ≈0);
+zstd stays fast through L6 (>130 MB/s) but L19 is offline-only. So `fast` stops
+before each knee, `balanced` takes the first (still online-fast), `max` uses the
+ceilings.
 
 - **Precedence:** explicit `compress_*` directive > profile preset > built-in
   default, independent of directive order. `compress max; compress_zstd off;`
