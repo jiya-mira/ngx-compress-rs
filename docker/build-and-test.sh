@@ -152,9 +152,10 @@ smoke() {
     # correct in both modes.
     if [ "$2" = dynamic ]; then
         check_ssi "$2" || rc=1
+    elif check_ssi "$2" >/dev/null 2>&1; then
+        echo "PASS [static ssi]: subrequest assembled then compressed correctly"
     else
-        check_ssi "$2" \
-            || echo "KNOWN LIMITATION [static ssi]: subrequest filter ordering; use the dynamic module for SSI/subrequest responses"
+        echo "KNOWN LIMITATION [static ssi]: subrequest filter ordering; use the dynamic module for SSI/subrequest responses"
     fi
 
     kill "$ngx_pid" 2>/dev/null || true
