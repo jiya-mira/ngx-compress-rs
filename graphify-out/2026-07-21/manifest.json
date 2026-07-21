@@ -80,9 +80,9 @@
     "semantic_hash": "aa529709b940affbcf46216e4d5029f9"
   },
   "docs/design.md": {
-    "mtime": 1784551224.4231637,
-    "ast_hash": "039aa93a3e7285eac38c85148d267364",
-    "semantic_hash": "039aa93a3e7285eac38c85148d267364"
+    "mtime": 1784592673.78706,
+    "ast_hash": "6172365aa8e011331ee4fb166a50ccc9",
+    "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/brotli_codec.rs": {
     "mtime": 1784568877.2434425,
@@ -105,8 +105,8 @@
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/conf.rs": {
-    "mtime": 1784591746.2076259,
-    "ast_hash": "32552f03ca7455d52ba202c4a1dcd4e9",
+    "mtime": 1784592621.2645912,
+    "ast_hash": "6bf034166262ed2c20026bb7ddd54d7e",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter.rs": {
