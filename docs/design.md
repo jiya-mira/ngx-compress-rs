@@ -151,15 +151,19 @@ Directive namespace is `compress_*`. All directives are valid in `http`,
 `server`, and `location` contexts and inherit with standard NGINX
 `merge_loc_conf` cascade (child overrides parent).
 
-### 4.1 Naming: prefix to avoid collisions
+### 4.1 Naming: our own scheme, not an upstream drop-in
 
-Parameter names, value ranges, defaults, and semantics track the established
-upstream modules (`ngx_http_gzip_module`, `google/ngx_brotli`,
-`tokers/zstd-nginx-module`) as closely as possible, so migration is nearly
-mechanical. The one required deviation is the `compress_` prefix: the bare
-directive names `gzip`, `brotli`, and `zstd` are already registered by those
-modules, and two modules defining the same directive is a configuration-time
-error. The prefix keeps this module loadable alongside (or in place of) them.
+A literal drop-in of the upstream directive names is impossible: `gzip`,
+`brotli`, and `zstd` are already registered by `ngx_http_gzip_module`,
+`google/ngx_brotli`, and `tokers/zstd-nginx-module`, and two modules defining
+the same directive is a configuration-time error. Rather than chase near-miss
+name compatibility, the schema is designed as one tidy `compress_*` family with
+our own consistent semantics (read-as-you-see). Two ideas are worth borrowing
+because all three upstream modules converged on them — a MIME allowlist
+(`compress_types`) and output buffer sizing (`compress_buffers`) — so those are
+provided under our naming. Directives with no elegant home in our scheme
+(`gzip_proxied`, `gzip_http_version`, `gzip_disable`) are intentionally not
+mirrored.
 
 ### 4.2 Master switch and per-codec toggles
 
@@ -312,7 +316,41 @@ then. That bootstrap is the first M1 task, per architecture.md ("the M1
 identity filter must prove chain ownership and backpressure before any codec is
 integrated").
 
-## 7. Deferred / open items
+## 7. Build backends and performance
+
+Two orthogonal, build-time dimensions, kept flat to avoid a per-codec matrix:
+
+1. **Which codings** — the `gzip` / `deflate` / `brotli` / `zstd` features
+   (identity always present).
+2. **Backend** — an all-or-nothing switch, selected in the NGINX build via
+   `NGX_COMPRESS_BACKEND`:
+   - `vendored` (default): codecs are self-compiled and statically embedded.
+     flate2 uses `zlib-ng` (SIMD/vectorized); brotli is pure Rust with
+     `vector_scratch_space` (its `simd` feature needs nightly); zstd uses its
+     optimized C library. Enforced by a `compile_error!` against enabling both
+     backends.
+   - `system-libs`: flate2 links the distro's shared `libz`, zstd links shared
+     `libzstd` (pkg-config). brotli has no C library, so it stays pure Rust in
+     both modes — there is nothing to share. The module `config` adds
+     `-lz -lzstd` to `ngx_module_libs` so the staticlib→module flow yields a
+     `.so` with `NEEDED libz.so`/`libzstd.so` (cargo's `-sys` link directives
+     are otherwise dropped when building a staticlib). `docker/verify-backends.sh`
+     builds both and checks `ldd` plus end-to-end compression.
+
+The release profile is `lto = "fat"`, `opt-level = 3`, `codegen-units = 1`,
+`strip = "symbols"`. The NGINX flow builds through `ngx-release` (inherits
+`release`), so lto/opt-level/codegen-units apply there too; `strip` only affects
+standalone cargo builds. Note `zstd`'s `fat-lto` feature is deliberately off: it
+emits LTO-bitcode C objects the NGINX linker cannot resolve from our staticlib.
+
+Threaded/async compression (e.g. `zstdmt`) is intentionally not enabled: it
+conflicts with the first-release non-goal of thread-pool compression and needs a
+bounded work budget on the event loop. That remains a later milestone.
+
+Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
+1, `brotli` 8, `zstd` 0.13.
+
+## 8. Deferred / open items
 
 - Static precompressed serving (`.br` / `.gz` sidecar) — M3, with a
   `compress_static` directive; kept out of the M1/M2 header filter to keep it

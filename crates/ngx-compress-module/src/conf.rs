@@ -206,7 +206,7 @@ fn set_usize(slot: &mut Option<usize>, value: &str) -> bool {
     }
 }
 
-/// `compress_buffers <count> <size>` (NGX_CONF_TAKE2). style:allow-pub-crate
+/// `compress_buffers <count> <size>` (`NGX_CONF_TAKE2`). style:allow-pub-crate
 pub(crate) extern "C" fn set_buffers(
     cf: *mut ngx_conf_t,
     _cmd: *mut ngx_command_t,
@@ -236,7 +236,7 @@ pub(crate) extern "C" fn set_buffers(
     }
 }
 
-/// `compress_types <mime>...` (NGX_CONF_1MORE). style:allow-pub-crate
+/// `compress_types <mime>...` (`NGX_CONF_1MORE`). style:allow-pub-crate
 pub(crate) extern "C" fn set_types(
     cf: *mut ngx_conf_t,
     _cmd: *mut ngx_command_t,
