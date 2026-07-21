@@ -156,7 +156,7 @@ impl StreamingCodec for SystemBrotli {
         })
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self) -> Result<(), CodecError> {
         // SAFETY: destroy the current instance (if any) before rebuilding.
         unsafe {
             if !self.state.is_null() {
@@ -164,6 +164,11 @@ impl StreamingCodec for SystemBrotli {
             }
         }
         self.state = create(self.quality, self.window);
+        if self.state.is_null() {
+            Err(CodecError::Backend)
+        } else {
+            Ok(())
+        }
     }
 }
 

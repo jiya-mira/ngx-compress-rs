@@ -49,7 +49,13 @@ pub trait StreamingCodec {
 
     /// Returns the adapter to its initial state so a worker can reuse the
     /// context across requests without reallocating it.
-    fn reset(&mut self);
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CodecError`] when the backend cannot restore a clean initial
+    /// state. Callers must discard the codec instead of reusing it after an
+    /// error.
+    fn reset(&mut self) -> Result<(), CodecError>;
 }
 
 /// Advances a codec and validates its result before the caller can trust its
@@ -108,7 +114,9 @@ mod tests {
             })
         }
 
-        fn reset(&mut self) {}
+        fn reset(&mut self) -> Result<(), CodecError> {
+            Ok(())
+        }
     }
 
     impl StreamingCodec for InvalidCodec {
@@ -129,7 +137,9 @@ mod tests {
             })
         }
 
-        fn reset(&mut self) {}
+        fn reset(&mut self) -> Result<(), CodecError> {
+            Ok(())
+        }
     }
 
     #[test]

@@ -109,7 +109,7 @@ fn bench(codec: &mut dyn StreamingCodec, input: &[u8]) -> Option<(usize, f64)> {
     let start = Instant::now();
     let mut iterations = 0u64;
     while start.elapsed().as_secs_f64() < 0.3 {
-        codec.reset();
+        codec.reset().ok()?;
         encode(codec, input)?;
         iterations += 1;
     }

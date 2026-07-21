@@ -37,7 +37,9 @@ impl StreamingCodec for Identity {
         })
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) -> Result<(), CodecError> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]

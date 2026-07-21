@@ -127,8 +127,9 @@ impl StreamingCodec for Deflate {
         })
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self) -> Result<(), CodecError> {
         self.core.reset();
+        Ok(())
     }
 }
 
@@ -249,13 +250,14 @@ impl StreamingCodec for Gzip {
         })
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self) -> Result<(), CodecError> {
         self.core.reset();
         self.crc = flate2::Crc::new();
         self.header_pos = 0;
         self.body_done = false;
         self.trailer = [0; 8];
         self.trailer_pos = 0;
+        Ok(())
     }
 }
 

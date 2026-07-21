@@ -97,7 +97,8 @@ impl StreamingCodec for Brotli {
         })
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self) -> Result<(), CodecError> {
         self.state = build_state(self.quality, self.window);
+        Ok(())
     }
 }

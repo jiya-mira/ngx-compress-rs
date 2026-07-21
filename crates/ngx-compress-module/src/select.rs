@@ -64,8 +64,10 @@ fn build(
     };
     let key = CodecKey::new(coding, level, window);
     let codec = match worker::acquire(key) {
-        Some(codec) => codec,
-        None => construct(resolved, coding)?,
+        Ok(Some(codec)) => codec,
+        // A missing pooled codec or one that failed to reset is replaced before
+        // this request starts; the failed instance was already dropped.
+        Ok(None) | Err(_) => construct(resolved, coding)?,
     };
     Some((codec, key))
 }

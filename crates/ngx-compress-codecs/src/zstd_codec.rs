@@ -76,14 +76,14 @@ impl StreamingCodec for Zstd {
         })
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self) -> Result<(), CodecError> {
         // Reuse the context; on the rare reinit failure, rebuild so the next
         // request starts from a clean encoder rather than a poisoned one.
-        if self.encoder.reinit().is_err() {
-            if let Ok(encoder) = Encoder::new(self.level) {
-                self.encoder = encoder;
-            }
+        if self.encoder.reinit().is_ok() {
+            return Ok(());
         }
+        self.encoder = Encoder::new(self.level).map_err(|_| CodecError::Backend)?;
+        Ok(())
     }
 }
 
