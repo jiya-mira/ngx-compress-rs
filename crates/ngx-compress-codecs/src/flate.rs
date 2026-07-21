@@ -56,8 +56,12 @@ impl FlateCore {
         }
     }
 
-    fn reset(&mut self, level: u32, zlib_header: bool) {
-        self.compress = Compress::new(Compression::new(level), zlib_header);
+    fn reset(&mut self) {
+        // flate2's `reset` runs `deflateReset`, reusing the allocated zlib state
+        // for a fresh stream at the same level and framing — the point of
+        // worker-local codec reuse. It fully clears prior-stream state, so no
+        // bytes carry over between responses.
+        self.compress.reset();
     }
 
     fn run(
@@ -84,7 +88,6 @@ impl FlateCore {
 #[cfg(feature = "deflate")]
 pub struct Deflate {
     core: FlateCore,
-    level: u32,
 }
 
 #[cfg(feature = "deflate")]
@@ -94,7 +97,6 @@ impl Deflate {
     pub fn new(level: u32) -> Self {
         Self {
             core: FlateCore::new(level, true),
-            level,
         }
     }
 }
@@ -126,7 +128,7 @@ impl StreamingCodec for Deflate {
     }
 
     fn reset(&mut self) {
-        self.core.reset(self.level, true);
+        self.core.reset();
     }
 }
 
@@ -147,7 +149,6 @@ fn copy_into(src: &[u8], dst: &mut [u8]) -> usize {
 pub struct Gzip {
     core: FlateCore,
     crc: flate2::Crc,
-    level: u32,
     header_pos: usize,
     body_done: bool,
     trailer: [u8; 8],
@@ -162,7 +163,6 @@ impl Gzip {
         Self {
             core: FlateCore::new(level, false),
             crc: flate2::Crc::new(),
-            level,
             header_pos: 0,
             body_done: false,
             trailer: [0; 8],
@@ -250,7 +250,7 @@ impl StreamingCodec for Gzip {
     }
 
     fn reset(&mut self) {
-        self.core.reset(self.level, false);
+        self.core.reset();
         self.crc = flate2::Crc::new();
         self.header_pos = 0;
         self.body_done = false;

@@ -19,11 +19,14 @@ use ngx_compress_ffi::filter;
 use crate::conf::{CompressConfig, Resolved};
 use crate::registration::{Module, ngx_http_compress_module};
 use crate::select;
+use crate::worker::{self, CodecKey};
 
 /// Per-request compression state, owned via the request `ctx` slot and dropped
 /// by a registered pool cleanup so the codec's resources are released.
 struct RequestCtx {
     codec: Box<dyn StreamingCodec>,
+    // Identifies the codec for return to the worker pool at cleanup.
+    key: CodecKey,
     out: *mut ngx_chain_t,
     busy: *mut ngx_chain_t,
     free: *mut ngx_chain_t,
@@ -48,7 +51,7 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
 
     // SAFETY: reads the request Accept-Encoding header.
     let accept = unsafe { accept_encoding(request) };
-    let Some(codec) = select::choose(&resolved, &accept) else {
+    let Some((codec, key)) = select::choose(&resolved, &accept) else {
         return pass();
     };
     let coding = codec.coding();
@@ -65,7 +68,7 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
     unsafe {
         (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
-        if install_ctx(request, codec, resolved.buffer_size).is_none() {
+        if install_ctx(request, codec, key, resolved.buffer_size).is_none() {
             return Status::NGX_ERROR.0;
         }
         filter::next_header(request)
@@ -361,7 +364,11 @@ unsafe fn clear_content_length(request: *mut ngx_http_request_t) {
 unsafe extern "C" fn cleanup(data: *mut c_void) {
     if !data.is_null() {
         // SAFETY: `data` is the RequestCtx pointer we leaked in install_ctx.
-        drop(unsafe { Box::from_raw(data.cast::<RequestCtx>()) });
+        let ctx = *unsafe { Box::from_raw(data.cast::<RequestCtx>()) };
+        // Return the codec to this worker's pool for reuse; `reset` on the next
+        // acquire clears its state. The raw chain pointers are pool-owned and
+        // need no drop.
+        worker::release(ctx.key, ctx.codec);
     }
 }
 
@@ -369,6 +376,7 @@ unsafe extern "C" fn cleanup(data: *mut c_void) {
 unsafe fn install_ctx(
     request: *mut ngx_http_request_t,
     codec: Box<dyn StreamingCodec>,
+    key: CodecKey,
     buffer_size: usize,
 ) -> Option<()> {
     // SAFETY: allocates a cleanup handler tied to the request pool.
@@ -379,6 +387,7 @@ unsafe fn install_ctx(
         }
         let boxed = Box::into_raw(Box::new(RequestCtx {
             codec,
+            key,
             out: ptr::null_mut(),
             busy: ptr::null_mut(),
             free: ptr::null_mut(),

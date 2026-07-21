@@ -146,6 +146,17 @@ smoke() {
         check "$2" "$coding" || rc=1
     done
     check_identity "$2" || rc=1
+
+    # Worker-local codec reuse: with master_process off there is a single worker,
+    # so repeating a coding makes requests 2..N pop a reset codec from the pool.
+    # A broken reset would corrupt the 2nd+ decoded body; each must still match.
+    for coding in gzip br zstd deflate; do
+        n=1
+        while [ "$n" -le 4 ]; do
+            check "$2 reuse#$n" "$coding" || rc=1
+            n=$((n + 1))
+        done
+    done
     # Subrequest position is correct for the dynamic target (nginx re-sorts
     # dynamic modules at load time by ngx_module_order). Static builds keep the
     # compile-time array order, which places this filter above postpone; that is
