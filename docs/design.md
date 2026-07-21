@@ -358,6 +358,13 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 
 ## 8. Deferred / open items
 
+- HTTP/3 (QUIC) interop test — deferred. The body filter is transport-agnostic
+  and HTTP/2 interop is verified in `docker/edge-tests.sh`; a full HTTP/3 test
+  needs `--with-http_v3_module`, TLS certificates, and a QUIC-capable client,
+  which is disproportionate for the marginal added coverage. The L0 property
+  tests, L2 Test::Nginx suite (`t/`), L3 fuzz scaffolding (`fuzz/`), and the
+  edge suite (backpressure, client disconnect, truncated upstream, HTTP/2,
+  no-panic) are in place.
 - Static-build subrequest filter position — known limitation. The body filter is
   ordered at the gzip slot (after `postpone_filter`) via `ngx_module_order` so
   subrequest-assembled responses (SSI includes, `add_after_body`) are compressed
