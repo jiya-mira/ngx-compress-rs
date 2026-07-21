@@ -13,7 +13,7 @@ use ngx::ffi::{
     ngx_str_t,
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf, Request};
-use ngx_compress_core::{AcceptEncoding, Operation, StepState, StreamingCodec};
+use ngx_compress_core::{AcceptEncoding, Operation, StepState, StreamingCodec, checked_step};
 use ngx_compress_ffi::filter;
 
 use crate::conf::{CompressConfig, Resolved};
@@ -143,9 +143,7 @@ unsafe fn compress_chain(
                 let out_buf = (*link).buf;
                 (out_buf, writable(out_buf))
             };
-            let step = ctx
-                .codec
-                .step(operation, &input[offset..], capacity)
+            let step = checked_step(&mut *ctx.codec, operation, &input[offset..], capacity)
                 .map_err(|_| ())?;
             offset += step.consumed;
 

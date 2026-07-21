@@ -1,4 +1,4 @@
-use crate::{ContentCoding, Operation, StepResult};
+use crate::{ContentCoding, Operation, ProgressError, StepResult, validate_progress};
 
 /// An unrecoverable failure reported by a codec adapter.
 ///
@@ -10,6 +10,15 @@ pub enum CodecError {
     /// The underlying compression backend reported an error and the stream
     /// cannot continue.
     Backend,
+}
+
+/// A codec failure or a violation of the streaming progress contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StepError {
+    /// The codec backend failed while advancing the stream.
+    Codec(CodecError),
+    /// The codec returned byte counts or state that violate the contract.
+    InvalidProgress(ProgressError),
 }
 
 /// A streaming encoder adapter over an established compression library.
@@ -41,4 +50,115 @@ pub trait StreamingCodec {
     /// Returns the adapter to its initial state so a worker can reuse the
     /// context across requests without reallocating it.
     fn reset(&mut self);
+}
+
+/// Advances a codec and validates its result before the caller can trust its
+/// consumed/produced byte counts.
+///
+/// # Errors
+///
+/// Returns [`StepError::Codec`] for backend failures or
+/// [`StepError::InvalidProgress`] when the adapter violates the streaming
+/// contract.
+pub fn checked_step<C: StreamingCodec + ?Sized>(
+    codec: &mut C,
+    operation: Operation,
+    input: &[u8],
+    output: &mut [u8],
+) -> Result<StepResult, StepError> {
+    let input_available = input.len();
+    let output_capacity = output.len();
+    let result = codec
+        .step(operation, input, output)
+        .map_err(StepError::Codec)?;
+    validate_progress(operation, input_available, output_capacity, result)
+        .map_err(StepError::InvalidProgress)?;
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CodecError, StepError, StreamingCodec, checked_step};
+    use crate::{ContentCoding, Operation, ProgressError, StepResult, StepState};
+
+    struct InvalidCodec;
+
+    struct ValidCodec;
+
+    impl StreamingCodec for ValidCodec {
+        fn coding(&self) -> ContentCoding {
+            ContentCoding::Identity
+        }
+
+        fn step(
+            &mut self,
+            _operation: Operation,
+            input: &[u8],
+            output: &mut [u8],
+        ) -> Result<StepResult, CodecError> {
+            let consumed = input.len().min(output.len());
+            Ok(StepResult {
+                consumed,
+                produced: consumed,
+                state: if consumed == input.len() {
+                    StepState::NeedsInput
+                } else {
+                    StepState::NeedsOutput
+                },
+            })
+        }
+
+        fn reset(&mut self) {}
+    }
+
+    impl StreamingCodec for InvalidCodec {
+        fn coding(&self) -> ContentCoding {
+            ContentCoding::Gzip
+        }
+
+        fn step(
+            &mut self,
+            _operation: Operation,
+            input: &[u8],
+            _output: &mut [u8],
+        ) -> Result<StepResult, CodecError> {
+            Ok(StepResult {
+                consumed: input.len() + 1,
+                produced: 0,
+                state: StepState::NeedsInput,
+            })
+        }
+
+        fn reset(&mut self) {}
+    }
+
+    #[test]
+    fn accepts_valid_codec_progress() {
+        let mut codec = ValidCodec;
+        let mut output = [0_u8; 16];
+
+        let result = checked_step(&mut codec, Operation::Continue, b"input", &mut output);
+
+        assert_eq!(
+            result,
+            Ok(StepResult {
+                consumed: 5,
+                produced: 5,
+                state: StepState::NeedsInput,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_codec_progress_before_the_caller_uses_it() {
+        let mut codec = InvalidCodec;
+        let mut output = [0_u8; 16];
+
+        let result = checked_step(&mut codec, Operation::Continue, b"input", &mut output);
+
+        assert_eq!(
+            result,
+            Err(StepError::InvalidProgress(ProgressError::ConsumedPastInput))
+        );
+    }
 }
