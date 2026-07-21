@@ -12,7 +12,8 @@ use ngx::ffi::{
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf, Request};
 use ngx_compress_core::{
-    AcceptEncoding, Operation, ResponseFacts, StepState, StreamingCodec, checked_step,
+    AcceptEncoding, Operation, OutputAction, OutputBoundary, OutputProvider, OutputUse,
+    ResponseFacts, StreamingCodec, drive_input,
 };
 use ngx_compress_ffi::filter;
 
@@ -211,19 +212,56 @@ impl<'a> OutputBuffer<'a> {
         self.capacity
     }
 
-    fn commit(&mut self, produced: usize, last: bool, flush: bool) -> Result<(), ()> {
+    fn commit(&mut self, produced: usize, boundary: OutputBoundary) -> Result<(), ()> {
         if produced > self.capacity.len() {
             return Err(());
         }
         // SAFETY: `produced` was validated against this view's capacity, which
         // is the live allocation beginning at raw.last.
         self.raw.last = unsafe { self.raw.last.add(produced) };
-        if last {
-            self.raw.set_last_buf(1);
-        } else if flush {
-            self.raw.set_flush(1);
+        match boundary {
+            OutputBoundary::None => {}
+            OutputBoundary::Flush => self.raw.set_flush(1),
+            OutputBoundary::Finish => self.raw.set_last_buf(1),
         }
         Ok(())
+    }
+}
+
+/// NGINX-specific output provider consumed by the safe streaming driver.
+struct NgxOutput<'a> {
+    request: *mut ngx_http_request_t,
+    out: &'a mut *mut ngx_chain_t,
+    free: &'a mut *mut ngx_chain_t,
+    buffer_size: usize,
+}
+
+impl OutputProvider for NgxOutput<'_> {
+    type Error = ();
+
+    fn with_output<T>(
+        &mut self,
+        use_output: impl FnOnce(&mut [u8]) -> OutputUse<T>,
+    ) -> Result<T, Self::Error> {
+        // SAFETY: provider construction is callback-scoped and guarantees a
+        // valid request plus unique access to its out/free chains.
+        unsafe {
+            let link = free_buf(self.request, self.free, self.buffer_size);
+            if link.is_null() {
+                return Err(());
+            }
+            let buf = (*link).buf.as_mut().ok_or(())?;
+            let mut output = OutputBuffer::new(buf)?;
+            let used = use_output(output.capacity());
+            match used.action {
+                OutputAction::Recycle => recycle(self.free, link),
+                OutputAction::Emit { produced, boundary } => {
+                    output.commit(produced, boundary)?;
+                    append(self.out, link);
+                }
+            }
+            Ok(used.value)
+        }
     }
 }
 
@@ -246,54 +284,22 @@ unsafe fn compress_chain(
             let buf = (*chain).buf.as_mut().ok_or(())?;
             InputBuffer::new(buf)?
         };
-        let operation = input.operation();
-        let mut offset = 0;
-
-        loop {
-            // SAFETY: reuse or allocate an output buffer link from the pool.
-            let link = unsafe { free_buf(request, ctx) };
-            if link.is_null() {
-                return Err(());
-            }
-            // SAFETY: `link` owns a live temp buffer whose last..end region is
-            // uniquely writable until this output view is dropped.
-            let mut output = unsafe {
-                let buf = (*link).buf.as_mut().ok_or(())?;
-                OutputBuffer::new(buf)?
+        let outcome = {
+            let mut output = NgxOutput {
+                request,
+                out: &mut ctx.out,
+                free: &mut ctx.free,
+                buffer_size: ctx.buffer_size,
             };
-            let step = checked_step(
+            drive_input(
                 &mut *ctx.codec,
-                operation,
-                &input.bytes()[offset..],
-                output.capacity(),
+                input.operation(),
+                input.bytes(),
+                &mut output,
             )
-            .map_err(|_| ())?;
-            offset += step.consumed;
-
-            let complete = step.state == StepState::Complete;
-            let last = operation == Operation::Finish && complete;
-            let flush = operation == Operation::Flush && complete;
-
-            // Only emit a buffer that carries data or a boundary flag; an empty
-            // non-boundary buffer (a codec step that buffered input without
-            // output) would trip nginx's "zero size buf" alert.
-            if step.produced > 0 || last || flush {
-                output.commit(step.produced, last, flush)?;
-                // SAFETY: link the committed pool-owned buffer into `ctx.out`.
-                unsafe { append(&mut ctx.out, link) };
-            } else {
-                // SAFETY: return the unused empty buffer to the free list.
-                unsafe { recycle(&mut ctx.free, link) };
-            }
-
-            if last {
-                ctx.done = true;
-                break;
-            }
-            if flush || step.state == StepState::NeedsInput {
-                break;
-            }
-        }
+            .map_err(|_| ())?
+        };
+        ctx.done = outcome.finished;
 
         input.consume();
         // SAFETY: input is consumed and `chain` remains a valid link.
@@ -334,22 +340,26 @@ unsafe fn recycle(free: &mut *mut ngx_chain_t, link: *mut ngx_chain_t) {
 }
 
 /// Reuses a buffer from the free chain, or allocates a new temp buffer + link.
-unsafe fn free_buf(request: *mut ngx_http_request_t, ctx: &mut RequestCtx) -> *mut ngx_chain_t {
+unsafe fn free_buf(
+    request: *mut ngx_http_request_t,
+    free: &mut *mut ngx_chain_t,
+    buffer_size: usize,
+) -> *mut ngx_chain_t {
     // SAFETY: pool is valid; ngx_chain_get_free_buf reuses or allocates a link.
     unsafe {
         let pool = (*request).pool;
-        let link = ngx_chain_get_free_buf(pool, &raw mut ctx.free);
+        let link = ngx_chain_get_free_buf(pool, free);
         if link.is_null() {
             return ptr::null_mut();
         }
         let buf = (*link).buf;
         if (*buf).start.is_null() {
-            let memory = ngx_palloc(pool, ctx.buffer_size).cast::<u8>();
+            let memory = ngx_palloc(pool, buffer_size).cast::<u8>();
             if memory.is_null() {
                 return ptr::null_mut();
             }
             (*buf).start = memory;
-            (*buf).end = memory.add(ctx.buffer_size);
+            (*buf).end = memory.add(buffer_size);
             (*buf).tag = ptr::addr_of!(ngx_http_compress_module).cast_mut().cast();
         }
         (*buf).pos = (*buf).start;

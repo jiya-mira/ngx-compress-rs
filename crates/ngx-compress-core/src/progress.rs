@@ -26,6 +26,7 @@ pub enum ProgressError {
     StalledWithAvailableInputAndOutput,
     RequestedInputBeforeConsumingAvailableInput,
     RequestedOutputWithCapacityRemaining,
+    CompletedBoundaryBeforeConsumingInput,
 }
 
 /// Verifies that one streaming encoder step respected its buffer contract.
@@ -51,6 +52,12 @@ pub fn validate_progress(
     }
     if result.state == StepState::NeedsOutput && result.produced < output_capacity {
         return Err(ProgressError::RequestedOutputWithCapacityRemaining);
+    }
+    if operation != Operation::Continue
+        && result.state == StepState::Complete
+        && result.consumed < input_available
+    {
+        return Err(ProgressError::CompletedBoundaryBeforeConsumingInput);
     }
 
     let made_progress = result.consumed > 0 || result.produced > 0;
@@ -103,6 +110,25 @@ mod tests {
         );
 
         assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn rejects_completed_boundary_with_unconsumed_input() {
+        let result = validate_progress(
+            Operation::Finish,
+            8,
+            4_096,
+            StepResult {
+                consumed: 4,
+                produced: 4,
+                state: StepState::Complete,
+            },
+        );
+
+        assert_eq!(
+            result,
+            Err(ProgressError::CompletedBoundaryBeforeConsumingInput)
+        );
     }
 
     #[test]
