@@ -29,5 +29,9 @@
   "27": "Self",
   "28": "ngx_command_t",
   "29": "ngx_conf_t",
-  "30": "Result"
+  "30": "Result",
+  "31": "AcceptEncoding",
+  "32": "Box",
+  "33": "StreamingCodec",
+  "34": "verify-backends.sh"
 }
