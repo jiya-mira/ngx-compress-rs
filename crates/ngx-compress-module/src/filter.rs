@@ -60,9 +60,8 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
     {
         return pass();
     }
-    // SAFETY: require in-memory input (materialize file/sendfile buffers before
-    // this filter, as the gzip module does), clear the now-invalid length, and
-    // install request state; on allocation failure abort rather than mis-frame.
+    // SAFETY: require in-memory input (materialize file buffers first, like the
+    // gzip module), clear the invalid length, and install request state.
     unsafe {
         (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
