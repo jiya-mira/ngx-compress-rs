@@ -71,3 +71,47 @@ Accept-Encoding: gzip;q=0.5, br;q=1.0
 --- response_headers
 Content-Encoding: br
 --- error_code: 200
+
+=== TEST 5: `compress balanced` is turnkey (enables codecs, sets preset min_length)
+--- config
+location = /t {
+    compress balanced;
+    return 200 "compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: gzip
+--- response_headers
+Content-Encoding: gzip
+Vary: Accept-Encoding
+--- error_code: 200
+
+=== TEST 6: explicit `compress_zstd off` overrides the `max` profile
+--- config
+location = /t {
+    compress max;
+    compress_zstd off;
+    return 200 "compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: zstd
+--- response_headers
+! Content-Encoding
+--- error_code: 200
+
+=== TEST 7: preset min_length applies -> short body under the balanced threshold stays identity
+--- config
+location = /t {
+    compress balanced;
+    return 200 "short body\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: gzip
+--- response_headers
+! Content-Encoding
+--- error_code: 200

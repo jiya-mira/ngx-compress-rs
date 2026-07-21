@@ -17,6 +17,8 @@ use ngx::ffi::{
 use ngx::http::{Merge, MergeConfigError};
 use ngx::ngx_conf_log_error;
 
+use crate::profile::Profile;
+
 /// Default per-codec compression levels (aligned with the upstream modules).
 const DEFAULT_GZIP_LEVEL: u32 = 6;
 const DEFAULT_DEFLATE_LEVEL: u32 = 6;
@@ -31,6 +33,8 @@ const DEFAULT_BUFFER_SIZE: usize = 8_192;
 #[derive(Debug, Default)]
 pub(crate) struct CompressConfig {
     enable: Option<bool>,
+    // The named preset selected by `compress <profile>`; fills unset fields.
+    profile: Option<Profile>,
     gzip: Option<bool>,
     gzip_level: Option<u32>,
     deflate: Option<bool>,
@@ -67,27 +71,52 @@ pub(crate) struct Resolved {
 }
 
 impl CompressConfig {
-    /// Resolves inheritance and defaults into an immutable snapshot.
+    /// Resolves inheritance, the selected profile, and defaults into an
+    /// immutable snapshot. Precedence for every field: an explicit `compress_*`
+    /// directive wins, else the selected profile's preset, else the built-in
+    /// default.
     pub(crate) fn resolve(&self) -> Resolved {
         // style:allow-pub-crate
+        let preset = self.profile.and_then(Profile::preset);
         Resolved {
             enabled: self.enable.unwrap_or(false),
-            min_length: self.min_length.unwrap_or(DEFAULT_MIN_LENGTH),
+            min_length: self
+                .min_length
+                .or(preset.map(|p| p.min_length))
+                .unwrap_or(DEFAULT_MIN_LENGTH),
             vary: self.vary.unwrap_or(true),
             buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
             types: self.types,
-            gzip: on_level(self.gzip, self.gzip_level, DEFAULT_GZIP_LEVEL),
-            deflate: on_level(self.deflate, self.deflate_level, DEFAULT_DEFLATE_LEVEL),
-            brotli: self.brotli.unwrap_or(false).then(|| {
+            gzip: on_level(
+                self.gzip.or(preset.map(|p| p.gzip)),
+                self.gzip_level.or(preset.map(|p| p.gzip_level)),
+                DEFAULT_GZIP_LEVEL,
+            ),
+            // A preset never enables deflate; only an explicit directive does.
+            deflate: on_level(
+                self.deflate,
+                self.deflate_level.or(preset.map(|p| p.deflate_level)),
+                DEFAULT_DEFLATE_LEVEL,
+            ),
+            brotli: self.brotli.or(preset.map(|p| p.brotli)).unwrap_or(false).then(|| {
                 (
-                    self.brotli_level.unwrap_or(DEFAULT_BROTLI_LEVEL),
-                    self.brotli_window.unwrap_or(DEFAULT_BROTLI_WINDOW),
+                    self.brotli_level
+                        .or(preset.map(|p| p.brotli_level))
+                        .unwrap_or(DEFAULT_BROTLI_LEVEL),
+                    self.brotli_window
+                        .or(preset.map(|p| p.brotli_window))
+                        .unwrap_or(DEFAULT_BROTLI_WINDOW),
                 )
             }),
             zstd: self
                 .zstd
+                .or(preset.map(|p| p.zstd))
                 .unwrap_or(false)
-                .then(|| self.zstd_level.unwrap_or(DEFAULT_ZSTD_LEVEL)),
+                .then(|| {
+                    self.zstd_level
+                        .or(preset.map(|p| p.zstd_level))
+                        .unwrap_or(DEFAULT_ZSTD_LEVEL)
+                }),
         }
     }
 }
@@ -99,6 +128,7 @@ fn on_level(on: Option<bool>, level: Option<u32>, default: u32) -> Option<u32> {
 impl Merge for CompressConfig {
     fn merge(&mut self, prev: &Self) -> Result<(), MergeConfigError> {
         merge_opt(&mut self.enable, prev.enable);
+        merge_opt(&mut self.profile, prev.profile);
         merge_opt(&mut self.gzip, prev.gzip);
         merge_opt(&mut self.gzip_level, prev.gzip_level);
         merge_opt(&mut self.deflate, prev.deflate);
@@ -149,7 +179,7 @@ pub(crate) extern "C" fn set_directive(
 
 fn apply(config: &mut CompressConfig, name: &str, value: &str) -> bool {
     match name {
-        "compress" => set_flag(&mut config.enable, value),
+        "compress" => set_compress(config, value),
         "compress_gzip" => set_flag(&mut config.gzip, value),
         "compress_deflate" => set_flag(&mut config.deflate, value),
         "compress_brotli" => set_flag(&mut config.brotli, value),
@@ -162,6 +192,27 @@ fn apply(config: &mut CompressConfig, name: &str, value: &str) -> bool {
         "compress_zstd_comp_level" => set_zstd_level(&mut config.zstd_level, value),
         "compress_min_length" => set_usize(&mut config.min_length, value),
         _ => false,
+    }
+}
+
+/// `compress off | on | fast | balanced | max`. `off`/`on` toggle the module
+/// (with `on` = the no-preset "custom" mode); a profile name enables the module
+/// and records the preset. Explicit `compress_*` directives still override
+/// individual preset fields at resolve time.
+fn set_compress(config: &mut CompressConfig, value: &str) -> bool {
+    if value.eq_ignore_ascii_case("off") {
+        config.enable = Some(false);
+        true
+    } else if value.eq_ignore_ascii_case("on") {
+        config.enable = Some(true);
+        config.profile = Some(Profile::Custom);
+        true
+    } else if let Some(profile) = Profile::parse(value) {
+        config.enable = Some(true);
+        config.profile = Some(profile);
+        true
+    } else {
+        false
     }
 }
 

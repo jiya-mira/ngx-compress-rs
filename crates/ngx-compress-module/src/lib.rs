@@ -7,5 +7,6 @@
 
 mod conf;
 mod filter;
+mod profile;
 mod registration;
 mod select;

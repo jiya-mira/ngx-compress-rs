@@ -165,17 +165,52 @@ provided under our naming. Directives with no elegant home in our scheme
 (`gzip_proxied`, `gzip_http_version`, `gzip_disable`) are intentionally not
 mirrored.
 
-### 4.2 Master switch and per-codec toggles
+### 4.2 Master switch, profiles, and per-codec toggles
 
-To compress, the location needs `compress on;` plus at least one enabled codec.
+The `compress` directive is both the master gate and the profile selector:
+
+| `compress` value | Meaning |
+| --- | --- |
+| `off` | module disabled (default) |
+| `on` | enabled, *custom* mode — no preset; only explicit `compress_*` directives and built-in defaults apply (backward compatible with pre-profile configs) |
+| `fast` \| `balanced` \| `max` | enabled with a named preset (see §4.2.1) |
+
+So the minimal turnkey config is a single line — `compress balanced;` — which
+enables the compiled-in codecs at that tier and sets a sensible `min_length`.
+The manual path is `compress on;` plus at least one per-codec toggle below.
 
 | Directive | Type | Default | Upstream analog |
 | --- | --- | --- | --- |
-| `compress on\|off` | bool | `off` | `gzip` (master gate) |
+| `compress off\|on\|fast\|balanced\|max` | enum | `off` | `gzip` (master gate) + preset |
 | `compress_gzip on\|off` | bool | `off` | `gzip` |
 | `compress_deflate on\|off` | bool | `off` | — (raw deflate) |
 | `compress_brotli on\|off` | bool | `off` | `brotli` |
 | `compress_zstd on\|off` | bool | `off` | `zstd` |
+
+### 4.2.1 Profiles (`compress <tier>`)
+
+A profile is a preset bundle so a user need not learn each directive's meaning
+and recommended value. No upstream module offers this; it is a UX layer over the
+already-validated per-codec knobs, adding no request-path logic. Folding it into
+`compress` (rather than a separate `compress_profile`) follows the common nginx
+pattern of a directive that takes more than `on`/`off`, and lets `compress on`
+naturally mean the "custom" (no-preset) mode.
+
+| Tier | Enables | Intent | Levels (placeholder, benchmark-calibrated) |
+| --- | --- | --- | --- |
+| `fast` | gzip, br, zstd | high-QPS dynamic, CPU-frugal | gzip 4 / br 4 w18 / zstd 1, min_length 256 |
+| `balanced` | gzip, br, zstd | general default | gzip 6 / br 6 w22 / zstd 3, min_length 256 |
+| `max` | gzip, br, zstd | cacheable/precompressed, CPU offline | gzip 9 / br 11 w24 / zstd 19, min_length 128 |
+
+- **Precedence:** explicit `compress_*` directive > profile preset > built-in
+  default, independent of directive order. `compress max; compress_zstd off;`
+  runs the `max` tier with zstd disabled.
+- **Codec availability:** a preset only enables codecs compiled into the build;
+  `deflate` is never enabled by a preset (clients rarely request raw deflate) —
+  turn it on explicitly if needed.
+- **Stability:** tier *names* express intent, so re-tuning a tier's numbers after
+  benchmarking is not a breaking change; the concrete values are placeholders
+  until the M3 benchmark calibrates them.
 
 ### 4.3 Per-codec parameters
 
@@ -375,11 +410,33 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
   point (non-subrequest responses are correct in both modes; the build test
   records this as a documented caveat, not a failure). Consistent with the
   design's dynamic-first stance. Revisit if static SSI support is required.
-- Static precompressed serving (`.br` / `.gz` sidecar) — M3, with a
-  `compress_static` directive; kept out of the M1/M2 header filter to keep it
-  simple.
+- Static precompressed serving (`.br` / `.gz` / `.zst` sidecar) — M3, a
+  content-phase handler (`compress_static on|off|always`) that serves a
+  precompressed sidecar file when one exists and the client accepts it, like
+  `gzip_static`. Kept out of the M1/M2 header/body filter because it replaces the
+  file being served rather than transforming a stream.
+- Named profiles (`compress fast|balanced|max`) — M3, done. A turnkey preset
+  over the per-codec knobs (§4.2.1); explicit directives override, preset numbers
+  are benchmark-calibrated.
+- Worker-local codec-context reuse — M3. Reset and reuse a per-worker codec
+  instead of allocating a fresh encoder per request (the `StreamingCodec::reset`
+  seam already exists). Worker-local only, no cross-worker/cross-request shared
+  mutable state, no request-path locks.
+- Benchmark-driven profiles — M3. A reproducible ratio × throughput × CPU
+  harness that calibrates the profile tiers' default levels and the
+  per-response-class priority order.
 - Per-response-class priority (dynamic vs cacheable) refining the default
-  order — M3.
+  order — M3, calibrated by the benchmark above.
+- A runtime cache of the module's *own* compressed output — explicitly **not
+  built**. Static content is served from precompressed sidecars (the filesystem
+  is the cache); "compress once, reuse" for dynamic content is delegated to
+  nginx `proxy_cache` at an origin that emits `Content-Encoding`. A bespoke
+  shared-memory compressed cache would re-implement `proxy_cache` for a narrow
+  gain and is not worth the invalidation/eviction complexity.
+- Per-MIME quality / per-size algorithm switching — **dropped**. No upstream
+  module offers it; the table-stakes controls (`compress_types` allowlist,
+  `compress_min_length`, per-codec `*_comp_level`) already ship and match the
+  ecosystem.
 - Dictionary transport directives and lifecycle — M4.
 - Symmetric decode ("unboxing") — proposed **M5**, to be discussed. This module
   is compress-only; enabling it does not make NGINX decompress anything (the

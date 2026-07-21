@@ -117,10 +117,18 @@ Regardless of repository name, keep runtime names language-neutral: use an NGINX
 
 ### M3: Static and adaptive optimization
 
-- precompressed static variants
-- per-MIME and per-size policy
-- worker-local context reuse
-- benchmark-driven compression profiles
+- precompressed static variants (`.gz`/`.br`/`.zst` sidecar content handler)
+- named profiles (`compress fast|balanced|max`) — turnkey presets over the
+  per-codec knobs, explicit directives override
+- worker-local context reuse (reset a per-worker codec instead of reallocating)
+- benchmark-driven compression profiles (calibrate the preset tiers and the
+  per-response-class priority order)
+
+Dropped from the original M3 list: per-MIME/per-size *policy* beyond the shipped
+`compress_types` + `compress_min_length` + per-codec level — no upstream module
+has it and the gain does not justify the config surface. A runtime cache of the
+module's own compressed output is a non-goal (precompressed sidecars + upstream
+`proxy_cache` cover it).
 
 ### M4: Compression Dictionary Transport
 
