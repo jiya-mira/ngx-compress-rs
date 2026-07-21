@@ -7,3 +7,9 @@
 # graphify: track graph.json / GRAPH_REPORT.md; ignore local machine state
 graphify-out/cache/
 graphify-out/.graphify_*
+
+# cargo-fuzz (nightly, separate workspace)
+fuzz/target/
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/Cargo.lock

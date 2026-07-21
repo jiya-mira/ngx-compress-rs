@@ -1,0 +1,30 @@
+[package]
+name = "ngx-compress-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+ngx-compress-core = { path = "../crates/ngx-compress-core" }
+
+[[bin]]
+name = "parse"
+path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "progress"
+path = "fuzz_targets/progress.rs"
+test = false
+doc = false
+bench = false
+
+# Own workspace root so `cargo fuzz` (nightly) stays out of the main workspace,
+# which builds on stable.
+[workspace]
