@@ -12,13 +12,13 @@ use ngx::ffi::{
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf, Request};
 use ngx_compress_core::{
-    AcceptEncoding, Operation, StepState, StreamingCodec, checked_step, compressible,
+    AcceptEncoding, Operation, ResponseFacts, StepState, StreamingCodec, checked_step,
 };
 use ngx_compress_ffi::filter;
 
-use crate::conf::{CompressConfig, Resolved};
+use crate::conf::CompressConfig;
+use crate::header::{self, Snapshot};
 use crate::registration::{Module, ngx_http_compress_module};
-use crate::select;
 use crate::worker::{self, CodecKey};
 
 /// Per-request compression state, owned via the request `ctx` slot and dropped
@@ -36,30 +36,33 @@ struct RequestCtx {
 
 // Installed into the header filter chain by registration. style:allow-pub-crate
 pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) -> ngx_int_t {
-    // SAFETY: nginx passes a valid request pointer to a header filter.
-    let req = unsafe { Request::from_ngx_http_request(request) };
     // SAFETY: install() ran during postconfiguration; used for every fall-through.
     let pass = || unsafe { filter::next_header(request) };
 
-    let Some(resolved) = Module::location_conf(req).map(CompressConfig::resolve) else {
+    // SAFETY: scope the official request wrapper to configuration lookup. The
+    // resolved MIME reference is configuration-owned, not request-owned.
+    let resolved = unsafe {
+        let req = Request::from_ngx_http_request(request);
+        Module::location_conf(req).map(CompressConfig::resolve)
+    };
+    let Some(resolved) = resolved else {
         return pass();
     };
-    // SAFETY: reads response/request header fields from a valid request.
-    if !resolved.enabled || !unsafe { eligible(request, &resolved) } {
-        return pass();
-    }
-
-    // SAFETY: reads the request Accept-Encoding header.
-    let accept = unsafe { accept_encoding(request) };
-    let Some((codec, key)) = select::choose(&resolved, &accept) else {
+    // SAFETY: copy all request/response facts needed by policy into Rust-owned
+    // values before safe-core decision making.
+    let Some(snapshot) = (unsafe { prefetch_header(request) }) else {
         return pass();
     };
-    let coding = codec.coding();
+    let Some(plan) = header::decide(&resolved, &snapshot) else {
+        return pass();
+    };
 
+    // SAFETY: create the request wrapper only for the submit phase.
+    let req = unsafe { Request::from_ngx_http_request(request) };
     if req
-        .add_header_out("Content-Encoding", coding.as_str())
+        .add_header_out("Content-Encoding", plan.coding.as_str())
         .is_none()
-        || (resolved.vary && req.add_header_out("Vary", "Accept-Encoding").is_none())
+        || (plan.vary && req.add_header_out("Vary", "Accept-Encoding").is_none())
     {
         return pass();
     }
@@ -68,7 +71,7 @@ pub(crate) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) 
     unsafe {
         (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
-        if install_ctx(request, codec, key, resolved.buffer_size).is_none() {
+        if install_ctx(request, plan.codec, plan.key, plan.buffer_size).is_none() {
             return Status::NGX_ERROR.0;
         }
         filter::next_header(request)
@@ -356,25 +359,26 @@ unsafe fn free_buf(request: *mut ngx_http_request_t, ctx: &mut RequestCtx) -> *m
     }
 }
 
-/// Returns whether the response is eligible for compression.
-unsafe fn eligible(request: *mut ngx_http_request_t, resolved: &Resolved<'_>) -> bool {
-    // SAFETY: reads response header fields from a valid request.
+/// Copies policy inputs out of nginx before safe-core decision making.
+unsafe fn prefetch_header(request: *mut ngx_http_request_t) -> Option<Snapshot> {
+    // SAFETY: nginx supplied a valid request and live input/output headers.
     unsafe {
-        if request != (*request).main {
-            return false;
-        }
-        if u32::try_from((*request).headers_out.status).unwrap_or(0) != NGX_HTTP_OK {
-            return false;
-        }
-        if !(*request).headers_out.content_encoding.is_null() {
-            return false;
-        }
         let length = (*request).headers_out.content_length_n;
-        if length >= 0 && usize::try_from(length).unwrap_or(0) < resolved.min_length {
-            return false;
-        }
-        let content_type = copy_ngx_str(&(*request).headers_out.content_type);
-        content_type.is_some_and(|kind| compressible(&kind, resolved.types))
+        let content_length = if length < 0 {
+            None
+        } else {
+            Some(usize::try_from(length).ok()?)
+        };
+        Some(Snapshot {
+            facts: ResponseFacts {
+                main_response: request == (*request).main,
+                successful: u32::try_from((*request).headers_out.status).ok()? == NGX_HTTP_OK,
+                already_encoded: !(*request).headers_out.content_encoding.is_null(),
+                content_length,
+                content_type: copy_ngx_str(&(*request).headers_out.content_type)?,
+            },
+            accept_encoding: accept_encoding(request),
+        })
     }
 }
 
@@ -400,11 +404,8 @@ pub(crate) unsafe fn accept_encoding(request: *mut ngx_http_request_t) -> Accept
         if header.is_null() {
             return AcceptEncoding::absent();
         }
-        let value = (*header).value;
-        match str::from_utf8(slice::from_raw_parts(value.data, value.len)) {
-            Ok(text) => AcceptEncoding::parse(text),
-            Err(_) => AcceptEncoding::absent(),
-        }
+        copy_ngx_str(&(*header).value)
+            .map_or_else(AcceptEncoding::absent, |text| AcceptEncoding::parse(&text))
     }
 }
 
