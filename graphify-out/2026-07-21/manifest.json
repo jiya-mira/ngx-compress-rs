@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "docker/build-and-test.sh": {
-    "mtime": 1784591737.77786,
-    "ast_hash": "479b44ee08df218570592ddd8e095eef",
+    "mtime": 1784623361.7674453,
+    "ast_hash": "c7d6dcb39c51238ef2a09ecd79bcdb36",
     "semantic_hash": ""
   },
   "docker/lint.sh": {
@@ -80,8 +80,8 @@
     "semantic_hash": "aa529709b940affbcf46216e4d5029f9"
   },
   "docs/design.md": {
-    "mtime": 1784605357.943425,
-    "ast_hash": "c8d78f2b7c0092381fa09b9e4cd9a19a",
+    "mtime": 1784606906.4938529,
+    "ast_hash": "e840f9806d813374474d66fead94e99c",
     "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/brotli_codec.rs": {
@@ -110,8 +110,8 @@
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter.rs": {
-    "mtime": 1784591728.9964426,
-    "ast_hash": "53dcc8f99c39bd27e2d796443209ea48",
+    "mtime": 1784623661.9276013,
+    "ast_hash": "f56cd4ff4b2187fff464a7c1cfb65219",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/registration.rs": {
@@ -137,6 +137,36 @@
   "crates/ngx-compress-brotli-sys/src/lib.rs": {
     "mtime": 1784604884.2060997,
     "ast_hash": "2067b6985568b7360c1fd75beed78cd0",
+    "semantic_hash": ""
+  },
+  "crates/ngx-compress-core/tests/properties.rs": {
+    "mtime": 1784613802.1887946,
+    "ast_hash": "af0dd945e70715c27445236728042038",
+    "semantic_hash": ""
+  },
+  "fuzz/fuzz_targets/parse.rs": {
+    "mtime": 1784613869.6869073,
+    "ast_hash": "8d34a3ca117157e60a719cc67caf0838",
+    "semantic_hash": ""
+  },
+  "fuzz/fuzz_targets/progress.rs": {
+    "mtime": 1784613869.688953,
+    "ast_hash": "c5496b6d4739b2ac2b769c9e61948544",
+    "semantic_hash": ""
+  },
+  "fuzz/README.md": {
+    "mtime": 1784613869.6907642,
+    "ast_hash": "288b956410f4ccd212c447cb76218380",
+    "semantic_hash": ""
+  },
+  "docker/edge-tests.sh": {
+    "mtime": 1784623088.4674144,
+    "ast_hash": "1641667b22292db467a0d81d905576bf",
+    "semantic_hash": ""
+  },
+  "docker/test-nginx.sh": {
+    "mtime": 1784623405.2942457,
+    "ast_hash": "bd5c3df05bc6276d5e4401f90ff3ef6d",
     "semantic_hash": ""
   }
 }

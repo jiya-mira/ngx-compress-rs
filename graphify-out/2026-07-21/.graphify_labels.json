@@ -16,7 +16,7 @@
   "14": "Result",
   "15": "Brotli",
   "16": "Zstd",
-  "17": "compress",
+  "17": "identity.rs",
   "18": "Operation",
   "19": "StepResult",
   "20": "Vec",
@@ -40,5 +40,16 @@
   "38": "lib.rs",
   "39": "Operation",
   "40": "StepResult",
-  "41": "StepState"
+  "41": "StepState",
+  "42": "q_str",
+  "43": "README.md",
+  "44": "parse.rs",
+  "45": "progress.rs",
+  "46": "c_void",
+  "47": "ngx_array_t",
+  "48": "ngx_int_t",
+  "49": "ngx_str_t",
+  "50": "NonNull",
+  "51": "Option",
+  "52": "Result"
 }
