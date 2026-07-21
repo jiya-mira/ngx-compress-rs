@@ -3,6 +3,7 @@
 
 
 .DS_Store
+/.idea/
 
 # graphify: track graph.json / GRAPH_REPORT.md; ignore local machine state
 graphify-out/cache/
