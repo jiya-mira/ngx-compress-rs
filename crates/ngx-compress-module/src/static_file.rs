@@ -24,9 +24,9 @@ use ngx::ffi::{
     ngx_table_elt_t, ngx_uint_t,
 };
 use ngx::http::{HttpModuleLocationConf, Request};
-use ngx_compress_core::ContentCoding;
+use ngx_compress_core::{ContentCoding, StaticCandidate, StaticRequestFacts, static_candidates};
 
-use crate::conf::{CompressConfig, StaticMode};
+use crate::conf::CompressConfig;
 use crate::filter::accept_encoding;
 use crate::registration::Module;
 
@@ -38,14 +38,6 @@ const ERROR: ngx_int_t = Status::NGX_ERROR.0;
 fn server_error() -> ngx_int_t {
     ngx_int_t::try_from(NGX_HTTP_INTERNAL_SERVER_ERROR).unwrap_or(ERROR)
 }
-
-/// Sidecar candidates in server-priority order (zstd > br > gzip). deflate has no
-/// conventional sidecar extension, so it is omitted.
-const CANDIDATES: [(ContentCoding, &str); 3] = [
-    (ContentCoding::Zstd, ".zst"),
-    (ContentCoding::Brotli, ".br"),
-    (ContentCoding::Gzip, ".gz"),
-];
 
 /// Registers the content-phase handler; call from postconfiguration.
 ///
@@ -77,39 +69,55 @@ unsafe extern "C" fn handler(request: *mut ngx_http_request_t) -> ngx_int_t {
 }
 
 unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
-    // SAFETY: `request` is valid; read method/uri and our location config.
+    // SAFETY: scope the official wrapper to reading configuration; the resolved
+    // snapshot borrows only configuration-owned MIME data.
+    let resolved = unsafe {
+        let req = Request::from_ngx_http_request(request);
+        Module::location_conf(req).map(CompressConfig::resolve)
+    };
+    let Some(resolved) = resolved else {
+        return DECLINED;
+    };
+    // SAFETY: copy the method, URI, and Accept-Encoding into Rust-owned facts.
+    let Some(snapshot) = (unsafe { prefetch_request(request) }) else {
+        return DECLINED;
+    };
+
+    // style:allow-for-in
+    for StaticCandidate { coding, extension } in static_candidates(resolved.static_mode, &snapshot)
+    {
+        // SAFETY: submit layer probes and possibly emits this complete candidate.
+        if let Some(rc) = unsafe { try_serve(request, coding, extension) } {
+            return rc;
+        }
+    }
+    DECLINED
+}
+
+/// Copies all static-sidecar policy inputs out of nginx request memory.
+unsafe fn prefetch_request(request: *mut ngx_http_request_t) -> Option<StaticRequestFacts> {
+    // SAFETY: nginx supplied a valid request and a live URI ngx_str.
     unsafe {
         let get_head = (NGX_HTTP_GET | NGX_HTTP_HEAD) as ngx_uint_t;
-        if (*request).method & get_head == 0 {
-            return DECLINED;
-        }
-        let uri = (*request).uri;
-        // A directory request (trailing '/') is the static/index handler's job.
-        if uri.len == 0 || *uri.data.add(uri.len - 1) == b'/' {
-            return DECLINED;
-        }
-
-        let req = Request::from_ngx_http_request(request);
-        let Some(resolved) = Module::location_conf(req).map(CompressConfig::resolve) else {
-            return DECLINED;
-        };
-        if resolved.static_mode == StaticMode::Off {
-            return DECLINED;
-        }
-
-        let accept = accept_encoding(request);
-        // style:allow-for-in
-        for (coding, ext) in CANDIDATES {
-            let acceptable =
-                resolved.static_mode == StaticMode::Always || accept.quality(coding) > 0;
-            if acceptable {
-                if let Some(rc) = try_serve(request, coding, ext) {
-                    return rc;
-                }
-            }
-        }
-        DECLINED
+        Some(StaticRequestFacts {
+            method_supported: (*request).method & get_head != 0,
+            uri: copy_ngx_bytes(&(*request).uri)?,
+            accept_encoding: accept_encoding(request),
+        })
     }
+}
+
+/// Copies an nginx byte string into Rust ownership without assuming UTF-8.
+unsafe fn copy_ngx_bytes(value: &ngx_str_t) -> Option<Vec<u8>> {
+    if value.len == 0 {
+        return Some(Vec::new());
+    }
+    if value.data.is_null() {
+        return None;
+    }
+    // SAFETY: the caller guarantees that non-empty data is live for len bytes;
+    // to_vec removes the external lifetime before policy sees the value.
+    Some(unsafe { core::slice::from_raw_parts(value.data, value.len) }.to_vec())
 }
 
 /// Attempts to open and serve the sidecar for one coding. `Some(rc)` means we

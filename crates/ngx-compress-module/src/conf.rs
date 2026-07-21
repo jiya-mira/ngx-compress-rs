@@ -12,20 +12,9 @@ use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
 use ngx::ffi::{NGX_LOG_EMERG, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
 use ngx::http::{Merge, MergeConfigError};
 use ngx::ngx_conf_log_error;
-use ngx_compress_core::MimeTypes;
+use ngx_compress_core::{MimeTypes, StaticMode};
 
 use crate::profile::Profile;
-
-/// Precompressed-sidecar serving mode for `compress_static`. style:allow-pub-crate
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum StaticMode {
-    /// Never serve sidecars.
-    Off,
-    /// Serve a sidecar only when the client accepts that coding.
-    On,
-    /// Serve the best existing sidecar even without a matching Accept-Encoding.
-    Always,
-}
 
 /// Default per-codec compression levels (aligned with the upstream modules).
 const DEFAULT_GZIP_LEVEL: u32 = 6;
