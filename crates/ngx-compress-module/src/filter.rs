@@ -3,17 +3,17 @@
 //! body through the selected codec with free/busy chain backpressure.
 
 use core::ffi::c_void;
-use core::ptr::NonNull;
 use core::{ptr, slice, str};
 
 use ngx::core::Status;
 use ngx::ffi::{
-    NGX_HTTP_OK, ngx_array_t, ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t,
-    ngx_chain_update_chains, ngx_http_request_t, ngx_int_t, ngx_palloc, ngx_pool_cleanup_add,
-    ngx_str_t,
+    NGX_HTTP_OK, ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t, ngx_chain_update_chains,
+    ngx_http_request_t, ngx_int_t, ngx_palloc, ngx_pool_cleanup_add, ngx_str_t,
 };
 use ngx::http::{HttpModule, HttpModuleLocationConf, Request};
-use ngx_compress_core::{AcceptEncoding, Operation, StepState, StreamingCodec, checked_step};
+use ngx_compress_core::{
+    AcceptEncoding, Operation, StepState, StreamingCodec, checked_step, compressible,
+};
 use ngx_compress_ffi::filter;
 
 use crate::conf::{CompressConfig, Resolved};
@@ -357,7 +357,7 @@ unsafe fn free_buf(request: *mut ngx_http_request_t, ctx: &mut RequestCtx) -> *m
 }
 
 /// Returns whether the response is eligible for compression.
-unsafe fn eligible(request: *mut ngx_http_request_t, resolved: &Resolved) -> bool {
+unsafe fn eligible(request: *mut ngx_http_request_t, resolved: &Resolved<'_>) -> bool {
     // SAFETY: reads response header fields from a valid request.
     unsafe {
         if request != (*request).main {
@@ -373,50 +373,23 @@ unsafe fn eligible(request: *mut ngx_http_request_t, resolved: &Resolved) -> boo
         if length >= 0 && usize::try_from(length).unwrap_or(0) < resolved.min_length {
             return false;
         }
-        compressible(&(*request).headers_out.content_type, resolved.types)
+        let content_type = copy_ngx_str(&(*request).headers_out.content_type);
+        content_type.is_some_and(|kind| compressible(&kind, resolved.types))
     }
 }
 
-fn compressible(content_type: &ngx_str_t, types: Option<NonNull<ngx_array_t>>) -> bool {
-    // SAFETY: content_type.data points to len valid bytes (or is empty).
-    let bytes = unsafe { slice::from_raw_parts(content_type.data, content_type.len) };
-    let head = bytes.split(|&b| b == b';').next().unwrap_or(bytes);
-    let Ok(kind) = str::from_utf8(head) else {
-        return false;
-    };
-    let kind = kind.trim();
-    match types {
-        // SAFETY: `array` is a pool-owned ngx_array_t of ngx_str_t entries.
-        Some(array) => unsafe { type_in_list(kind, array) },
-        None => builtin_compressible(kind),
+/// Copies a small nginx string into Rust ownership at the request boundary.
+unsafe fn copy_ngx_str(value: &ngx_str_t) -> Option<String> {
+    if value.len == 0 {
+        return Some(String::new());
     }
-}
-
-fn builtin_compressible(kind: &str) -> bool {
-    kind.starts_with("text/")
-        || matches!(
-            kind,
-            "application/json"
-                | "application/javascript"
-                | "application/xml"
-                | "application/rss+xml"
-                | "application/atom+xml"
-                | "application/wasm"
-                | "image/svg+xml"
-        )
-}
-
-unsafe fn type_in_list(kind: &str, array: NonNull<ngx_array_t>) -> bool {
-    // SAFETY: iterate the pool-owned array of ngx_str_t MIME entries.
-    unsafe {
-        let array = array.as_ptr();
-        let entries = (*array).elts.cast::<ngx_str_t>();
-        (0..(*array).nelts).any(|index| {
-            let entry = &*entries.add(index);
-            let bytes = slice::from_raw_parts(entry.data, entry.len);
-            bytes == b"*" || str::from_utf8(bytes).is_ok_and(|mime| mime.eq_ignore_ascii_case(kind))
-        })
+    if value.data.is_null() {
+        return None;
     }
+    // SAFETY: the caller guarantees that non-empty ngx_str data is live for len
+    // bytes; the returned String has no dependency on that external lifetime.
+    let bytes = unsafe { slice::from_raw_parts(value.data, value.len) };
+    str::from_utf8(bytes).ok().map(str::to_owned)
 }
 
 // Shared with the static-sidecar handler. style:allow-pub-crate

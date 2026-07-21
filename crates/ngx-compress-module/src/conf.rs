@@ -6,16 +6,13 @@
 //! directive name to keep the command table flat.
 
 use core::ffi::{c_char, c_void};
-use core::mem::size_of;
-use core::ptr::NonNull;
+use std::sync::Arc;
 
 use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
-use ngx::ffi::{
-    NGX_LOG_EMERG, ngx_array_create, ngx_array_push, ngx_array_t, ngx_command_t, ngx_conf_t,
-    ngx_parse_size, ngx_str_t,
-};
+use ngx::ffi::{NGX_LOG_EMERG, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
 use ngx::http::{Merge, MergeConfigError};
 use ngx::ngx_conf_log_error;
+use ngx_compress_core::MimeTypes;
 
 use crate::profile::Profile;
 
@@ -61,23 +58,23 @@ pub(crate) struct CompressConfig {
     vary: Option<bool>,
     // (count, size) of per-request output buffers; only `size` is used today.
     buffers: Option<(usize, usize)>,
-    // Pool-allocated array of allowed MIME types; `None` falls back to the
-    // built-in compressible set. Copy pointer, owned by the config pool.
-    types: Option<NonNull<ngx_array_t>>,
+    // Rust-owned allowed MIME types; `None` falls back to the built-in set.
+    // Arc keeps inherited configurations shared without request-path cloning.
+    types: Option<Arc<MimeTypes>>,
 }
 
 /// A resolved, defaults-applied snapshot used on the request path. Each codec
 /// field is `Some(params)` when that coding is enabled, else `None`. Public
 /// fields keep the request-path access allocation- and accessor-free.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Resolved {
+pub(crate) struct Resolved<'a> {
     // style:allow-pub-crate
     pub enabled: bool,
     pub min_length: usize,
     pub vary: bool,
     pub buffer_size: usize,
     pub static_mode: StaticMode,
-    pub types: Option<NonNull<ngx_array_t>>,
+    pub types: Option<&'a MimeTypes>,
     pub gzip: Option<u32>,
     pub deflate: Option<u32>,
     pub brotli: Option<(u32, u32)>,
@@ -89,7 +86,7 @@ impl CompressConfig {
     /// immutable snapshot. Precedence for every field: an explicit `compress_*`
     /// directive wins, else the selected profile's preset, else the built-in
     /// default.
-    pub(crate) fn resolve(&self) -> Resolved {
+    pub(crate) fn resolve(&self) -> Resolved<'_> {
         // style:allow-pub-crate
         let preset = self.profile.and_then(Profile::preset);
         Resolved {
@@ -101,7 +98,7 @@ impl CompressConfig {
             vary: self.vary.unwrap_or(true),
             buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
             static_mode: self.static_mode.unwrap_or(StaticMode::Off),
-            types: self.types,
+            types: self.types.as_deref(),
             gzip: on_level(
                 self.gzip.or(preset.map(|p| p.gzip)),
                 self.gzip_level.or(preset.map(|p| p.gzip_level)),
@@ -161,7 +158,9 @@ impl Merge for CompressConfig {
         merge_opt(&mut self.min_length, prev.min_length);
         merge_opt(&mut self.vary, prev.vary);
         merge_opt(&mut self.buffers, prev.buffers);
-        merge_opt(&mut self.types, prev.types);
+        if self.types.is_none() {
+            self.types.clone_from(&prev.types);
+        }
         Ok(())
     }
 }
@@ -330,24 +329,22 @@ pub(crate) extern "C" fn set_types(
     _cmd: *mut ngx_command_t,
     conf: *mut c_void,
 ) -> *mut c_char {
-    // SAFETY: nginx passes a valid cf and our CompressConfig; builds a pool-owned
-    // array of the MIME arguments and copies each ngx_str into it.
+    // SAFETY: nginx passes a valid cf and our CompressConfig; 1MORE guarantees
+    // at least one MIME argument. Copy values into Rust ownership at the FFI
+    // boundary so no ngx_array/ngx_str pointers reach the request path.
     unsafe {
         let config = &mut *conf.cast::<CompressConfig>();
         let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
-        let array = ngx_array_create((*cf).pool, args.len() - 1, size_of::<ngx_str_t>());
-        if array.is_null() {
-            return NGX_CONF_ERROR;
+        let values = args[1..]
+            .iter()
+            .map(|mime| mime.to_str().map(str::to_owned))
+            .collect::<Result<Vec<_>, _>>();
+        if let Ok(values) = values {
+            config.types = Some(Arc::new(MimeTypes::new(values)));
+            NGX_CONF_OK
+        } else {
+            ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress_types value is not UTF-8");
+            NGX_CONF_ERROR
         }
-        for mime in &args[1..] {
-            // style:allow-for-in
-            let slot = ngx_array_push(array).cast::<ngx_str_t>();
-            if slot.is_null() {
-                return NGX_CONF_ERROR;
-            }
-            *slot = *mime;
-        }
-        config.types = NonNull::new(array);
-        NGX_CONF_OK
     }
 }

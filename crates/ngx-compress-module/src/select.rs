@@ -17,7 +17,7 @@ const PRIORITY: [ContentCoding; 4] = [
 /// possible) with the key needed to return it on cleanup, or `None` for
 /// identity. style:allow-pub-crate
 pub(crate) fn choose(
-    resolved: &Resolved,
+    resolved: &Resolved<'_>,
     accept: &AcceptEncoding,
 ) -> Option<(Box<dyn StreamingCodec>, CodecKey)> {
     let coding = PRIORITY
@@ -37,7 +37,7 @@ pub(crate) fn choose(
 }
 
 /// Whether a coding is enabled and its backend is compiled into this build.
-fn available(resolved: &Resolved, coding: ContentCoding) -> bool {
+fn available(resolved: &Resolved<'_>, coding: ContentCoding) -> bool {
     match coding {
         ContentCoding::Gzip => cfg!(feature = "gzip") && resolved.gzip.is_some(),
         ContentCoding::Deflate => cfg!(feature = "deflate") && resolved.deflate.is_some(),
@@ -54,7 +54,7 @@ fn boxed<C: StreamingCodec + 'static>(codec: C) -> Box<dyn StreamingCodec> {
 /// Provides a codec for `coding`: a reset instance from the worker pool if one
 /// is idle, otherwise a freshly built one. Returns it with its pool key.
 fn build(
-    resolved: &Resolved,
+    resolved: &Resolved<'_>,
     coding: ContentCoding,
 ) -> Option<(Box<dyn StreamingCodec>, CodecKey)> {
     let level = level_i32(resolved, coding)?;
@@ -73,7 +73,7 @@ fn build(
 }
 
 /// The discriminating compression level for a coding's pool key.
-fn level_i32(resolved: &Resolved, coding: ContentCoding) -> Option<i32> {
+fn level_i32(resolved: &Resolved<'_>, coding: ContentCoding) -> Option<i32> {
     let level = match coding {
         ContentCoding::Gzip => i32::try_from(resolved.gzip?).ok()?,
         ContentCoding::Deflate => i32::try_from(resolved.deflate?).ok()?,
@@ -85,7 +85,7 @@ fn level_i32(resolved: &Resolved, coding: ContentCoding) -> Option<i32> {
 }
 
 /// Builds a fresh codec (pool miss). Kept separate so `build` can prefer reuse.
-fn construct(resolved: &Resolved, coding: ContentCoding) -> Option<Box<dyn StreamingCodec>> {
+fn construct(resolved: &Resolved<'_>, coding: ContentCoding) -> Option<Box<dyn StreamingCodec>> {
     match coding {
         #[cfg(feature = "gzip")]
         ContentCoding::Gzip => resolved
