@@ -1,16 +1,16 @@
 # Graph Report - ngx-compress-rs  (2026-07-22)
 
 ## Corpus Check
-- 57 files · ~25,891 words
+- 57 files · ~25,489 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 753 nodes · 919 edges · 159 communities (38 shown, 121 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 5 edges (avg confidence: 0.8)
+- 722 nodes · 907 edges · 157 communities (40 shown, 117 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 8 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `095d4a58`
+- Built from commit: `4c4a14ad`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -166,61 +166,59 @@
 - C
 - ContentCoding
 - ngx_str_t
-- ngx_str_t
-- Plan
 
 ## God Nodes (most connected - your core abstractions)
 1. `Resolved` - 13 edges
-2. `drive_input()` - 11 edges
-3. `Unsafe boundary refactor` - 11 edges
-4. `build()` - 10 edges
-5. `validate_progress()` - 10 edges
-6. `edge-tests.sh script` - 10 edges
-7. `send_file()` - 9 edges
-8. `Gzip` - 9 edges
-9. `Design` - 9 edges
-10. `5. Configuration schema` - 9 edges
+2. `drive_input()` - 12 edges
+3. `try_serve()` - 11 edges
+4. `Unsafe boundary refactor` - 11 edges
+5. `build()` - 10 edges
+6. `CodecKey` - 10 edges
+7. `validate_progress()` - 10 edges
+8. `edge-tests.sh script` - 10 edges
+9. `choose()` - 9 edges
+10. `Gzip` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `InputBuffer<'a>` --implements--> `InputView`  [EXTRACTED]
-  crates/ngx-compress-module/src/filter/input.rs → crates/ngx-compress-module/src/filter/mod.rs
-- `prefetch_header()` --references--> `Snapshot`  [EXTRACTED]
-  crates/ngx-compress-module/src/filter/runtime.rs → crates/ngx-compress-module/src/filter/mod.rs
-- `Module` --implements--> `RuntimeCallbacks`  [EXTRACTED]
-  crates/ngx-compress-module/src/filter/runtime.rs → crates/ngx-compress-module/src/filter/mod.rs
-- `CodecKey` --implements--> `CodecSelection`  [EXTRACTED]
-  crates/ngx-compress-module/src/filter/select.rs → crates/ngx-compress-module/src/filter/mod.rs
-- `CodecKey` --implements--> `CodecPool`  [EXTRACTED]
-  crates/ngx-compress-module/src/filter/worker.rs → crates/ngx-compress-module/src/filter/mod.rs
+- `compress_chain()` --calls--> `drive_input()`  [INFERRED]
+  crates/ngx-compress-module/src/filter/buffer.rs → crates/ngx-compress-core/src/stream/mod.rs
+- `header_filter_inner()` --calls--> `install_ctx()`  [INFERRED]
+  crates/ngx-compress-module/src/filter/runtime.rs → crates/ngx-compress-module/src/filter/context.rs
+- `body_filter_inner()` --calls--> `with_request_ctx()`  [INFERRED]
+  crates/ngx-compress-module/src/filter/runtime.rs → crates/ngx-compress-module/src/filter/context.rs
+- `NgxOutput` --implements--> `OutputProvider`  [EXTRACTED]
+  crates/ngx-compress-module/src/filter/buffer.rs → crates/ngx-compress-core/src/stream/mod.rs
+- `drives_multiple_output_buffers_without_server_pointers()` --calls--> `drive_input()`  [INFERRED]
+  crates/ngx-compress-core/src/stream/tests.rs → crates/ngx-compress-core/src/stream/mod.rs
 
 ## Import Cycles
 - 1-file cycle: `crates/ngx-compress-codecs/src/identity.rs -> crates/ngx-compress-codecs/src/identity.rs`
 
-## Communities (159 total, 121 thin omitted)
+## Communities (157 total, 117 thin omitted)
 
 ### Community 0 - "Accept-Encoding Negotiation"
 Cohesion: 0.23
 Nodes (11): absent_header_selects_identity_only(), AcceptEncoding, client_quality_overrides_server_order(), ContentCoding, dictionary_coding_requires_server_eligibility(), duplicate_coding_keeps_highest_quality(), explicit_exclusion_overrides_wildcard(), negotiates_common_browser_header_without_allocation() (+3 more)
 
 ### Community 1 - "NGINX Module & Filters"
-Cohesion: 0.16
-Nodes (13): directive(), Module, multi(), postconfiguration_inner(), ngx_command_t, ngx_conf_t, ngx_int_t, ngx_str_t (+5 more)
+Cohesion: 0.14
+Nodes (23): c_char, c_void, ngx_command_t, ngx_conf_t, set_buffers(), set_buffers_inner(), set_directive(), set_directive_inner() (+15 more)
 
 ### Community 2 - "Progress Contract"
-Cohesion: 0.09
-Nodes (26): CompressConfig, merge_opt(), Option, Result, Self, append(), free_buf(), NgxOutput (+18 more)
+Cohesion: 0.18
+Nodes (15): append(), compress_chain(), free_buf(), NgxOutput, OutputBuffer, OutputBuffer<'a>, recycle(), Error (+7 more)
 
 ### Community 3 - "Identity Codec Tests"
-Cohesion: 0.21
-Nodes (15): add_content_encoding(), core_loc_conf(), MappedPath, ContentCoding, ngx_http_request_t, ngx_int_t, ngx_str_t, Option (+7 more)
+Cohesion: 0.22
+Nodes (16): add_content_encoding(), core_loc_conf(), MappedPath, ContentCoding, ngx_http_request_t, ngx_int_t, ngx_str_t, Option (+8 more)
 
 ### Community 4 - "FFI Filter Chain"
-Cohesion: 0.16
-Nodes (19): install(), next_body(), next_header(), ngx_chain_t, ngx_http_request_t, ngx_int_t, body_filter_inner(), body_filter_with_ctx() (+11 more)
+Cohesion: 0.28
+Nodes (8): install(), next_body(), next_header(), ngx_chain_t, ngx_http_request_t, ngx_int_t, ngx_http_output_body_filter_pt, ngx_http_output_header_filter_pt
 
 ### Community 5 - "Module Configuration"
-Cohesion: 0.45
-Nodes (8): c_char, Module, c_void, ngx_command_t, ngx_conf_t, set_buffers_inner(), set_directive_inner(), set_types_inner()
+Cohesion: 0.25
+Nodes (6): CompressConfig, on_level(), Preset, Profile, Option, StaticMode
 
 ### Community 6 - "Codec Trait Seam"
 Cohesion: 0.07
@@ -255,20 +253,24 @@ Cohesion: 0.06
 Nodes (33): BrotliEncoderOperation, BrotliEncoderStateStruct, Brotli, build_state(), map_operation(), ContentCoding, Operation, Result (+25 more)
 
 ### Community 18 - "Operation"
-Cohesion: 0.18
-Nodes (11): cleanup(), RequestCtx, Box, c_void, CodecKey, FnOnce, ngx_http_request_t, Option (+3 more)
+Cohesion: 0.14
+Nodes (25): cleanup(), install_ctx(), Box, c_void, CodecKey, ngx_http_request_t, Option, RequestCtx (+17 more)
 
 ### Community 19 - "StepResult"
 Cohesion: 0.30
 Nodes (11): check_backpressure(), check_disconnect(), check_http2(), check_no_panic(), check_truncated_upstream(), log(), no_proxy, setup() (+3 more)
 
 ### Community 20 - "AcceptEncoding"
-Cohesion: 0.10
-Nodes (21): accepts_unknown_streaming_length(), CompressionPolicy, eligible(), facts(), policy(), rejects_each_ineligible_fact(), ResponseFacts, Option (+13 more)
+Cohesion: 0.18
+Nodes (11): builtin_compressible(), compressible(), explicit_types_are_owned_and_case_insensitive(), MimeTypes, Box, Option, Self, String (+3 more)
 
 ### Community 21 - "Resolved"
 Cohesion: 0.33
 Nodes (11): AcceptEncoding, always_keeps_server_priority_without_accept_header(), facts(), on_filters_unacceptable_candidates(), rejects_directory_and_unsupported_method(), ContentCoding, Vec, static_candidates() (+3 more)
+
+### Community 28 - "ngx_command_t"
+Cohesion: 0.27
+Nodes (10): accepts_unknown_streaming_length(), CompressionPolicy, eligible(), facts(), policy(), rejects_each_ineligible_fact(), ResponseFacts, Option (+2 more)
 
 ### Community 31 - "AcceptEncoding"
 Cohesion: 0.30
@@ -294,56 +296,60 @@ Nodes (9): bench(), encode(), load(), main(), row(), Option, StreamingCodec, Str
 Cohesion: 0.08
 Nodes (31): drive_input(), DriveError, DriveOutcome, OutputAction, OutputBoundary, OutputProvider, OutputUse, C (+23 more)
 
+### Community 50 - "Self"
+Cohesion: 0.20
+Nodes (8): CompressConfig, merge_opt(), Option, Result, Self, Merge, MergeConfigError, T
+
 ### Community 53 - "SystemBrotli"
-Cohesion: 0.08
-Nodes (28): c_void, CodecError, ContentCoding, create(), EncoderOperation, EncoderParameter, map_operation(), SystemBrotli (+20 more)
+Cohesion: 0.13
+Nodes (14): c_void, CodecError, create(), EncoderOperation, EncoderParameter, map_operation(), SystemBrotli, Drop (+6 more)
 
 ### Community 54 - "test-nginx.sh"
 Cohesion: 0.50
 Nodes (3): no_proxy, test-nginx.sh script, TEST_NGINX_BINARY
 
 ### Community 79 - "CodecKey"
-Cohesion: 0.08
-Nodes (27): Plan, Option, Self, CodecKey, CodecPool, CodecSelection, HeaderDecision, InputBuffer (+19 more)
+Cohesion: 0.10
+Nodes (28): accept_encoding(), CodecKey, Plan, RequestCtx, AcceptEncoding, Box, ContentCoding, ngx_chain_t (+20 more)
 
 ### Community 80 - "CompressConfig"
-Cohesion: 0.15
-Nodes (15): q_str(), CompressConfig, Profile, Option, Self, StaticMode, set_flag(), set_static() (+7 more)
+Cohesion: 0.16
+Nodes (14): q_str(), CompressConfig, Profile, Option, Self, StaticMode, set_flag(), set_static() (+6 more)
 
 ### Community 81 - "Resolved"
-Cohesion: 0.09
-Nodes (32): Arc, C, CompressConfig, on_level(), Preset, Profile, Option, available() (+24 more)
+Cohesion: 0.17
+Nodes (23): Arc, C, ContentCoding, decide(), Option, Snapshot, available(), boxed() (+15 more)
 
 ### Community 82 - ".new"
-Cohesion: 0.24
-Nodes (6): InputBuffer<'a>, operation_for(), ngx_buf_t, Operation, Result, Self
+Cohesion: 0.26
+Nodes (7): InputBuffer, InputBuffer<'a>, operation_for(), ngx_buf_t, Operation, Result, Self
 
 ### Community 83 - "prefetch_request"
-Cohesion: 0.31
-Nodes (9): handler(), prefetch_request(), ngx_http_request_t, ngx_int_t, Option, serve(), SidecarSubmit, ngx_compress_core::StaticCandidate (+1 more)
+Cohesion: 0.27
+Nodes (10): handler(), prefetch_request(), register(), ngx_conf_t, ngx_http_request_t, ngx_int_t, Option, Result (+2 more)
 
 ### Community 84 - "copy_bytes"
 Cohesion: 0.48
 Nodes (6): copy_bytes(), copy_string(), ngx_str_t, Option, String, Vec
 
 ## Knowledge Gaps
-- **69 isolated node(s):** `Profile`, `Profile`, `Module`, `Status`, `Implemented result` (+64 more)
+- **70 isolated node(s):** `Profile`, `CompressConfig`, `Profile`, `Module`, `Status` (+65 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **121 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **117 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Resolved` connect `Resolved` to `AcceptEncoding`, `CodecKey`?**
-  _High betweenness centrality (0.081) - this node is a cross-community bridge._
-- **Why does `Snapshot` connect `CodecKey` to `FFI Filter Chain`?**
-  _High betweenness centrality (0.070) - this node is a cross-community bridge._
-- **Are the 3 inferred relationships involving `drive_input()` (e.g. with `drives_multiple_output_buffers_without_server_pointers()` and `emits_empty_finish_boundary()`) actually correct?**
-  _`drive_input()` has 3 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `Profile`, `Profile`, `Module` to the rest of the system?**
-  _69 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Progress Contract` be split into smaller, more focused modules?**
-  _Cohesion score 0.0855614973262032 - nodes in this community are weakly interconnected._
+- **Why does `RequestCtx` connect `CodecKey` to `Progress Contract`?**
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
+- **Why does `Resolved` connect `Resolved` to `ngx_command_t`, `Module Configuration`?**
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+- **Are the 4 inferred relationships involving `drive_input()` (e.g. with `drives_multiple_output_buffers_without_server_pointers()` and `emits_empty_finish_boundary()`) actually correct?**
+  _`drive_input()` has 4 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `Profile`, `CompressConfig`, `Profile` to the rest of the system?**
+  _70 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `NGINX Module & Filters` be split into smaller, more focused modules?**
+  _Cohesion score 0.14245014245014245 - nodes in this community are weakly interconnected._
 - **Should `Codec Trait Seam` be split into smaller, more focused modules?**
   _Cohesion score 0.06896551724137931 - nodes in this community are weakly interconnected._
 - **Should `6. Local testing plan` be split into smaller, more focused modules?**

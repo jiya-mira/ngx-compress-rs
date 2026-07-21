@@ -50,8 +50,8 @@
     "semantic_hash": "9899a2d24db85f1d1e94da3437dd4f2e"
   },
   "crates/ngx-compress-module/src/lib.rs": {
-    "mtime": 1784652037.877889,
-    "ast_hash": "85da10e3e311a75d9206ce9f9b85d1a5",
+    "mtime": 1784650980.0195653,
+    "ast_hash": "bf8e6ea97a92029cfb2bf7e65fe948d7",
     "semantic_hash": ""
   },
   "docker/build-and-test.sh": {
@@ -215,73 +215,73 @@
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/config/resolve.rs": {
-    "mtime": 1784651721.638133,
-    "ast_hash": "14a2840c78bb0462203cb8376d154d14",
+    "mtime": 1784650980.0206988,
+    "ast_hash": "697c36dadf522ce8bf63d6550b472447",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/config/value.rs": {
-    "mtime": 1784651984.1646361,
-    "ast_hash": "c771e66b666fd55fc1fef582b157d20e",
+    "mtime": 1784650996.5159187,
+    "ast_hash": "2977503cc4d6fc364e88e51b5b9363bf",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/buffer.rs": {
-    "mtime": 1784651858.1934721,
-    "ast_hash": "393264160734a781e006c8edb27b3cd7",
+    "mtime": 1784650063.984957,
+    "ast_hash": "24a30b01010be24d7a4952eae9214b32",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/context.rs": {
-    "mtime": 1784651835.5600126,
-    "ast_hash": "8ab2d3dfc063446bfc2ddbba9b27a9e0",
+    "mtime": 1784650596.50465,
+    "ast_hash": "df24ba377174f41db5329ab6f323f8bf",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/header.rs": {
-    "mtime": 1784651788.5804098,
-    "ast_hash": "4600bb108ba488101f7bcacce5a8fdc7",
+    "mtime": 1784650596.5032425,
+    "ast_hash": "8282d11df6599c77a5591cbe63efce97",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/input.rs": {
-    "mtime": 1784651858.1928916,
-    "ast_hash": "37fe46be00badcb7c114d2ba04b88d91",
+    "mtime": 1784649305.7097206,
+    "ast_hash": "f038dfe9217dcc3df14ea352b1082d8f",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/mod.rs": {
-    "mtime": 1784652129.168613,
-    "ast_hash": "870f430de229cd11700195ccbe11d208",
+    "mtime": 1784650029.068679,
+    "ast_hash": "f43840c8d9378c8c57dea75558338273",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/runtime.rs": {
-    "mtime": 1784651984.164901,
-    "ast_hash": "2c36f62228dbb7e6f392b96b085f7df8",
+    "mtime": 1784651001.9816365,
+    "ast_hash": "93d1caaf61d536ae02b6bc9a65624000",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/select.rs": {
-    "mtime": 1784651788.5808675,
-    "ast_hash": "a6c964718a38b3289e2425b80d4bb34c",
+    "mtime": 1784650596.5036507,
+    "ast_hash": "d1b3161ebd2abcac831eb29f6e2ef567",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/filter/worker.rs": {
-    "mtime": 1784651810.24754,
-    "ast_hash": "5796d94227c579e876fe3a841da62080",
+    "mtime": 1784650029.071497,
+    "ast_hash": "f195d3c61e518ae6452eaa6122c81636",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/registration/conf.rs": {
-    "mtime": 1784652037.878356,
-    "ast_hash": "7bcf12bbd8fbaea056df8f3b0befa11c",
+    "mtime": 1784650996.5167866,
+    "ast_hash": "167d4e2b3a34d247690357764396bc6a",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/registration/mod.rs": {
-    "mtime": 1784652037.8781388,
-    "ast_hash": "b63f75b62455f74d26282ee7c902bebf",
+    "mtime": 1784650996.5171854,
+    "ast_hash": "44930336e6c3e56666a8bf90fbdc8db5",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/static_file/mod.rs": {
-    "mtime": 1784652037.8787303,
-    "ast_hash": "35912e30a2f6af9b2fe7419bf45890e3",
+    "mtime": 1784650996.5178137,
+    "ast_hash": "1123fffe3787eeb809bb227d490403d8",
     "semantic_hash": ""
   },
   "crates/ngx-compress-module/src/static_file/sidecar.rs": {
-    "mtime": 1784652037.8789284,
-    "ast_hash": "c20e483247249d667eb1a36f060af930",
+    "mtime": 1784648638.0221002,
+    "ast_hash": "e9c071ce9c74a683607e19fceaba5862",
     "semantic_hash": ""
   }
 }
