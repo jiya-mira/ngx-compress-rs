@@ -6,7 +6,7 @@ use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
 use ngx::ffi::{NGX_LOG_EMERG, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
 use ngx::ngx_conf_log_error;
 
-use crate::config::{CompressConfig, ConfigUpdate};
+use crate::{CompressConfig, ConfigUpdate};
 
 pub(in crate::registration) extern "C" fn set_directive(
     cf: *mut ngx_conf_t,

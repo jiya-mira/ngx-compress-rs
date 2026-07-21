@@ -6,8 +6,8 @@ use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::ResponseFacts;
 use ngx_compress_ffi::filter;
 
-use crate::config::CompressConfig;
-use crate::registration::{Module, ngx_http_compress_module};
+use crate::registration::ngx_http_compress_module;
+use crate::{CompressConfig, Module};
 
 use super::accept_encoding;
 use super::buffer::compress_chain;

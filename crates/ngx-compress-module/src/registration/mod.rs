@@ -14,12 +14,9 @@ use ngx::ffi::{
 use ngx::http::{HttpModule, HttpModuleLocationConf};
 use ngx::ngx_string;
 
-use crate::config::CompressConfig;
+use crate::{CompressConfig, Module};
 
 use self::conf::{set_buffers, set_directive, set_types};
-
-/// The module type, used by the filters as their config/ctx key. style:allow-pub-crate
-pub(crate) struct Module;
 
 impl HttpModule for Module {
     fn module() -> &'static ngx_module_t {

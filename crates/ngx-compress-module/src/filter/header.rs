@@ -5,7 +5,7 @@
 use ngx_compress_core::{CompressionPolicy, eligible};
 
 use super::{Plan, Snapshot, select};
-use crate::config::Resolved;
+use crate::Resolved;
 
 /// Applies eligibility, negotiation, and codec selection without raw nginx data.
 pub(in crate::filter) fn decide(resolved: &Resolved<'_>, snapshot: &Snapshot) -> Option<Plan> {

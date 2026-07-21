@@ -2,7 +2,7 @@
 
 use ngx::http::{Merge, MergeConfigError};
 
-use super::CompressConfig;
+use crate::CompressConfig;
 
 impl Merge for CompressConfig {
     fn merge(&mut self, prev: &Self) -> Result<(), MergeConfigError> {

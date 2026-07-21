@@ -5,7 +5,7 @@
 
 use super::CodecKey;
 use super::worker;
-use crate::config::Resolved;
+use crate::Resolved;
 use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
 
 /// Default tie-break order for equal client quality (no server standard exists).

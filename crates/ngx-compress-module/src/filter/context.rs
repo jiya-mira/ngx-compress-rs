@@ -8,7 +8,7 @@ use ngx_compress_core::StreamingCodec;
 
 use super::worker;
 use super::{CodecKey, RequestCtx};
-use crate::registration::Module;
+use crate::Module;
 
 unsafe extern "C" fn cleanup(data: *mut c_void) {
     ngx_compress_ffi::guard::callback((), || {

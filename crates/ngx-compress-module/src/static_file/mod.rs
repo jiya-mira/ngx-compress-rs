@@ -16,9 +16,8 @@ use ngx::ffi::{
 use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::{StaticCandidate, StaticMode, StaticRequestFacts, static_candidates};
 
-use crate::config::CompressConfig;
 use crate::filter::accept_encoding;
-use crate::registration::Module;
+use crate::{CompressConfig, Module};
 
 const DECLINED: ngx_int_t = Status::NGX_DECLINED.0;
 const OK: ngx_int_t = Status::NGX_OK.0;
