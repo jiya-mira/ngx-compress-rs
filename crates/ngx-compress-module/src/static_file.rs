@@ -24,7 +24,9 @@ use ngx::ffi::{
     ngx_table_elt_t, ngx_uint_t,
 };
 use ngx::http::{HttpModuleLocationConf, Request};
-use ngx_compress_core::{ContentCoding, StaticCandidate, StaticRequestFacts, static_candidates};
+use ngx_compress_core::{
+    ContentCoding, StaticCandidate, StaticMode, StaticRequestFacts, static_candidates,
+};
 
 use crate::config::CompressConfig;
 use crate::filter::accept_encoding;
@@ -128,6 +130,9 @@ unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
     let Some(resolved) = resolved else {
         return DECLINED;
     };
+    if resolved.static_mode == StaticMode::Off {
+        return DECLINED;
+    }
     // SAFETY: copy the method, URI, and Accept-Encoding into Rust-owned facts.
     let Some(snapshot) = (unsafe { prefetch_request(request) }) else {
         return DECLINED;

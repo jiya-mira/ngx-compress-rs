@@ -56,6 +56,9 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     let Some(resolved) = resolved else {
         return pass();
     };
+    if !resolved.enabled {
+        return pass();
+    }
     // SAFETY: copy all request/response facts needed by policy into Rust-owned
     // values before safe-core decision making.
     let Some(snapshot) = (unsafe { prefetch_header(request) }) else {

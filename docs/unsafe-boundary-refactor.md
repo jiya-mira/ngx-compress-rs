@@ -1,13 +1,35 @@
-# Unsafe boundary refactor (deferred until after M3)
+# Unsafe boundary refactor
 
 ## Status
 
-This is a deferred safety-architecture initiative. Do not start the refactor
-while M3 is still in progress. After M3 lands, re-audit the final code before
-turning this note into an implementation plan.
+The post-M3 refactor was implemented on 2026-07-21 as a sequence of small,
+reviewable commits. The architecture now follows the prefetch -> safe-core ->
+submit model described below.
 
-The work is intentionally separate from feature development. It is expected to
-span multiple small changes rather than one mechanical rewrite.
+Future feature work must preserve these boundaries. New raw NGINX access belongs
+in `conf.rs`, `filter.rs`, `registration.rs`, `static_file.rs`, or the dedicated
+`ngx-compress-ffi` crate, not in the safe policy modules.
+
+## Implemented result
+
+- `ngx-compress-core` remains crate-wide `forbid(unsafe_code)` and now owns MIME
+  matching, response eligibility, streaming drive decisions, progress checks,
+  and static-sidecar candidate planning.
+- `config.rs`, `header.rs`, `profile.rs`, `select.rs`, and `worker.rs` explicitly
+  forbid unsafe code inside the NGINX module crate.
+- Configuration MIME values and directive strings are copied into Rust-owned
+  values during reload/configuration; `Resolved` contains no raw NGINX pointer.
+- Header and static request policy receive owned snapshots. Header policy emits
+  a complete typed plan before the submit layer mutates NGINX.
+- Body data remains zero-copy through validated `InputBuffer` and `OutputBuffer`
+  views whose lifetimes are tied to real buffer borrows. The codec loop receives
+  only slices and an `OutputProvider`, never NGINX pointers.
+- The three helpers that manufactured caller-selected lifetimes were removed.
+  Request context access is now callback-scoped with a higher-ranked closure.
+- All module-owned exported callbacks use a shared panic guard. Owned nginx
+  string copying and filter-chain globals live in `ngx-compress-ffi`.
+- Static mapped-path arithmetic is encapsulated in `MappedPath` and checked with
+  address/overflow validation before submission.
 
 ## Goal
 
@@ -137,7 +159,7 @@ Submit should consume a typed plan wherever practical. This keeps mutation order
 and failure behavior explicit and prevents a response from being partially
 rewritten before a later operation fails.
 
-## Current priority areas to re-audit after M3
+## Completed priority areas
 
 ### P0: lifetime soundness
 
@@ -206,17 +228,17 @@ Keep, but tighten, the inherently unsafe areas:
 Opaque codec state should use RAII and non-null typed handles after successful
 construction. Exported callbacks should share one non-unwinding error boundary.
 
-## Proposed implementation sequence
+## Implemented sequence
 
-1. Re-audit the post-M3 tree and update this note with final locations.
-2. Remove the unconstrained-lifetime helpers without changing behavior.
-3. Move MIME types and directive arguments to configuration-time prefetch.
-4. Introduce the header snapshot and safe compression decision.
-5. Introduce lifetime-bound body buffer/chain views and make the streaming loop
+1. Re-audited the post-M3 tree and updated final locations.
+2. Removed the unconstrained-lifetime helpers without changing behavior.
+3. Moved MIME types and directive arguments to configuration-time prefetch.
+4. Introduced the header snapshot and safe compression decision.
+5. Introduced lifetime-bound body buffer/chain views and made the streaming loop
    safe.
-6. Apply the same split to the static-sidecar handler.
-7. Move remaining raw NGINX access behind the dedicated FFI boundary and enforce
-   `forbid(unsafe_code)` on safe modules/crates.
+6. Applied the same split to the static-sidecar handler.
+7. Moved reusable raw string/filter operations into the dedicated FFI crate and
+   enforced `forbid(unsafe_code)` on safe modules/crates.
 
 Each step should be independently reviewable and tested. Do not combine this
 work with backpressure behavior changes, new directives, or codec/profile tuning.
@@ -259,11 +281,10 @@ Use these questions during implementation and review:
 
 ## Related work
 
-The separate `codex/m1-runtime-safety` branch contains two prerequisite safety
-commits created before this refactor:
+The two prerequisite runtime-safety changes were reconciled into master before
+this refactor:
 
-- `a01c0f1` enforces codec progress validation on the production step path;
-- `d53875f` makes codec reset fallible and prevents reuse of poisoned contexts.
+- `35f2654` enforces codec progress validation on the production step path;
+- `bf14c8b` makes codec reset fallible and prevents reuse of poisoned contexts.
 
-Integrate or reconcile those commits with M3 before beginning the boundary
-refactor.
+The boundary refactor itself is recorded by commits `1387f5e` through `3afcad7`.
