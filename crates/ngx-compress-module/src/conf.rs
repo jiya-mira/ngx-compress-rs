@@ -1,3 +1,4 @@
+// style:allow-file-size (cohesive: all compress_* fields, merge, resolve, and setters)
 //! Location configuration and the `compress_*` directive setters.
 //!
 //! Every field is an `Option` so `None` means "inherit"; a child location can

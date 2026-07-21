@@ -1,3 +1,4 @@
+// style:allow-file-size (deflate + gzip share one flate2 core; splitting needs cross-module pub(crate))
 //! `deflate` (zlib) and `gzip` codings, both backed by flate2. `deflate` uses
 //! flate2's zlib framing directly; `gzip` streams raw deflate and adds the gzip
 //! header and CRC32/ISIZE trailer itself, since flate2's low-level `Compress`
