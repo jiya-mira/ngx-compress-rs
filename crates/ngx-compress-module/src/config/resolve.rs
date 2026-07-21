@@ -2,7 +2,7 @@
 
 use ngx_compress_core::StaticMode;
 
-use crate::{CompressConfig, Profile, Resolved};
+use crate::{CompressConfig, Profile, ResolveConfig, Resolved};
 
 use super::{
     DEFAULT_BROTLI_LEVEL, DEFAULT_BROTLI_WINDOW, DEFAULT_BUFFER_SIZE, DEFAULT_DEFLATE_LEVEL,
@@ -66,8 +66,8 @@ impl Profile {
     }
 }
 
-impl CompressConfig {
-    pub(crate) fn resolve(&self) -> Resolved<'_> {
+impl ResolveConfig for CompressConfig {
+    fn resolve(&self) -> Resolved<'_> {
         let preset = self.profile.and_then(Profile::preset);
         Resolved {
             enabled: self.enable.unwrap_or(false),

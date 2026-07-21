@@ -3,8 +3,7 @@
 //! Server-side codec selection: honor the client's `Accept-Encoding` quality
 //! values, break ties by the default priority order, and build the codec.
 
-use super::CodecKey;
-use super::worker;
+use super::{CodecKey, CodecPool, CodecSelection};
 use crate::Resolved;
 use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
 
@@ -19,24 +18,26 @@ const PRIORITY: [ContentCoding; 4] = [
 /// Selects a coding and provides its codec (reused from the worker pool when
 /// possible) with the key needed to return it on cleanup, or `None` for
 /// identity.
-pub(in crate::filter) fn choose(
-    resolved: &Resolved<'_>,
-    accept: &AcceptEncoding,
-) -> Option<(Box<dyn StreamingCodec>, CodecKey)> {
-    let coding = PRIORITY
-        .iter()
-        .copied()
-        .filter(|&coding| available(resolved, coding))
-        .fold(None, |best: Option<(ContentCoding, u16)>, coding| {
-            let quality = accept.quality(coding);
-            match best {
-                Some((_, best_quality)) if quality <= best_quality => best,
-                _ if quality > 0 => Some((coding, quality)),
-                _ => best,
-            }
-        })
-        .map(|(coding, _)| coding)?;
-    build(resolved, coding)
+impl CodecSelection for CodecKey {
+    fn choose(
+        resolved: &Resolved<'_>,
+        accept: &AcceptEncoding,
+    ) -> Option<(Box<dyn StreamingCodec>, Self)> {
+        let coding = PRIORITY
+            .iter()
+            .copied()
+            .filter(|&coding| available(resolved, coding))
+            .fold(None, |best: Option<(ContentCoding, u16)>, coding| {
+                let quality = accept.quality(coding);
+                match best {
+                    Some((_, best_quality)) if quality <= best_quality => best,
+                    _ if quality > 0 => Some((coding, quality)),
+                    _ => best,
+                }
+            })
+            .map(|(coding, _)| coding)?;
+        build(resolved, coding)
+    }
 }
 
 /// Whether a coding is enabled and its backend is compiled into this build.
@@ -66,7 +67,7 @@ fn build(
         _ => 0,
     };
     let key = CodecKey::new(coding, level, window);
-    let codec = match worker::acquire(key) {
+    let codec = match key.acquire() {
         Ok(Some(codec)) => codec,
         // A missing pooled codec or one that failed to reset is replaced before
         // this request starts; the failed instance was already dropped.

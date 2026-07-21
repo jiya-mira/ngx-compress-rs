@@ -12,7 +12,7 @@ use ngx::ffi::{
 };
 use ngx_compress_core::ContentCoding;
 
-use super::{ERROR, OK};
+use super::{ERROR, OK, SidecarSubmit};
 
 /// Checked mapped-path buffer with room reserved for one sidecar extension.
 struct MappedPath(ngx_str_t);
@@ -66,39 +66,37 @@ impl MappedPath {
 /// Attempts to open and serve the sidecar for one coding. `Some(rc)` means we
 /// handled the request; `None` means no such sidecar, so try the next candidate.
 // SAFETY: `request` must be a valid NGINX request for the full probe and submit.
-pub(in crate::static_file) unsafe fn try_serve(
-    request: *mut ngx_http_request_t,
-    coding: ContentCoding,
-    extension: &str,
-) -> Option<ngx_int_t> {
-    // SAFETY: builds the sidecar path, opens it via the location's file cache,
-    // and, if present, emits the file as the response body.
-    unsafe {
-        let Ok(mut path) = MappedPath::with_extension(request, extension) else {
-            return Some(server_error());
-        };
+impl SidecarSubmit for ngx_compress_core::StaticCandidate {
+    unsafe fn try_serve(self, request: *mut ngx_http_request_t) -> Option<ngx_int_t> {
+        // SAFETY: builds the sidecar path, opens it via the location's file cache,
+        // and, if present, emits the file as the response body.
+        unsafe {
+            let Ok(mut path) = MappedPath::with_extension(request, self.extension) else {
+                return Some(server_error());
+            };
 
-        let clcf = core_loc_conf(request);
-        if clcf.is_null() {
-            return Some(server_error());
-        }
-        let mut of: ngx_open_file_info_t = core::mem::zeroed();
-        of.read_ahead = (*clcf).read_ahead;
-        of.directio = (*clcf).directio;
-        of.valid = (*clcf).open_file_cache_valid;
-        of.min_uses = (*clcf).open_file_cache_min_uses;
+            let clcf = core_loc_conf(request);
+            if clcf.is_null() {
+                return Some(server_error());
+            }
+            let mut of = core::mem::zeroed::<ngx_open_file_info_t>();
+            of.read_ahead = (*clcf).read_ahead;
+            of.directio = (*clcf).directio;
+            of.valid = (*clcf).open_file_cache_valid;
+            of.min_uses = (*clcf).open_file_cache_min_uses;
 
-        if ngx_open_cached_file(
-            (*clcf).open_file_cache,
-            path.as_mut_ptr(),
-            &raw mut of,
-            (*request).pool,
-        ) != OK
-            || of.is_dir() != 0
-        {
-            return None;
+            if ngx_open_cached_file(
+                (*clcf).open_file_cache,
+                path.as_mut_ptr(),
+                &raw mut of,
+                (*request).pool,
+            ) != OK
+                || of.is_dir() != 0
+            {
+                return None;
+            }
+            Some(send_file(request, self.coding, path.into_raw(), &of))
         }
-        Some(send_file(request, coding, path.into_raw(), &of))
     }
 }
 

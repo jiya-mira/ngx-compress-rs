@@ -68,3 +68,50 @@ enum ConfigUpdate {
 
 /// NGINX module type shared as the configuration and request-context key.
 struct Module;
+
+/// Configuration behavior implemented by the safe parsing layer.
+trait ApplyConfig {
+    fn apply(&mut self, update: ConfigUpdate) -> bool;
+}
+
+/// Configuration behavior implemented by the safe resolution layer.
+trait ResolveConfig {
+    fn resolve(&self) -> Resolved<'_>;
+}
+
+/// Filter integration supplied by the filter boundary.
+trait FilterModule {
+    // SAFETY: may only run during single-threaded NGINX postconfiguration.
+    unsafe fn install_filters();
+    // SAFETY: `request` must reference a live NGINX request.
+    unsafe fn accept_encoding(
+        request: *mut ngx::ffi::ngx_http_request_t,
+    ) -> ngx_compress_core::AcceptEncoding;
+}
+
+/// Static-file integration supplied by the content-handler boundary.
+trait StaticModule {
+    // SAFETY: `cf` must be the live NGINX postconfiguration pointer.
+    unsafe fn register_static(cf: *mut ngx::ffi::ngx_conf_t) -> Result<(), ()>;
+}
+
+/// Directive callbacks supplied by the configuration FFI boundary.
+trait DirectiveCallbacks {
+    extern "C" fn set_directive(
+        cf: *mut ngx::ffi::ngx_conf_t,
+        command: *mut ngx::ffi::ngx_command_t,
+        conf: *mut core::ffi::c_void,
+    ) -> *mut core::ffi::c_char;
+
+    extern "C" fn set_buffers(
+        cf: *mut ngx::ffi::ngx_conf_t,
+        command: *mut ngx::ffi::ngx_command_t,
+        conf: *mut core::ffi::c_void,
+    ) -> *mut core::ffi::c_char;
+
+    extern "C" fn set_types(
+        cf: *mut ngx::ffi::ngx_conf_t,
+        command: *mut ngx::ffi::ngx_command_t,
+        conf: *mut core::ffi::c_void,
+    ) -> *mut core::ffi::c_char;
+}

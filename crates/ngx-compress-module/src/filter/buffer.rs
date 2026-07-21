@@ -7,8 +7,7 @@ use ngx_compress_core::{OutputAction, OutputBoundary, OutputProvider, OutputUse,
 
 use crate::registration::ngx_http_compress_module;
 
-use super::RequestCtx;
-use super::input::InputBuffer;
+use super::{CompressChain, InputBuffer, InputView, RequestCtx};
 
 /// A validated, callback-scoped view of one writable nginx output buffer.
 struct OutputBuffer<'a> {
@@ -105,40 +104,42 @@ impl OutputProvider for NgxOutput<'_> {
 ///
 /// `request` and `chain` must be valid, and `ctx` uniquely borrowed.
 // SAFETY: the caller must uphold the pointer and unique-borrow contract above.
-pub(in crate::filter) unsafe fn compress_chain(
-    request: *mut ngx_http_request_t,
-    ctx: &mut RequestCtx,
-    mut chain: *mut ngx_chain_t,
-) -> Result<(), ()> {
-    while !chain.is_null() {
-        // SAFETY: `chain` is a valid link and its buffer remains live while the
-        // callback-scoped view is used.
-        let input = unsafe {
-            let buf = (*chain).buf.as_mut().ok_or(())?;
-            InputBuffer::new(buf)?
-        };
-        let outcome = {
-            let mut output = NgxOutput {
-                request,
-                out: &mut ctx.out,
-                free: &mut ctx.free,
-                buffer_size: ctx.buffer_size,
+impl CompressChain for RequestCtx {
+    unsafe fn compress(
+        &mut self,
+        request: *mut ngx_http_request_t,
+        mut chain: *mut ngx_chain_t,
+    ) -> Result<(), ()> {
+        while !chain.is_null() {
+            // SAFETY: `chain` is a valid link and its buffer remains live while the
+            // callback-scoped view is used.
+            let input = unsafe {
+                let buf = (*chain).buf.as_mut().ok_or(())?;
+                InputBuffer::new(buf)?
             };
-            drive_input(
-                &mut *ctx.codec,
-                input.operation(),
-                input.bytes(),
-                &mut output,
-            )
-            .map_err(|_| ())?
-        };
-        ctx.done = outcome.finished;
+            let outcome = {
+                let mut output = NgxOutput {
+                    request,
+                    out: &mut self.out,
+                    free: &mut self.free,
+                    buffer_size: self.buffer_size,
+                };
+                drive_input(
+                    &mut *self.codec,
+                    input.operation(),
+                    input.bytes(),
+                    &mut output,
+                )
+                .map_err(|_| ())?
+            };
+            self.done = outcome.finished;
 
-        input.consume();
-        // SAFETY: input is consumed and `chain` remains a valid link.
-        chain = unsafe { (*chain).next };
+            input.consume();
+            // SAFETY: input is consumed and `chain` remains a valid link.
+            chain = unsafe { (*chain).next };
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 unsafe fn append(out: &mut *mut ngx_chain_t, link: *mut ngx_chain_t) {

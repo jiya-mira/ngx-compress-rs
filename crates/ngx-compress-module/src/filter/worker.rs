@@ -18,7 +18,7 @@ use core::cell::RefCell;
 
 use ngx_compress_core::{CodecError, StreamingCodec};
 
-use super::CodecKey;
+use super::{CodecKey, CodecPool};
 
 struct Entry {
     key: CodecKey,
@@ -37,37 +37,37 @@ thread_local! {
 
 /// Takes a reset, ready-to-use codec matching `key` from this worker's pool, or
 /// `None` if none is idle (the caller then builds a fresh one).
-pub(in crate::filter) fn acquire(
-    key: CodecKey,
-) -> Result<Option<Box<dyn StreamingCodec>>, CodecError> {
-    POOL.with(|pool| {
-        let mut pool = pool.borrow_mut();
-        let Some(index) = pool.iter().position(|entry| entry.key == key) else {
-            return Ok(None);
-        };
-        let mut entry = pool.swap_remove(index);
-        // A failed reset consumes and drops the removed entry, so a poisoned
-        // codec can never return to the pool or reach another request.
-        entry.codec.reset()?;
-        Ok(Some(entry.codec))
-    })
-}
+impl CodecPool for CodecKey {
+    fn acquire(self) -> Result<Option<Box<dyn StreamingCodec>>, CodecError> {
+        POOL.with(|pool| {
+            let mut pool = pool.borrow_mut();
+            let Some(index) = pool.iter().position(|entry| entry.key == self) else {
+                return Ok(None);
+            };
+            let mut entry = pool.swap_remove(index);
+            // A failed reset consumes and drops the removed entry, so a poisoned
+            // codec can never return to the pool or reach another request.
+            entry.codec.reset()?;
+            Ok(Some(entry.codec))
+        })
+    }
 
-/// Returns a finished codec to this worker's pool for later reuse, dropping it if
-/// the pool is at capacity.
-pub(in crate::filter) fn release(key: CodecKey, codec: Box<dyn StreamingCodec>) {
-    POOL.with(|pool| {
-        let mut pool = pool.borrow_mut();
-        if pool.len() < MAX_IDLE {
-            pool.push(Entry { key, codec });
-        }
-        // Otherwise `codec` drops here, freeing its buffers.
-    });
+    /// Returns a finished codec to this worker's pool for later reuse, dropping it if
+    /// the pool is at capacity.
+    fn release(self, codec: Box<dyn StreamingCodec>) {
+        POOL.with(|pool| {
+            let mut pool = pool.borrow_mut();
+            if pool.len() < MAX_IDLE {
+                pool.push(Entry { key: self, codec });
+            }
+            // Otherwise `codec` drops here, freeing its buffers.
+        });
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CodecKey, acquire, release};
+    use super::{CodecKey, CodecPool};
     use ngx_compress_codecs::Identity;
     use ngx_compress_core::{CodecError, ContentCoding, Operation, StepResult, StreamingCodec};
 
@@ -99,16 +99,16 @@ mod tests {
     #[test]
     fn acquires_a_codec_after_a_successful_reset() {
         let key = identity_key();
-        release(key, Box::new(Identity));
+        key.release(Box::new(Identity));
 
-        assert!(matches!(acquire(key), Ok(Some(_))));
+        assert!(matches!(key.acquire(), Ok(Some(_))));
     }
 
     #[test]
     fn discards_a_codec_when_reset_fails() {
         let key = identity_key();
-        release(key, Box::new(ResetFails));
+        key.release(Box::new(ResetFails));
 
-        assert_eq!(acquire(key).err(), Some(CodecError::Backend));
+        assert_eq!(key.acquire().err(), Some(CodecError::Backend));
     }
 }

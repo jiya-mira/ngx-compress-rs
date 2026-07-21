@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use ngx_compress_core::{MimeTypes, StaticMode};
 
-use crate::{CompressConfig, ConfigUpdate, Profile};
+use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile};
 
-impl CompressConfig {
+impl ApplyConfig for CompressConfig {
     /// Applies one validated, Rust-owned update from the configuration boundary.
-    pub(crate) fn apply(&mut self, update: ConfigUpdate) -> bool {
+    fn apply(&mut self, update: ConfigUpdate) -> bool {
         match update {
             ConfigUpdate::Named { name, value } => self.apply_named(&name, &value),
             ConfigUpdate::Buffers { count, size } => {
@@ -21,7 +21,9 @@ impl CompressConfig {
             }
         }
     }
+}
 
+impl CompressConfig {
     fn apply_named(&mut self, name: &str, value: &str) -> bool {
         match name {
             "compress" => self.set_compress(value),

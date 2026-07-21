@@ -14,9 +14,7 @@ use ngx::ffi::{
 use ngx::http::{HttpModule, HttpModuleLocationConf};
 use ngx::ngx_string;
 
-use crate::{CompressConfig, Module};
-
-use self::conf::{set_buffers, set_directive, set_types};
+use crate::{CompressConfig, DirectiveCallbacks, FilterModule, Module, StaticModule};
 
 impl HttpModule for Module {
     fn module() -> &'static ngx_module_t {
@@ -37,8 +35,8 @@ unsafe fn postconfiguration_inner(cf: *mut ngx_conf_t) -> ngx_int_t {
     // SAFETY: postconfiguration runs once in the single-threaded master before
     // workers fork; installing filters and the content handler is safe.
     unsafe {
-        crate::filter::install();
-        if crate::static_file::register(cf).is_err() {
+        Module::install_filters();
+        if Module::register_static(cf).is_err() {
             return Status::NGX_ERROR.0;
         }
     }
@@ -56,7 +54,7 @@ const fn directive(name: ngx_str_t) -> ngx_command_t {
         name,
         type_: (NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1)
             as ngx_uint_t,
-        set: Some(set_directive),
+        set: Some(Module::set_directive),
         conf: NGX_HTTP_LOC_CONF_OFFSET,
         offset: 0,
         post: ptr::null_mut(),
@@ -97,12 +95,12 @@ static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 16] = [
     multi(
         ngx_string!("compress_buffers"),
         NGX_CONF_TAKE2 as ngx_uint_t,
-        set_buffers,
+        Module::set_buffers,
     ),
     multi(
         ngx_string!("compress_types"),
         NGX_CONF_1MORE as ngx_uint_t,
-        set_types,
+        Module::set_types,
     ),
     ngx_command_t::empty(),
 ];

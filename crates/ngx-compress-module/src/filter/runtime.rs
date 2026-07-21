@@ -7,20 +7,31 @@ use ngx_compress_core::ResponseFacts;
 use ngx_compress_ffi::filter;
 
 use crate::registration::ngx_http_compress_module;
-use crate::{CompressConfig, Module};
+use crate::{CompressConfig, FilterModule, Module, ResolveConfig};
 
-use super::accept_encoding;
-use super::buffer::compress_chain;
-use super::context::{install_ctx, with_request_ctx};
-use super::header;
-use super::{RequestCtx, Snapshot};
+use super::{
+    CompressChain, HeaderDecision, Plan, RequestContext, RequestCtx, RuntimeCallbacks, Snapshot,
+};
 
-// Installed into the header filter chain by the parent filter module.
-pub(super) unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) -> ngx_int_t {
-    ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
-        // SAFETY: nginx supplied the request pointer to this callback.
-        unsafe { header_filter_inner(request) }
-    })
+impl RuntimeCallbacks for Module {
+    // Installed into the header filter chain by the parent filter module.
+    unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) -> ngx_int_t {
+        ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
+            // SAFETY: nginx supplied the request pointer to this callback.
+            unsafe { header_filter_inner(request) }
+        })
+    }
+
+    // Installed into the body filter chain by the parent filter module.
+    unsafe extern "C" fn body_filter(
+        request: *mut ngx_http_request_t,
+        chain: *mut ngx_chain_t,
+    ) -> ngx_int_t {
+        ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
+            // SAFETY: nginx supplied both pointers to this callback.
+            unsafe { body_filter_inner(request, chain) }
+        })
+    }
 }
 
 unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
@@ -44,7 +55,7 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     let Some(snapshot) = (unsafe { prefetch_header(request) }) else {
         return pass();
     };
-    let Some(plan) = header::decide(&resolved, &snapshot) else {
+    let Some(plan) = Plan::decide(&resolved, &snapshot) else {
         return pass();
     };
 
@@ -66,22 +77,11 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     unsafe {
         (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
-        if install_ctx(request, plan.codec, plan.key, plan.buffer_size).is_none() {
+        if RequestCtx::install(request, plan.codec, plan.key, plan.buffer_size).is_none() {
             return Status::NGX_ERROR.0;
         }
         filter::next_header(request)
     }
-}
-
-// Installed into the body filter chain by the parent filter module.
-pub(super) unsafe extern "C" fn body_filter(
-    request: *mut ngx_http_request_t,
-    chain: *mut ngx_chain_t,
-) -> ngx_int_t {
-    ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
-        // SAFETY: nginx supplied both pointers to this callback.
-        unsafe { body_filter_inner(request, chain) }
-    })
 }
 
 // SAFETY: nginx must supply a valid request and input chain for this callback.
@@ -96,7 +96,7 @@ unsafe fn body_filter_inner(
         // borrowed for the duration of this callback.
         unsafe { body_filter_with_ctx(request, chain, ctx) }
     };
-    let Some(rc) = (unsafe { with_request_ctx(request, run) }) else {
+    let Some(rc) = (unsafe { RequestCtx::with(request, run) }) else {
         // SAFETY: install() ran during postconfiguration.
         return unsafe { filter::next_body(request, chain) };
     };
@@ -111,7 +111,7 @@ unsafe fn body_filter_with_ctx(
     ctx: &mut RequestCtx,
 ) -> ngx_int_t {
     // SAFETY: walks the input chain, feeding each buffer to the codec.
-    if unsafe { compress_chain(request, ctx, chain) }.is_err() {
+    if unsafe { ctx.compress(request, chain) }.is_err() {
         return Status::NGX_ERROR.0;
     }
 
@@ -156,7 +156,7 @@ unsafe fn prefetch_header(request: *mut ngx_http_request_t) -> Option<Snapshot> 
                     &(*request).headers_out.content_type,
                 )?,
             },
-            accept_encoding: accept_encoding(request),
+            accept_encoding: Module::accept_encoding(request),
         })
     }
 }
