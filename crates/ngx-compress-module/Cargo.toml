@@ -14,21 +14,26 @@ crate-type = ["staticlib", "cdylib"]
 ngx = "0.5"
 nginx-sys = "0.5"
 ngx-compress-core = { path = "../ngx-compress-core" }
-ngx-compress-codecs = { path = "../ngx-compress-codecs" }
+# default-features off so the backend (vendored xor system-libs) is chosen here
+# and forwarded, keeping the build an all-or-nothing switch.
+ngx-compress-codecs = { path = "../ngx-compress-codecs", default-features = false }
 ngx-compress-ffi = { path = "../ngx-compress-ffi" }
 
 [features]
 # `export-modules` emits the `ngx_modules` table so a standalone `cargo` build
 # of the cdylib is self-contained. The NGINX buildsystem passes
 # `--no-default-features` and generates that table itself, so the flow through
-# `config`/`config.make` links a plain staticlib and enables the codec features
-# explicitly via ngx_rust_target_features.
-default = ["export-modules", "gzip", "deflate", "brotli", "zstd"]
+# `config`/`config.make` links a plain staticlib and enables the codec + backend
+# features explicitly via ngx_rust_target_features.
+default = ["export-modules", "gzip", "deflate", "brotli", "zstd", "vendored"]
 export-modules = []
 gzip = ["ngx-compress-codecs/gzip"]
 deflate = ["ngx-compress-codecs/deflate"]
 brotli = ["ngx-compress-codecs/brotli"]
 zstd = ["ngx-compress-codecs/zstd"]
+# Backend selection (mutually exclusive), forwarded to the codecs crate.
+vendored = ["ngx-compress-codecs/vendored"]
+system-libs = ["ngx-compress-codecs/system-libs"]
 
 # Boundary crate: unsafe is required for the NGINX module ABI and callbacks.
 # Every unsafe block documents its invariant with a `// SAFETY:` comment.

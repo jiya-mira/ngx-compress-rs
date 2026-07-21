@@ -43,6 +43,16 @@ vendored = [
     "brotli?/std",
     "brotli?/vector_scratch_space",
 ]
+# Link the distro's prebuilt shared libraries instead of compiling them:
+# flate2 -> system libz, zstd -> system libzstd (pkg-config). brotli has no C
+# library (the crate is pure Rust), so it stays vendored in both modes; there is
+# nothing to share. Mutually exclusive with `vendored`.
+system-libs = [
+    "flate2?/zlib",
+    "brotli?/std",
+    "brotli?/vector_scratch_space",
+    "zstd?/pkg-config",
+]
 
 [lints]
 workspace = true

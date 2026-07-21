@@ -16,12 +16,25 @@ if [ $HTTP = YES ]; then
     ngx_module_name=ngx_http_compress_module
     ngx_module_incs=
     ngx_module_deps=
-    ngx_module_libs="-lm -ldl -lpthread"
 
     # ngx-rust target: build the module crate as a staticlib.
     ngx_rust_target_type=LIB
     ngx_rust_target_name=ngx_compress_module
-    ngx_rust_target_features="gzip deflate brotli zstd"
+
+    # Backend is an all-or-nothing switch via NGX_COMPRESS_BACKEND:
+    #   (unset|vendored) self-compile the codecs (zlib-ng SIMD, pure-Rust brotli)
+    #   system           link the distro's shared libz + libzstd
+    #
+    # The `-lz`/`-lzstd` link flags matter for the system backend: cargo emits
+    # them from the -sys crates, but a staticlib build does not apply them, so
+    # NGINX must add them here to get NEEDED entries for the shared objects.
+    if [ "${NGX_COMPRESS_BACKEND:-vendored}" = system ]; then
+        ngx_rust_target_features="gzip deflate brotli zstd system-libs"
+        ngx_module_libs="-lm -ldl -lpthread -lz -lzstd"
+    else
+        ngx_rust_target_features="gzip deflate brotli zstd vendored"
+        ngx_module_libs="-lm -ldl -lpthread"
+    fi
 
     ngx_rust_module
 fi

@@ -5,6 +5,11 @@
 //! Each compression backend is selected at build time through the crate's
 //! per-codec Cargo features, so a build only links the libraries it enables.
 //! The `identity` coding is always available because it carries no dependency.
+//! The `vendored` (self-compiled, SIMD) and `system-libs` (distro shared
+//! libraries) backends are mutually exclusive.
+
+#[cfg(all(feature = "vendored", feature = "system-libs"))]
+compile_error!("enable exactly one codec backend: `vendored` or `system-libs`");
 
 mod identity;
 pub use identity::Identity;
