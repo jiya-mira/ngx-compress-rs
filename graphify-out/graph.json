@@ -4,15 +4,477 @@
   "graph": {},
   "nodes": [
     {
+      "label": "build-and-test.sh",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "build-and-test.sh"
+    },
+    {
+      "label": "build-and-test.sh script",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_sh__entry",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "build-and-test.sh script"
+    },
+    {
+      "label": "no_proxy",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L10",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_no_proxy",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "no_proxy"
+    },
+    {
+      "label": "log()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_log",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "log()"
+    },
+    {
+      "label": "setup_www()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L20",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_setup_www",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "setup_www()"
+    },
+    {
+      "label": "write_conf()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L39",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_write_conf",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "write_conf()"
+    },
+    {
+      "label": "decode()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L76",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_decode",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "decode()"
+    },
+    {
+      "label": "check()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L86",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_check",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "check()"
+    },
+    {
+      "label": "check_identity()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L99",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_check_identity",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "check_identity()"
+    },
+    {
+      "label": "check_ssi()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L111",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_check_ssi",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "check_ssi()"
+    },
+    {
+      "label": "smoke()",
+      "file_type": "code",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L130",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "docker_build_and_test_smoke",
+      "community": 8,
+      "community_name": "Docker Build & Smoke",
+      "norm_label": "smoke()"
+    },
+    {
+      "label": "design.md",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_design",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "design.md"
+    },
+    {
+      "label": "Design",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_design_design",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "design"
+    },
+    {
+      "label": "1. Filter architecture",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "docs_design_1_filter_architecture",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "1. filter architecture"
+    },
+    {
+      "label": "Header filter",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "docs_design_header_filter",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "header filter"
+    },
+    {
+      "label": "Body filter",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L29",
+      "_origin": "ast",
+      "id": "docs_design_body_filter",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "body filter"
+    },
+    {
+      "label": "2. Crate structure",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L41",
+      "_origin": "ast",
+      "id": "docs_design_2_crate_structure",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "2. crate structure"
+    },
+    {
+      "label": "Layout",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L53",
+      "_origin": "ast",
+      "id": "docs_design_layout",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "layout"
+    },
+    {
+      "label": "Rationale",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L68",
+      "_origin": "ast",
+      "id": "docs_design_rationale",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "rationale"
+    },
+    {
+      "label": "When a codec earns its own crate",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L84",
+      "_origin": "ast",
+      "id": "docs_design_when_a_codec_earns_its_own_crate",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "when a codec earns its own crate"
+    },
+    {
+      "label": "3. Safety and coexistence policies",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L97",
+      "_origin": "ast",
+      "id": "docs_design_3_safety_and_coexistence_policies",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "3. safety and coexistence policies"
+    },
+    {
+      "label": "4. Content negotiation and server priority",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L116",
+      "_origin": "ast",
+      "id": "docs_design_4_content_negotiation_and_server_priority",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4. content negotiation and server priority"
+    },
+    {
+      "label": "5. Configuration schema",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L148",
+      "_origin": "ast",
+      "id": "docs_design_5_configuration_schema",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "5. configuration schema"
+    },
+    {
+      "label": "4.1 Naming: our own scheme, not an upstream drop-in",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L154",
+      "_origin": "ast",
+      "id": "docs_design_4_1_naming_our_own_scheme_not_an_upstream_drop_in",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4.1 naming: our own scheme, not an upstream drop-in"
+    },
+    {
+      "label": "4.2 Master switch and per-codec toggles",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L168",
+      "_origin": "ast",
+      "id": "docs_design_4_2_master_switch_and_per_codec_toggles",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4.2 master switch and per-codec toggles"
+    },
+    {
+      "label": "4.3 Per-codec parameters",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L180",
+      "_origin": "ast",
+      "id": "docs_design_4_3_per_codec_parameters",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4.3 per-codec parameters"
+    },
+    {
+      "label": "4.4 Shared parameters (global default, per-codec override)",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L196",
+      "_origin": "ast",
+      "id": "docs_design_4_4_shared_parameters_global_default_per_codec_override",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4.4 shared parameters (global default, per-codec override)"
+    },
+    {
+      "label": "4.5 Typed configuration model",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L214",
+      "_origin": "ast",
+      "id": "docs_design_4_5_typed_configuration_model",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4.5 typed configuration model"
+    },
+    {
+      "label": "4.6 Example",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L228",
+      "_origin": "ast",
+      "id": "docs_design_4_6_example",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "4.6 example"
+    },
+    {
+      "label": "6. Local testing plan",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L251",
+      "_origin": "ast",
+      "id": "docs_design_6_local_testing_plan",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "6. local testing plan"
+    },
+    {
+      "label": "L0 \u2014 Protocol core (now, plain `cargo`)",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L256",
+      "_origin": "ast",
+      "id": "docs_design_l0_protocol_core_now_plain_cargo",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "l0 \u2014 protocol core (now, plain `cargo`)"
+    },
+    {
+      "label": "L1 \u2014 Codec adapters (M2, plain Rust)",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L266",
+      "_origin": "ast",
+      "id": "docs_design_l1_codec_adapters_m2_plain_rust",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "l1 \u2014 codec adapters (m2, plain rust)"
+    },
+    {
+      "label": "L2 \u2014 NGINX integration (M1+, needs an NGINX source tree)",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L277",
+      "_origin": "ast",
+      "id": "docs_design_l2_nginx_integration_m1_needs_an_nginx_source_tree",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "l2 \u2014 nginx integration (m1+, needs an nginx source tree)"
+    },
+    {
+      "label": "Docker build-and-integration environment (static + dynamic)",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L286",
+      "_origin": "ast",
+      "id": "docs_design_docker_build_and_integration_environment_static_dynamic",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "docker build-and-integration environment (static + dynamic)"
+    },
+    {
+      "label": "L3 \u2014 Fuzzing and conformance (ongoing)",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L305",
+      "_origin": "ast",
+      "id": "docs_design_l3_fuzzing_and_conformance_ongoing",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "l3 \u2014 fuzzing and conformance (ongoing)"
+    },
+    {
+      "label": "Prerequisite note",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L311",
+      "_origin": "ast",
+      "id": "docs_design_prerequisite_note",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "prerequisite note"
+    },
+    {
+      "label": "7. Build backends and performance",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L319",
+      "_origin": "ast",
+      "id": "docs_design_7_build_backends_and_performance",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "7. build backends and performance"
+    },
+    {
+      "label": "8. Deferred / open items",
+      "file_type": "document",
+      "source_file": "docs/design.md",
+      "source_location": "L359",
+      "_origin": "ast",
+      "id": "docs_design_8_deferred_open_items",
+      "community": 6,
+      "community_name": "Codec Trait Seam",
+      "norm_label": "8. deferred / open items"
+    },
+    {
       "label": "flate.rs",
       "file_type": "code",
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "flate.rs"
+      "norm_label": "flate.rs",
+      "id": "crates_ngx_compress_codecs_src_flate"
     },
     {
       "label": "map_flush()",
@@ -20,10 +482,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L12",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_map_flush",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "map_flush()"
+      "norm_label": "map_flush()",
+      "id": "crates_ngx_compress_codecs_src_flate_map_flush"
     },
     {
       "label": "Operation",
@@ -31,10 +493,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "operation",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "operation"
+      "norm_label": "operation",
+      "id": "operation"
     },
     {
       "label": "FlushCompress",
@@ -42,10 +504,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "flushcompress",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "flushcompress"
+      "norm_label": "flushcompress",
+      "id": "flushcompress"
     },
     {
       "label": "derive_state()",
@@ -53,10 +515,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L20",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_derive_state",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "derive_state()"
+      "norm_label": "derive_state()",
+      "id": "crates_ngx_compress_codecs_src_flate_derive_state"
     },
     {
       "label": "StepState",
@@ -64,10 +526,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "stepstate",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "stepstate"
+      "norm_label": "stepstate",
+      "id": "stepstate"
     },
     {
       "label": "delta()",
@@ -75,10 +537,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L37",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_delta",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "delta()"
+      "norm_label": "delta()",
+      "id": "crates_ngx_compress_codecs_src_flate_delta"
     },
     {
       "label": "FlateStep",
@@ -86,10 +548,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L41",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_flatestep",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "flatestep"
+      "norm_label": "flatestep",
+      "id": "crates_ngx_compress_codecs_src_flate_flatestep"
     },
     {
       "label": "FlateCore",
@@ -97,10 +559,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L48",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_flatecore",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "flatecore"
+      "norm_label": "flatecore",
+      "id": "crates_ngx_compress_codecs_src_flate_flatecore"
     },
     {
       "label": "Compress",
@@ -108,10 +570,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "compress",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "compress"
+      "norm_label": "compress",
+      "id": "compress"
     },
     {
       "label": ".new()",
@@ -119,10 +581,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L53",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_flatecore_new",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".new()"
+      "norm_label": ".new()",
+      "id": "crates_ngx_compress_codecs_src_flate_flatecore_new"
     },
     {
       "label": "Self",
@@ -130,10 +592,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_rs_self",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "self"
+      "norm_label": "self",
+      "id": "crates_ngx_compress_codecs_src_flate_rs_self"
     },
     {
       "label": ".reset()",
@@ -141,10 +603,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L59",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_flatecore_reset",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".reset()"
+      "norm_label": ".reset()",
+      "id": "crates_ngx_compress_codecs_src_flate_flatecore_reset"
     },
     {
       "label": ".run()",
@@ -152,10 +614,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L63",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_flatecore_run",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".run()"
+      "norm_label": ".run()",
+      "id": "crates_ngx_compress_codecs_src_flate_flatecore_run"
     },
     {
       "label": "Result",
@@ -163,10 +625,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_rs_result",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "result"
+      "norm_label": "result",
+      "id": "crates_ngx_compress_codecs_src_flate_rs_result"
     },
     {
       "label": "CodecError",
@@ -174,10 +636,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "codecerror",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "codecerror"
+      "norm_label": "codecerror",
+      "id": "codecerror"
     },
     {
       "label": "Deflate",
@@ -185,10 +647,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L85",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_deflate",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "deflate"
+      "norm_label": "deflate",
+      "id": "crates_ngx_compress_codecs_src_flate_deflate"
     },
     {
       "label": ".new()",
@@ -196,10 +658,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L94",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_deflate_new",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".new()"
+      "norm_label": ".new()",
+      "id": "crates_ngx_compress_codecs_src_flate_deflate_new"
     },
     {
       "label": "StreamingCodec",
@@ -207,10 +669,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "streamingcodec",
-      "community": 19,
-      "community_name": "StepResult",
-      "norm_label": "streamingcodec"
+      "community": 13,
+      "community_name": "6. Local testing plan",
+      "norm_label": "streamingcodec",
+      "id": "streamingcodec"
     },
     {
       "label": ".coding()",
@@ -218,10 +680,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L104",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_deflate_coding",
       "community": 21,
       "community_name": "Resolved",
-      "norm_label": ".coding()"
+      "norm_label": ".coding()",
+      "id": "crates_ngx_compress_codecs_src_flate_deflate_coding"
     },
     {
       "label": "ContentCoding",
@@ -229,10 +691,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "contentcoding",
       "community": 21,
       "community_name": "Resolved",
-      "norm_label": "contentcoding"
+      "norm_label": "contentcoding",
+      "id": "contentcoding"
     },
     {
       "label": ".step()",
@@ -240,10 +702,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L108",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_deflate_step",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".step()"
+      "norm_label": ".step()",
+      "id": "crates_ngx_compress_codecs_src_flate_deflate_step"
     },
     {
       "label": "StepResult",
@@ -251,10 +713,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "stepresult",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "stepresult"
+      "norm_label": "stepresult",
+      "id": "stepresult"
     },
     {
       "label": ".reset()",
@@ -262,10 +724,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L128",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_deflate_reset",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".reset()"
+      "norm_label": ".reset()",
+      "id": "crates_ngx_compress_codecs_src_flate_deflate_reset"
     },
     {
       "label": "copy_into()",
@@ -273,10 +735,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L137",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_copy_into",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "copy_into()"
+      "norm_label": "copy_into()",
+      "id": "crates_ngx_compress_codecs_src_flate_copy_into"
     },
     {
       "label": "Gzip",
@@ -284,10 +746,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L147",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_gzip",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "gzip"
+      "norm_label": "gzip",
+      "id": "crates_ngx_compress_codecs_src_flate_gzip"
     },
     {
       "label": "Crc",
@@ -295,10 +757,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "crc",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "crc"
+      "norm_label": "crc",
+      "id": "crc"
     },
     {
       "label": ".new()",
@@ -306,10 +768,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L161",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_gzip_new",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".new()"
+      "norm_label": ".new()",
+      "id": "crates_ngx_compress_codecs_src_flate_gzip_new"
     },
     {
       "label": ".compute_trailer()",
@@ -317,10 +779,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L173",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_gzip_compute_trailer",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".compute_trailer()"
+      "norm_label": ".compute_trailer()",
+      "id": "crates_ngx_compress_codecs_src_flate_gzip_compute_trailer"
     },
     {
       "label": ".coding()",
@@ -328,10 +790,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L184",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_gzip_coding",
       "community": 21,
       "community_name": "Resolved",
-      "norm_label": ".coding()"
+      "norm_label": ".coding()",
+      "id": "crates_ngx_compress_codecs_src_flate_gzip_coding"
     },
     {
       "label": ".step()",
@@ -339,10 +801,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L188",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_gzip_step",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".step()"
+      "norm_label": ".step()",
+      "id": "crates_ngx_compress_codecs_src_flate_gzip_step"
     },
     {
       "label": ".reset()",
@@ -350,10 +812,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L252",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_gzip_reset",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": ".reset()"
+      "norm_label": ".reset()",
+      "id": "crates_ngx_compress_codecs_src_flate_gzip_reset"
     },
     {
       "label": "trailer_state()",
@@ -361,10 +823,10 @@
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L263",
       "_origin": "ast",
-      "id": "crates_ngx_compress_codecs_src_flate_trailer_state",
       "community": 13,
       "community_name": "6. Local testing plan",
-      "norm_label": "trailer_state()"
+      "norm_label": "trailer_state()",
+      "id": "crates_ngx_compress_codecs_src_flate_trailer_state"
     },
     {
       "label": "conf.rs",
@@ -372,10 +834,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "conf.rs"
+      "norm_label": "conf.rs",
+      "id": "crates_ngx_compress_module_src_conf"
     },
     {
       "label": "CompressConfig",
@@ -383,10 +845,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L32",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_compressconfig",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "compressconfig"
+      "norm_label": "compressconfig",
+      "id": "crates_ngx_compress_module_src_conf_compressconfig"
     },
     {
       "label": "Option",
@@ -394,10 +856,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "option",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "option"
+      "norm_label": "option",
+      "id": "option"
     },
     {
       "label": "NonNull",
@@ -405,10 +867,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "nonnull",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "nonnull"
+      "norm_label": "nonnull",
+      "id": "nonnull"
     },
     {
       "label": "ngx_array_t",
@@ -416,10 +878,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "ngx_array_t",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "ngx_array_t"
+      "norm_label": "ngx_array_t",
+      "id": "ngx_array_t"
     },
     {
       "label": "Resolved",
@@ -427,10 +889,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L56",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_resolved",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "resolved"
+      "norm_label": "resolved",
+      "id": "crates_ngx_compress_module_src_conf_resolved"
     },
     {
       "label": ".resolve()",
@@ -438,10 +900,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L71",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_compressconfig_resolve",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": ".resolve()"
+      "norm_label": ".resolve()",
+      "id": "crates_ngx_compress_module_src_conf_compressconfig_resolve"
     },
     {
       "label": "on_level()",
@@ -449,10 +911,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L95",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_on_level",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "on_level()"
+      "norm_label": "on_level()",
+      "id": "crates_ngx_compress_module_src_conf_on_level"
     },
     {
       "label": "Merge",
@@ -460,10 +922,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "merge",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "merge"
+      "norm_label": "merge",
+      "id": "merge"
     },
     {
       "label": ".merge()",
@@ -471,10 +933,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L100",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_compressconfig_merge",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": ".merge()"
+      "norm_label": ".merge()",
+      "id": "crates_ngx_compress_module_src_conf_compressconfig_merge"
     },
     {
       "label": "Self",
@@ -482,10 +944,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_rs_self",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "self"
+      "norm_label": "self",
+      "id": "crates_ngx_compress_module_src_conf_rs_self"
     },
     {
       "label": "Result",
@@ -493,10 +955,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_rs_result",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "result"
+      "norm_label": "result",
+      "id": "crates_ngx_compress_module_src_conf_rs_result"
     },
     {
       "label": "MergeConfigError",
@@ -504,10 +966,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "mergeconfigerror",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "mergeconfigerror"
+      "norm_label": "mergeconfigerror",
+      "id": "mergeconfigerror"
     },
     {
       "label": "merge_opt()",
@@ -515,10 +977,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L119",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_merge_opt",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "merge_opt()"
+      "norm_label": "merge_opt()",
+      "id": "crates_ngx_compress_module_src_conf_merge_opt"
     },
     {
       "label": "T",
@@ -526,10 +988,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "t",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "t"
+      "norm_label": "t",
+      "id": "t"
     },
     {
       "label": "set_directive()",
@@ -537,10 +999,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L127",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_directive",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_directive()"
+      "norm_label": "set_directive()",
+      "id": "crates_ngx_compress_module_src_conf_set_directive"
     },
     {
       "label": "ngx_conf_t",
@@ -548,10 +1010,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "ngx_conf_t",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "ngx_conf_t"
+      "norm_label": "ngx_conf_t",
+      "id": "ngx_conf_t"
     },
     {
       "label": "ngx_command_t",
@@ -559,10 +1021,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "ngx_command_t",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "ngx_command_t"
+      "norm_label": "ngx_command_t",
+      "id": "ngx_command_t"
     },
     {
       "label": "c_void",
@@ -570,10 +1032,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "c_void",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "c_void"
+      "norm_label": "c_void",
+      "id": "c_void"
     },
     {
       "label": "c_char",
@@ -581,10 +1043,10 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "id": "c_char",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "c_char"
+      "norm_label": "c_char",
+      "id": "c_char"
     },
     {
       "label": "apply()",
@@ -592,10 +1054,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L150",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_apply",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "apply()"
+      "norm_label": "apply()",
+      "id": "crates_ngx_compress_module_src_conf_apply"
     },
     {
       "label": "set_flag()",
@@ -603,10 +1065,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L168",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_flag",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_flag()"
+      "norm_label": "set_flag()",
+      "id": "crates_ngx_compress_module_src_conf_set_flag"
     },
     {
       "label": "set_u32()",
@@ -614,10 +1076,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L180",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_u32",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_u32()"
+      "norm_label": "set_u32()",
+      "id": "crates_ngx_compress_module_src_conf_set_u32"
     },
     {
       "label": "set_zstd_level()",
@@ -625,10 +1087,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L190",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_zstd_level",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_zstd_level()"
+      "norm_label": "set_zstd_level()",
+      "id": "crates_ngx_compress_module_src_conf_set_zstd_level"
     },
     {
       "label": "set_usize()",
@@ -636,10 +1098,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L200",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_usize",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_usize()"
+      "norm_label": "set_usize()",
+      "id": "crates_ngx_compress_module_src_conf_set_usize"
     },
     {
       "label": "set_buffers()",
@@ -647,10 +1109,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L211",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_buffers",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_buffers()"
+      "norm_label": "set_buffers()",
+      "id": "crates_ngx_compress_module_src_conf_set_buffers"
     },
     {
       "label": "set_types()",
@@ -658,10 +1120,10 @@
       "source_file": "crates/ngx-compress-module/src/conf.rs",
       "source_location": "L241",
       "_origin": "ast",
-      "id": "crates_ngx_compress_module_src_conf_set_types",
       "community": 5,
       "community_name": "Module Configuration",
-      "norm_label": "set_types()"
+      "norm_label": "set_types()",
+      "id": "crates_ngx_compress_module_src_conf_set_types"
     },
     {
       "label": "encoder.rs",
@@ -924,303 +1386,6 @@
       "community_name": "verify-backends.sh",
       "norm_label": "build()",
       "id": "docker_verify_backends_build"
-    },
-    {
-      "label": "design.md",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "design.md",
-      "id": "docs_design"
-    },
-    {
-      "label": "Design",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "design",
-      "id": "docs_design_design"
-    },
-    {
-      "label": "1. Filter architecture",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L9",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "1. filter architecture",
-      "id": "docs_design_1_filter_architecture"
-    },
-    {
-      "label": "Header filter",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L13",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "header filter",
-      "id": "docs_design_header_filter"
-    },
-    {
-      "label": "Body filter",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L29",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "body filter",
-      "id": "docs_design_body_filter"
-    },
-    {
-      "label": "2. Crate structure",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L41",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "2. crate structure",
-      "id": "docs_design_2_crate_structure"
-    },
-    {
-      "label": "Layout",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L53",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "layout",
-      "id": "docs_design_layout"
-    },
-    {
-      "label": "Rationale",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L68",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "rationale",
-      "id": "docs_design_rationale"
-    },
-    {
-      "label": "When a codec earns its own crate",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L84",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "when a codec earns its own crate",
-      "id": "docs_design_when_a_codec_earns_its_own_crate"
-    },
-    {
-      "label": "3. Safety and coexistence policies",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L97",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "3. safety and coexistence policies",
-      "id": "docs_design_3_safety_and_coexistence_policies"
-    },
-    {
-      "label": "4. Content negotiation and server priority",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L116",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4. content negotiation and server priority",
-      "id": "docs_design_4_content_negotiation_and_server_priority"
-    },
-    {
-      "label": "5. Configuration schema",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L148",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "5. configuration schema",
-      "id": "docs_design_5_configuration_schema"
-    },
-    {
-      "label": "4.1 Naming: our own scheme, not an upstream drop-in",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L154",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4.1 naming: our own scheme, not an upstream drop-in",
-      "id": "docs_design_4_1_naming_our_own_scheme_not_an_upstream_drop_in"
-    },
-    {
-      "label": "4.2 Master switch and per-codec toggles",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L168",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4.2 master switch and per-codec toggles",
-      "id": "docs_design_4_2_master_switch_and_per_codec_toggles"
-    },
-    {
-      "label": "4.3 Per-codec parameters",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L180",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4.3 per-codec parameters",
-      "id": "docs_design_4_3_per_codec_parameters"
-    },
-    {
-      "label": "4.4 Shared parameters (global default, per-codec override)",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L196",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4.4 shared parameters (global default, per-codec override)",
-      "id": "docs_design_4_4_shared_parameters_global_default_per_codec_override"
-    },
-    {
-      "label": "4.5 Typed configuration model",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L214",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4.5 typed configuration model",
-      "id": "docs_design_4_5_typed_configuration_model"
-    },
-    {
-      "label": "4.6 Example",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L228",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "4.6 example",
-      "id": "docs_design_4_6_example"
-    },
-    {
-      "label": "6. Local testing plan",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L251",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "6. local testing plan",
-      "id": "docs_design_6_local_testing_plan"
-    },
-    {
-      "label": "L0 \u2014 Protocol core (now, plain `cargo`)",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L256",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "l0 \u2014 protocol core (now, plain `cargo`)",
-      "id": "docs_design_l0_protocol_core_now_plain_cargo"
-    },
-    {
-      "label": "L1 \u2014 Codec adapters (M2, plain Rust)",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L266",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "l1 \u2014 codec adapters (m2, plain rust)",
-      "id": "docs_design_l1_codec_adapters_m2_plain_rust"
-    },
-    {
-      "label": "L2 \u2014 NGINX integration (M1+, needs an NGINX source tree)",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L277",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "l2 \u2014 nginx integration (m1+, needs an nginx source tree)",
-      "id": "docs_design_l2_nginx_integration_m1_needs_an_nginx_source_tree"
-    },
-    {
-      "label": "Docker build-and-integration environment (static + dynamic)",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L286",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "docker build-and-integration environment (static + dynamic)",
-      "id": "docs_design_docker_build_and_integration_environment_static_dynamic"
-    },
-    {
-      "label": "L3 \u2014 Fuzzing and conformance (ongoing)",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L305",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "l3 \u2014 fuzzing and conformance (ongoing)",
-      "id": "docs_design_l3_fuzzing_and_conformance_ongoing"
-    },
-    {
-      "label": "Prerequisite note",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L311",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "prerequisite note",
-      "id": "docs_design_prerequisite_note"
-    },
-    {
-      "label": "7. Build backends and performance",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L319",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "7. build backends and performance",
-      "id": "docs_design_7_build_backends_and_performance"
-    },
-    {
-      "label": "8. Deferred / open items",
-      "file_type": "document",
-      "source_file": "docs/design.md",
-      "source_location": "L359",
-      "_origin": "ast",
-      "community": 6,
-      "community_name": "Codec Trait Seam",
-      "norm_label": "8. deferred / open items",
-      "id": "docs_design_8_deferred_open_items"
     },
     {
       "label": "Option",
@@ -1804,156 +1969,6 @@
       "community_name": "NGINX Module & Filters",
       "norm_label": "setfn",
       "id": "setfn"
-    },
-    {
-      "label": "build-and-test.sh",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "build-and-test.sh",
-      "id": "docker_build_and_test"
-    },
-    {
-      "label": "build-and-test.sh script",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "build-and-test.sh script",
-      "id": "docker_build_and_test_sh__entry"
-    },
-    {
-      "label": "no_proxy",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L10",
-      "metadata": {
-        "language": "bash",
-        "kind": "code"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "no_proxy",
-      "id": "docker_build_and_test_no_proxy"
-    },
-    {
-      "label": "log()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L18",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "log()",
-      "id": "docker_build_and_test_log"
-    },
-    {
-      "label": "setup_www()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L20",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "setup_www()",
-      "id": "docker_build_and_test_setup_www"
-    },
-    {
-      "label": "write_conf()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L30",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "write_conf()",
-      "id": "docker_build_and_test_write_conf"
-    },
-    {
-      "label": "decode()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L60",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "decode()",
-      "id": "docker_build_and_test_decode"
-    },
-    {
-      "label": "check()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L70",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "check()",
-      "id": "docker_build_and_test_check"
-    },
-    {
-      "label": "check_identity()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L83",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "check_identity()",
-      "id": "docker_build_and_test_check_identity"
-    },
-    {
-      "label": "smoke()",
-      "file_type": "code",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L95",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "Docker Build & Smoke",
-      "norm_label": "smoke()",
-      "id": "docker_build_and_test_smoke"
     },
     {
       "label": "Box",
@@ -2665,8 +2680,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "roundtrip.rs",
       "id": "crates_ngx_compress_codecs_tests_roundtrip"
     },
@@ -2676,8 +2691,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L7",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "sample()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_sample"
     },
@@ -2687,8 +2702,8 @@
       "source_file": "",
       "source_location": "",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "vec",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_rs_vec"
     },
@@ -2698,8 +2713,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L14",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "compress()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_compress"
     },
@@ -2709,8 +2724,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L45",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "gzip_roundtrips_across_buffer_sizes()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_gzip_roundtrips_across_buffer_sizes"
     },
@@ -2720,8 +2735,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L64",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "deflate_roundtrips_across_buffer_sizes()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_deflate_roundtrips_across_buffer_sizes"
     },
@@ -2731,8 +2746,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L83",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "brotli_roundtrips_across_buffer_sizes()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_brotli_roundtrips_across_buffer_sizes"
     },
@@ -2742,8 +2757,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L102",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "zstd_roundtrips_across_buffer_sizes()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_zstd_roundtrips_across_buffer_sizes"
     },
@@ -2753,8 +2768,8 @@
       "source_file": "crates/ngx-compress-codecs/tests/roundtrip.rs",
       "source_location": "L119",
       "_origin": "ast",
-      "community": 17,
-      "community_name": "compress",
+      "community": 3,
+      "community_name": "Identity Codec Tests",
       "norm_label": "gzip_handles_empty_input()",
       "id": "crates_ngx_compress_codecs_tests_roundtrip_gzip_handles_empty_input"
     },
@@ -3509,15 +3524,507 @@
   ],
   "links": [
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L86",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_check",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L99",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_check_identity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L111",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_check_ssi",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L76",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_decode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L18",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_no_proxy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L20",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_setup_www",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L130",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_smoke",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L39",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docker_build_and_test",
+      "target": "docker_build_and_test_write_conf",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L167",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_sh__entry",
+      "target": "docker_build_and_test_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L165",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_sh__entry",
+      "target": "docker_build_and_test_setup_www",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L180",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_sh__entry",
+      "target": "docker_build_and_test_smoke",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L133",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_smoke",
+      "target": "docker_build_and_test_write_conf",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L93",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_check",
+      "target": "docker_build_and_test_decode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_smoke",
+      "target": "docker_build_and_test_check",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_smoke",
+      "target": "docker_build_and_test_check_identity",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "docker/build-and-test.sh",
+      "source_location": "L154",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "docker_build_and_test_smoke",
+      "target": "docker_build_and_test_check_ssi",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design",
+      "target": "docs_design_design",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L9",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_1_filter_architecture",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L41",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_2_crate_structure",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L97",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_3_safety_and_coexistence_policies",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L116",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_4_content_negotiation_and_server_priority",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L148",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_5_configuration_schema",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L251",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_6_local_testing_plan",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L319",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_7_build_backends_and_performance",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L359",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_design",
+      "target": "docs_design_8_deferred_open_items",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L29",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_1_filter_architecture",
+      "target": "docs_design_body_filter",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_1_filter_architecture",
+      "target": "docs_design_header_filter",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L53",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_2_crate_structure",
+      "target": "docs_design_layout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L68",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_2_crate_structure",
+      "target": "docs_design_rationale",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L84",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_2_crate_structure",
+      "target": "docs_design_when_a_codec_earns_its_own_crate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L154",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_5_configuration_schema",
+      "target": "docs_design_4_1_naming_our_own_scheme_not_an_upstream_drop_in",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L168",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_5_configuration_schema",
+      "target": "docs_design_4_2_master_switch_and_per_codec_toggles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L180",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_5_configuration_schema",
+      "target": "docs_design_4_3_per_codec_parameters",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L196",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_5_configuration_schema",
+      "target": "docs_design_4_4_shared_parameters_global_default_per_codec_override",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L214",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_5_configuration_schema",
+      "target": "docs_design_4_5_typed_configuration_model",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L228",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_5_configuration_schema",
+      "target": "docs_design_4_6_example",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L286",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_6_local_testing_plan",
+      "target": "docs_design_docker_build_and_integration_environment_static_dynamic",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L256",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_6_local_testing_plan",
+      "target": "docs_design_l0_protocol_core_now_plain_cargo",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L266",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_6_local_testing_plan",
+      "target": "docs_design_l1_codec_adapters_m2_plain_rust",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L277",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_6_local_testing_plan",
+      "target": "docs_design_l2_nginx_integration_m1_needs_an_nginx_source_tree",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L305",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_6_local_testing_plan",
+      "target": "docs_design_l3_fuzzing_and_conformance_ongoing",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/design.md",
+      "source_location": "L311",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_design_6_local_testing_plan",
+      "target": "docs_design_prerequisite_note",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "crates/ngx-compress-codecs/src/flate.rs",
       "source_location": "L137",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_copy_into",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_copy_into"
     },
     {
       "relation": "contains",
@@ -3526,9 +4033,9 @@
       "source_location": "L85",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_deflate",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_deflate"
     },
     {
       "relation": "contains",
@@ -3537,9 +4044,9 @@
       "source_location": "L37",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_delta",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_delta"
     },
     {
       "relation": "contains",
@@ -3548,9 +4055,9 @@
       "source_location": "L20",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_derive_state",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_derive_state"
     },
     {
       "relation": "contains",
@@ -3559,9 +4066,9 @@
       "source_location": "L48",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore"
     },
     {
       "relation": "contains",
@@ -3570,9 +4077,9 @@
       "source_location": "L41",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_flatestep",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatestep"
     },
     {
       "relation": "contains",
@@ -3581,9 +4088,9 @@
       "source_location": "L147",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip"
     },
     {
       "relation": "contains",
@@ -3592,9 +4099,9 @@
       "source_location": "L12",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_map_flush",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_map_flush"
     },
     {
       "relation": "contains",
@@ -3603,9 +4110,9 @@
       "source_location": "L263",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate",
-      "target": "crates_ngx_compress_codecs_src_flate_trailer_state",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_trailer_state"
     },
     {
       "relation": "calls",
@@ -3615,9 +4122,9 @@
       "source_location": "L73",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "target": "crates_ngx_compress_codecs_src_flate_map_flush",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_map_flush"
     },
     {
       "relation": "references",
@@ -3627,9 +4134,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_map_flush",
-      "target": "flushcompress",
-      "confidence_score": 1.0
+      "target": "flushcompress"
     },
     {
       "relation": "references",
@@ -3639,9 +4146,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_map_flush",
-      "target": "operation",
-      "confidence_score": 1.0
+      "target": "operation"
     },
     {
       "relation": "references",
@@ -3675,9 +4182,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "target": "operation",
-      "confidence_score": 1.0
+      "target": "operation"
     },
     {
       "relation": "references",
@@ -3687,9 +4194,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_derive_state",
-      "target": "operation",
-      "confidence_score": 1.0
+      "target": "operation"
     },
     {
       "relation": "references",
@@ -3699,9 +4206,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "target": "operation",
-      "confidence_score": 1.0
+      "target": "operation"
     },
     {
       "relation": "references",
@@ -3711,9 +4218,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "operation",
-      "confidence_score": 1.0
+      "target": "operation"
     },
     {
       "relation": "references",
@@ -3735,9 +4242,9 @@
       "source_location": "L115",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "target": "crates_ngx_compress_codecs_src_flate_derive_state",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_derive_state"
     },
     {
       "relation": "references",
@@ -3747,9 +4254,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_derive_state",
-      "target": "stepstate",
-      "confidence_score": 1.0
+      "target": "stepstate"
     },
     {
       "relation": "calls",
@@ -3759,9 +4266,9 @@
       "source_location": "L239",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "crates_ngx_compress_codecs_src_flate_derive_state",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_derive_state"
     },
     {
       "relation": "references",
@@ -3771,9 +4278,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_trailer_state",
-      "target": "stepstate",
-      "confidence_score": 1.0
+      "target": "stepstate"
     },
     {
       "relation": "calls",
@@ -3783,9 +4290,9 @@
       "source_location": "L76",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "target": "crates_ngx_compress_codecs_src_flate_delta",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_delta"
     },
     {
       "relation": "references",
@@ -3795,9 +4302,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "target": "crates_ngx_compress_codecs_src_flate_flatestep",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatestep"
     },
     {
       "relation": "references",
@@ -3807,9 +4314,9 @@
       "weight": 1.0,
       "context": "field",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore"
     },
     {
       "relation": "references",
@@ -3819,9 +4326,9 @@
       "weight": 1.0,
       "context": "field",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "target": "compress",
-      "confidence_score": 1.0
+      "target": "compress"
     },
     {
       "relation": "method",
@@ -3830,9 +4337,9 @@
       "source_location": "L53",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore_new"
     },
     {
       "relation": "method",
@@ -3841,9 +4348,9 @@
       "source_location": "L59",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore_reset",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore_reset"
     },
     {
       "relation": "method",
@@ -3852,9 +4359,9 @@
       "source_location": "L63",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore_run"
     },
     {
       "relation": "references",
@@ -3864,9 +4371,9 @@
       "weight": 1.0,
       "context": "field",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore"
     },
     {
       "relation": "calls",
@@ -3876,9 +4383,9 @@
       "source_location": "L55",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_new",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_new"
     },
     {
       "relation": "references",
@@ -3888,9 +4395,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_new",
-      "target": "crates_ngx_compress_codecs_src_flate_rs_self",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_rs_self"
     },
     {
       "relation": "references",
@@ -3900,9 +4407,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_new",
-      "target": "crates_ngx_compress_codecs_src_flate_rs_self",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_rs_self"
     },
     {
       "relation": "references",
@@ -3912,9 +4419,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_new",
-      "target": "crates_ngx_compress_codecs_src_flate_rs_self",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_rs_self"
     },
     {
       "relation": "calls",
@@ -3924,9 +4431,9 @@
       "source_location": "L60",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_reset",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_new"
     },
     {
       "relation": "calls",
@@ -3936,9 +4443,9 @@
       "source_location": "L114",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore_run"
     },
     {
       "relation": "references",
@@ -3948,9 +4455,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "target": "codecerror",
-      "confidence_score": 1.0
+      "target": "codecerror"
     },
     {
       "relation": "references",
@@ -3960,9 +4467,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "target": "crates_ngx_compress_codecs_src_flate_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_rs_result"
     },
     {
       "relation": "calls",
@@ -3972,9 +4479,9 @@
       "source_location": "L222",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "crates_ngx_compress_codecs_src_flate_flatecore_run",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_flatecore_run"
     },
     {
       "relation": "references",
@@ -3984,9 +4491,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "target": "crates_ngx_compress_codecs_src_flate_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_rs_result"
     },
     {
       "relation": "references",
@@ -3996,9 +4503,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "crates_ngx_compress_codecs_src_flate_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_rs_result"
     },
     {
       "relation": "references",
@@ -4020,9 +4527,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "target": "codecerror",
-      "confidence_score": 1.0
+      "target": "codecerror"
     },
     {
       "relation": "references",
@@ -4032,9 +4539,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "codecerror",
-      "confidence_score": 1.0
+      "target": "codecerror"
     },
     {
       "relation": "method",
@@ -4043,9 +4550,9 @@
       "source_location": "L104",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate",
-      "target": "crates_ngx_compress_codecs_src_flate_deflate_coding",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_deflate_coding"
     },
     {
       "relation": "method",
@@ -4054,9 +4561,9 @@
       "source_location": "L94",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate",
-      "target": "crates_ngx_compress_codecs_src_flate_deflate_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_deflate_new"
     },
     {
       "relation": "method",
@@ -4065,9 +4572,9 @@
       "source_location": "L128",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate",
-      "target": "crates_ngx_compress_codecs_src_flate_deflate_reset",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_deflate_reset"
     },
     {
       "relation": "method",
@@ -4076,9 +4583,9 @@
       "source_location": "L108",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate",
-      "target": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_deflate_step"
     },
     {
       "relation": "implements",
@@ -4087,9 +4594,9 @@
       "source_location": "L103",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate",
-      "target": "streamingcodec",
-      "confidence_score": 1.0
+      "target": "streamingcodec"
     },
     {
       "relation": "calls",
@@ -4099,9 +4606,9 @@
       "source_location": "L96",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_new",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_new"
     },
     {
       "relation": "implements",
@@ -4121,9 +4628,9 @@
       "source_location": "L183",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "streamingcodec",
-      "confidence_score": 1.0
+      "target": "streamingcodec"
     },
     {
       "relation": "references",
@@ -4157,9 +4664,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_coding",
-      "target": "contentcoding",
-      "confidence_score": 1.0
+      "target": "contentcoding"
     },
     {
       "relation": "references",
@@ -4181,9 +4688,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_coding",
-      "target": "contentcoding",
-      "confidence_score": 1.0
+      "target": "contentcoding"
     },
     {
       "relation": "references",
@@ -4217,9 +4724,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_step",
-      "target": "stepresult",
-      "confidence_score": 1.0
+      "target": "stepresult"
     },
     {
       "relation": "references",
@@ -4241,9 +4748,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "stepresult",
-      "confidence_score": 1.0
+      "target": "stepresult"
     },
     {
       "relation": "calls",
@@ -4253,9 +4760,9 @@
       "source_location": "L129",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_deflate_reset",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_reset",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_reset"
     },
     {
       "relation": "calls",
@@ -4265,9 +4772,9 @@
       "source_location": "L198",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "crates_ngx_compress_codecs_src_flate_copy_into",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_copy_into"
     },
     {
       "relation": "method",
@@ -4276,9 +4783,9 @@
       "source_location": "L184",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_coding",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_coding"
     },
     {
       "relation": "method",
@@ -4287,9 +4794,9 @@
       "source_location": "L173",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_compute_trailer",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_compute_trailer"
     },
     {
       "relation": "method",
@@ -4298,9 +4805,9 @@
       "source_location": "L161",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_new"
     },
     {
       "relation": "method",
@@ -4309,9 +4816,9 @@
       "source_location": "L252",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_reset",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_reset"
     },
     {
       "relation": "method",
@@ -4320,9 +4827,9 @@
       "source_location": "L188",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_step"
     },
     {
       "relation": "references",
@@ -4332,9 +4839,9 @@
       "weight": 1.0,
       "context": "field",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip",
-      "target": "crc",
-      "confidence_score": 1.0
+      "target": "crc"
     },
     {
       "relation": "calls",
@@ -4344,9 +4851,9 @@
       "source_location": "L254",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_reset",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_new",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_new"
     },
     {
       "relation": "calls",
@@ -4356,9 +4863,9 @@
       "source_location": "L228",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "crates_ngx_compress_codecs_src_flate_gzip_compute_trailer",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_gzip_compute_trailer"
     },
     {
       "relation": "calls",
@@ -4368,9 +4875,9 @@
       "source_location": "L214",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_codecs_src_flate_gzip_step",
-      "target": "crates_ngx_compress_codecs_src_flate_trailer_state",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_codecs_src_flate_trailer_state"
     },
     {
       "relation": "contains",
@@ -4379,9 +4886,9 @@
       "source_location": "L150",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_apply",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_apply"
     },
     {
       "relation": "contains",
@@ -4390,9 +4897,9 @@
       "source_location": "L32",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_compressconfig",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_compressconfig"
     },
     {
       "relation": "contains",
@@ -4401,9 +4908,9 @@
       "source_location": "L119",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_merge_opt",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_merge_opt"
     },
     {
       "relation": "contains",
@@ -4412,9 +4919,9 @@
       "source_location": "L95",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_on_level",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_on_level"
     },
     {
       "relation": "contains",
@@ -4423,9 +4930,9 @@
       "source_location": "L56",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_resolved",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_resolved"
     },
     {
       "relation": "contains",
@@ -4434,9 +4941,9 @@
       "source_location": "L211",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_buffers",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_buffers"
     },
     {
       "relation": "contains",
@@ -4445,9 +4952,9 @@
       "source_location": "L127",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_directive",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_directive"
     },
     {
       "relation": "contains",
@@ -4456,9 +4963,9 @@
       "source_location": "L168",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_flag",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_flag"
     },
     {
       "relation": "contains",
@@ -4467,9 +4974,9 @@
       "source_location": "L241",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_types",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_types"
     },
     {
       "relation": "contains",
@@ -4478,9 +4985,9 @@
       "source_location": "L180",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_u32",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_u32"
     },
     {
       "relation": "contains",
@@ -4489,9 +4996,9 @@
       "source_location": "L200",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_usize",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_usize"
     },
     {
       "relation": "contains",
@@ -4500,9 +5007,9 @@
       "source_location": "L190",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "crates_ngx_compress_module_src_conf_set_zstd_level",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_zstd_level"
     },
     {
       "relation": "imports_from",
@@ -4512,9 +5019,9 @@
       "weight": 1.0,
       "context": "import",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf",
-      "target": "nonnull",
-      "confidence_score": 1.0
+      "target": "nonnull"
     },
     {
       "relation": "imports_from",
@@ -4548,9 +5055,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_apply",
-      "target": "crates_ngx_compress_module_src_conf_compressconfig",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_compressconfig"
     },
     {
       "relation": "method",
@@ -4559,9 +5066,9 @@
       "source_location": "L100",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig",
-      "target": "crates_ngx_compress_module_src_conf_compressconfig_merge",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_compressconfig_merge"
     },
     {
       "relation": "method",
@@ -4570,9 +5077,9 @@
       "source_location": "L71",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig",
-      "target": "crates_ngx_compress_module_src_conf_compressconfig_resolve",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_compressconfig_resolve"
     },
     {
       "relation": "implements",
@@ -4581,9 +5088,9 @@
       "source_location": "L99",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig",
-      "target": "merge",
-      "confidence_score": 1.0
+      "target": "merge"
     },
     {
       "relation": "references",
@@ -4593,9 +5100,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig",
-      "target": "ngx_array_t",
-      "confidence_score": 1.0
+      "target": "ngx_array_t"
     },
     {
       "relation": "references",
@@ -4605,9 +5112,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig",
-      "target": "nonnull",
-      "confidence_score": 1.0
+      "target": "nonnull"
     },
     {
       "relation": "references",
@@ -4617,9 +5124,9 @@
       "weight": 1.0,
       "context": "field",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4629,9 +5136,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_merge_opt",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4641,9 +5148,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_on_level",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4653,9 +5160,9 @@
       "weight": 1.0,
       "context": "field",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_resolved",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4665,9 +5172,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_flag",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4677,9 +5184,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_u32",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4689,9 +5196,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_usize",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4701,9 +5208,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_zstd_level",
-      "target": "option",
-      "confidence_score": 1.0
+      "target": "option"
     },
     {
       "relation": "references",
@@ -4713,9 +5220,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_resolved",
-      "target": "nonnull",
-      "confidence_score": 1.0
+      "target": "nonnull"
     },
     {
       "relation": "references",
@@ -4725,9 +5232,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_resolved",
-      "target": "ngx_array_t",
-      "confidence_score": 1.0
+      "target": "ngx_array_t"
     },
     {
       "relation": "references",
@@ -4737,9 +5244,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig_resolve",
-      "target": "crates_ngx_compress_module_src_conf_resolved",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_resolved"
     },
     {
       "relation": "references",
@@ -4809,9 +5316,9 @@
       "source_location": "L79",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig_resolve",
-      "target": "crates_ngx_compress_module_src_conf_on_level",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_on_level"
     },
     {
       "relation": "calls",
@@ -4821,9 +5328,9 @@
       "source_location": "L101",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig_merge",
-      "target": "crates_ngx_compress_module_src_conf_merge_opt",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_merge_opt"
     },
     {
       "relation": "references",
@@ -4833,9 +5340,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig_merge",
-      "target": "crates_ngx_compress_module_src_conf_rs_result",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_rs_result"
     },
     {
       "relation": "references",
@@ -4845,9 +5352,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig_merge",
-      "target": "crates_ngx_compress_module_src_conf_rs_self",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_rs_self"
     },
     {
       "relation": "references",
@@ -4857,9 +5364,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_compressconfig_merge",
-      "target": "mergeconfigerror",
-      "confidence_score": 1.0
+      "target": "mergeconfigerror"
     },
     {
       "relation": "references",
@@ -4869,9 +5376,9 @@
       "weight": 1.0,
       "context": "generic_arg",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_merge_opt",
-      "target": "t",
-      "confidence_score": 1.0
+      "target": "t"
     },
     {
       "relation": "references",
@@ -4881,9 +5388,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_directive",
-      "target": "c_char",
-      "confidence_score": 1.0
+      "target": "c_char"
     },
     {
       "relation": "references",
@@ -4893,9 +5400,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_directive",
-      "target": "c_void",
-      "confidence_score": 1.0
+      "target": "c_void"
     },
     {
       "relation": "calls",
@@ -4905,9 +5412,9 @@
       "source_location": "L141",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_directive",
-      "target": "crates_ngx_compress_module_src_conf_apply",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_apply"
     },
     {
       "relation": "references",
@@ -4917,9 +5424,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_directive",
-      "target": "ngx_command_t",
-      "confidence_score": 1.0
+      "target": "ngx_command_t"
     },
     {
       "relation": "references",
@@ -4929,9 +5436,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_directive",
-      "target": "ngx_conf_t",
-      "confidence_score": 1.0
+      "target": "ngx_conf_t"
     },
     {
       "relation": "references",
@@ -4941,9 +5448,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_buffers",
-      "target": "ngx_conf_t",
-      "confidence_score": 1.0
+      "target": "ngx_conf_t"
     },
     {
       "relation": "references",
@@ -4953,9 +5460,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_types",
-      "target": "ngx_conf_t",
-      "confidence_score": 1.0
+      "target": "ngx_conf_t"
     },
     {
       "relation": "references",
@@ -4965,9 +5472,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_buffers",
-      "target": "ngx_command_t",
-      "confidence_score": 1.0
+      "target": "ngx_command_t"
     },
     {
       "relation": "references",
@@ -4977,9 +5484,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_types",
-      "target": "ngx_command_t",
-      "confidence_score": 1.0
+      "target": "ngx_command_t"
     },
     {
       "relation": "imports_from",
@@ -5001,9 +5508,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_buffers",
-      "target": "c_void",
-      "confidence_score": 1.0
+      "target": "c_void"
     },
     {
       "relation": "references",
@@ -5013,9 +5520,9 @@
       "weight": 1.0,
       "context": "parameter_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_types",
-      "target": "c_void",
-      "confidence_score": 1.0
+      "target": "c_void"
     },
     {
       "relation": "references",
@@ -5025,9 +5532,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_buffers",
-      "target": "c_char",
-      "confidence_score": 1.0
+      "target": "c_char"
     },
     {
       "relation": "references",
@@ -5037,9 +5544,9 @@
       "weight": 1.0,
       "context": "return_type",
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_set_types",
-      "target": "c_char",
-      "confidence_score": 1.0
+      "target": "c_char"
     },
     {
       "relation": "calls",
@@ -5049,9 +5556,9 @@
       "source_location": "L152",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_apply",
-      "target": "crates_ngx_compress_module_src_conf_set_flag",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_flag"
     },
     {
       "relation": "calls",
@@ -5061,9 +5568,9 @@
       "source_location": "L158",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_apply",
-      "target": "crates_ngx_compress_module_src_conf_set_u32",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_u32"
     },
     {
       "relation": "calls",
@@ -5073,9 +5580,9 @@
       "source_location": "L163",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_apply",
-      "target": "crates_ngx_compress_module_src_conf_set_usize",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_usize"
     },
     {
       "relation": "calls",
@@ -5085,9 +5592,9 @@
       "source_location": "L162",
       "weight": 1.0,
       "_origin": "ast",
+      "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_conf_apply",
-      "target": "crates_ngx_compress_module_src_conf_set_zstd_level",
-      "confidence_score": 1.0
+      "target": "crates_ngx_compress_module_src_conf_set_zstd_level"
     },
     {
       "relation": "contains",
@@ -5373,292 +5880,6 @@
       "confidence_score": 1.0,
       "source": "docker_verify_backends_sh__entry",
       "target": "docker_verify_backends_smoke"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L1",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design",
-      "target": "docs_design_design"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L9",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_1_filter_architecture"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L41",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_2_crate_structure"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L97",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_3_safety_and_coexistence_policies"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L116",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_4_content_negotiation_and_server_priority"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L148",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_5_configuration_schema"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L251",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_6_local_testing_plan"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L319",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_7_build_backends_and_performance"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L359",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_design",
-      "target": "docs_design_8_deferred_open_items"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L29",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_1_filter_architecture",
-      "target": "docs_design_body_filter"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L13",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_1_filter_architecture",
-      "target": "docs_design_header_filter"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L53",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_2_crate_structure",
-      "target": "docs_design_layout"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L68",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_2_crate_structure",
-      "target": "docs_design_rationale"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L84",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_2_crate_structure",
-      "target": "docs_design_when_a_codec_earns_its_own_crate"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L154",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_5_configuration_schema",
-      "target": "docs_design_4_1_naming_our_own_scheme_not_an_upstream_drop_in"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L168",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_5_configuration_schema",
-      "target": "docs_design_4_2_master_switch_and_per_codec_toggles"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L180",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_5_configuration_schema",
-      "target": "docs_design_4_3_per_codec_parameters"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L196",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_5_configuration_schema",
-      "target": "docs_design_4_4_shared_parameters_global_default_per_codec_override"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L214",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_5_configuration_schema",
-      "target": "docs_design_4_5_typed_configuration_model"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L228",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_5_configuration_schema",
-      "target": "docs_design_4_6_example"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L286",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_6_local_testing_plan",
-      "target": "docs_design_docker_build_and_integration_environment_static_dynamic"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L256",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_6_local_testing_plan",
-      "target": "docs_design_l0_protocol_core_now_plain_cargo"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L266",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_6_local_testing_plan",
-      "target": "docs_design_l1_codec_adapters_m2_plain_rust"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L277",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_6_local_testing_plan",
-      "target": "docs_design_l2_nginx_integration_m1_needs_an_nginx_source_tree"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L305",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_6_local_testing_plan",
-      "target": "docs_design_l3_fuzzing_and_conformance_ongoing"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docs/design.md",
-      "source_location": "L311",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docs_design_6_local_testing_plan",
-      "target": "docs_design_prerequisite_note"
     },
     {
       "relation": "contains",
@@ -6713,189 +6934,6 @@
       "confidence_score": 1.0,
       "source": "crates_ngx_compress_module_src_registration_multi",
       "target": "setfn"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L70",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_check"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L83",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_check_identity"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L60",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_decode"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L18",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_log"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L11",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_no_proxy"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L20",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_setup_www"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_sh__entry"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L95",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_smoke"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L30",
-      "weight": 1.0,
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test",
-      "target": "docker_build_and_test_write_conf"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L120",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_sh__entry",
-      "target": "docker_build_and_test_log"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L118",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_sh__entry",
-      "target": "docker_build_and_test_setup_www"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L133",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_sh__entry",
-      "target": "docker_build_and_test_smoke"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L98",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_smoke",
-      "target": "docker_build_and_test_write_conf"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L77",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_check",
-      "target": "docker_build_and_test_decode"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L109",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_smoke",
-      "target": "docker_build_and_test_check"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "docker/build-and-test.sh",
-      "source_location": "L111",
-      "weight": 1.0,
-      "context": "call",
-      "_origin": "ast",
-      "confidence_score": 1.0,
-      "source": "docker_build_and_test_smoke",
-      "target": "docker_build_and_test_check_identity"
     },
     {
       "relation": "contains",
@@ -9066,5 +9104,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "232c014521078bbf055f7773c3c3020470f9930e"
+  "built_at_commit": "307510de746eb41c9b1b8b88307ef2d8302fcebe"
 }

@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "docker/build-and-test.sh": {
-    "mtime": 1784591737.77786,
-    "ast_hash": "479b44ee08df218570592ddd8e095eef",
+    "mtime": 1784606880.651336,
+    "ast_hash": "09dd03455fc61960f2c5f9e028a5d3ee",
     "semantic_hash": ""
   },
   "docker/lint.sh": {
@@ -80,8 +80,8 @@
     "semantic_hash": "aa529709b940affbcf46216e4d5029f9"
   },
   "docs/design.md": {
-    "mtime": 1784604912.1340466,
-    "ast_hash": "8b894ab20fb1ee20920ec75f17275c49",
+    "mtime": 1784606906.4938529,
+    "ast_hash": "e840f9806d813374474d66fead94e99c",
     "semantic_hash": ""
   },
   "crates/ngx-compress-codecs/src/brotli_codec.rs": {

@@ -37,5 +37,8 @@
   "35": "NonNull",
   "36": "Option",
   "37": "Result",
-  "38": "lib.rs"
+  "38": "lib.rs",
+  "39": "Operation",
+  "40": "StepResult",
+  "41": "StepState"
 }
