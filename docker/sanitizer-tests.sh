@@ -20,6 +20,8 @@ PORT=8085
 # Clang's nonnull-attribute check diagnoses that established upstream idiom, so
 # suppress only that check while retaining all other undefined checks.
 SAN_FLAGS='-O1 -g -fsanitize=address,undefined -fno-sanitize=nonnull-attribute -fno-omit-frame-pointer'
+export CC=clang
+export CFLAGS=$SAN_FLAGS
 
 rm -rf "$SRC" "$RUN" "$WWW"
 cp -a "$NGINX_SRC" "$SRC"
@@ -34,7 +36,7 @@ printf 'INCLUDED SANITIZER SUBREQUEST\n' > "$WWW/inc.txt"
 printf 'HEAD\n<!--#include virtual="/inc.txt" -->\nTAIL\n' > "$WWW/page.shtml"
 
 cd "$SRC"
-CC=clang CFLAGS="$SAN_FLAGS" ./configure \
+./configure \
     --with-compat \
     --with-http_v2_module \
     --with-cc-opt="$SAN_FLAGS" \
