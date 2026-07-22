@@ -27,8 +27,6 @@ SAN_FLAGS='-O1 -g -fsanitize=address,undefined -fno-sanitize=nonnull-attribute -
 NGINX_SAN_FLAGS=$SAN_FLAGS
 case "$(uname -m)" in
     x86_64) NGINX_SAN_FLAGS="$SAN_FLAGS -DNGX_HAVE_NONALIGNED=0" ;;
-    # NGINX's ARM HTTP/3 Huffman encoder deliberately emits unaligned u64 stores.
-    aarch64) SAN_FLAGS="$SAN_FLAGS -fno-sanitize=alignment"; NGINX_SAN_FLAGS=$SAN_FLAGS ;;
 esac
 export CC=clang
 export CFLAGS="$SAN_FLAGS"
@@ -80,6 +78,14 @@ cd "$SRC"
     --with-ld-opt='-fsanitize=address,undefined' \
     --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-h3-sanitizer.log 2>&1 \
     || { tail -80 /tmp/cfg-h3-sanitizer.log; exit 1; }
+# The upstream 64-bit Huffman fast path stores through a potentially unaligned
+# uint64_t pointer. Select NGINX's byte-wise fallback for this diagnostic build
+# so alignment UBSan remains enabled across NGINX, native libraries and Rust.
+# The ordinary HTTP/3 matrix above still exercises the unmodified fast path.
+sed -i \
+    's/^#define NGX_HAVE_GCC_BSWAP64 .*$/#define NGX_HAVE_GCC_BSWAP64  0/' \
+    objs/ngx_auto_config.h
+grep -q '^#define NGX_HAVE_GCC_BSWAP64  0$' objs/ngx_auto_config.h
 if rustc -Z help >/dev/null 2>&1; then
     RUSTFLAGS='-Zsanitizer=address -Cforce-frame-pointers=yes' make \
         >/tmp/make-h3-sanitizer.log 2>&1 || { tail -120 /tmp/make-h3-sanitizer.log; exit 1; }
