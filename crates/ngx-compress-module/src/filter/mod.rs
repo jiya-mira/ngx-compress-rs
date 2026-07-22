@@ -13,7 +13,7 @@ use ngx_compress_core::{
     AcceptEncoding, CodecError, ContentCoding, Operation, ResponseFacts, StreamingCodec,
 };
 
-use crate::{FilterModule, Module, Resolved};
+use crate::Resolved;
 
 /// Per-request compression state, owned through the request context slot.
 struct RequestCtx {
@@ -119,31 +119,4 @@ trait CodecSelection {
 trait CodecPool: Sized {
     fn acquire(self) -> Result<Option<Box<dyn StreamingCodec>>, CodecError>;
     fn release(self, codec: Box<dyn StreamingCodec>);
-}
-
-impl FilterModule for Module {
-    // SAFETY: registration calls this once during single-threaded postconfiguration.
-    unsafe fn install_filters() {
-        // SAFETY: postconfiguration owns filter-chain installation.
-        unsafe {
-            ngx_compress_ffi::filter::install(
-                Some(Module::header_filter),
-                Some(Module::body_filter),
-            );
-        }
-    }
-
-    /// Copies and parses the request's Accept-Encoding value into Rust-owned state.
-    // SAFETY: `request` must reference a live NGINX request.
-    unsafe fn accept_encoding(request: *mut ngx_http_request_t) -> AcceptEncoding {
-        // SAFETY: reads the request Accept-Encoding header element if present.
-        unsafe {
-            let header = (*request).headers_in.accept_encoding;
-            if header.is_null() {
-                return AcceptEncoding::absent();
-            }
-            ngx_compress_ffi::string::copy_string(&(*header).value)
-                .map_or_else(AcceptEncoding::absent, |text| AcceptEncoding::parse(&text))
-        }
-    }
 }

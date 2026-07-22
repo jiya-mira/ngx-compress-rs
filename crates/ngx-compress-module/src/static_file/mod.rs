@@ -16,7 +16,7 @@ use ngx::ffi::{
 use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::{StaticMode, StaticRequestFacts, static_candidates};
 
-use crate::{CompressConfig, FilterModule, Module, ResolveConfig, StaticModule};
+use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig, StaticModule};
 
 const DECLINED: ngx_int_t = Status::NGX_DECLINED.0;
 const OK: ngx_int_t = Status::NGX_OK.0;
@@ -63,14 +63,21 @@ unsafe extern "C" fn handler(request: *mut ngx_http_request_t) -> ngx_int_t {
 unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
     // SAFETY: scope the official wrapper to reading configuration; the resolved
     // snapshot borrows only configuration-owned MIME data.
-    let resolved = unsafe {
+    let config = unsafe {
         let req = Request::from_ngx_http_request(request);
-        Module::location_conf(req).map(CompressConfig::resolve)
+        Module::location_conf(req)
     };
-    let Some(resolved) = resolved else {
+    let Some(config) = config else {
         return DECLINED;
     };
+    let resolved = config.resolve();
     if resolved.static_mode == StaticMode::Off {
+        return DECLINED;
+    }
+    // Built-in gzip conflicts only when runtime compression is enabled. This
+    // deliberately preserves `compress off; compress_static on;` locations.
+    // SAFETY: nginx supplied the live request and configuration.
+    if unsafe { Module::disabled_for_request(request, config, resolved.enabled) }.is_some() {
         return DECLINED;
     }
     // SAFETY: copy the method, URI, and Accept-Encoding into Rust-owned facts.

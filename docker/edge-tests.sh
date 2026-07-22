@@ -141,7 +141,7 @@ setup
 
 log "build dynamic module with HTTP/2"
 SRC=/tmp/ngx-edge
-rm -rf "$SRC"; cp -a "${NGINX_SRC:-/opt/nginx-1.28.0}" "$SRC"; cd "$SRC"
+rm -rf "$SRC"; cp -a "${NGINX_SRC:-/opt/nginx-1.30.4}" "$SRC"; cd "$SRC"
 ./configure --with-compat --with-http_v2_module --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-edge.log 2>&1 \
     || { echo "configure failed"; tail -30 /tmp/cfg-edge.log; exit 1; }
 make >/tmp/make-edge.log 2>&1 || { echo "make failed"; tail -40 /tmp/make-edge.log; exit 1; }

@@ -7,11 +7,48 @@ use ngx_compress_core::ResponseFacts;
 use ngx_compress_ffi::filter;
 
 use crate::registration::ngx_http_compress_module;
-use crate::{CompressConfig, FilterModule, Module, ResolveConfig};
+use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig};
 
 use super::{
     CompressChain, HeaderDecision, Plan, RequestContext, RequestCtx, RuntimeCallbacks, Snapshot,
 };
+
+impl FilterModule for Module {
+    // SAFETY: registration calls this once during single-threaded postconfiguration.
+    unsafe fn install_filters() {
+        // SAFETY: postconfiguration owns filter-chain installation.
+        unsafe {
+            filter::install(Some(Module::header_filter), Some(Module::body_filter));
+        }
+    }
+
+    /// Copies and parses Accept-Encoding into Rust-owned state. The public
+    /// header list works even with `--without-http_gzip_module`, where NGINX
+    /// omits its convenience `headers_in.accept_encoding` field.
+    // SAFETY: `request` must reference a live NGINX request.
+    unsafe fn accept_encoding(
+        request: *mut ngx_http_request_t,
+    ) -> ngx_compress_core::AcceptEncoding {
+        // SAFETY: caller guarantees the request remains live during iteration.
+        let request = unsafe { Request::from_ngx_http_request(request) };
+        let value = request
+            .headers_in_iterator()
+            .filter(|(name, _)| name.as_ref().eq_ignore_ascii_case(b"accept-encoding"))
+            .filter_map(|(_, value)| value.to_str().ok())
+            .fold(String::new(), |mut combined, value| {
+                if !combined.is_empty() {
+                    combined.push(',');
+                }
+                combined.push_str(value);
+                combined
+            });
+        if value.is_empty() {
+            ngx_compress_core::AcceptEncoding::absent()
+        } else {
+            ngx_compress_core::AcceptEncoding::parse(&value)
+        }
+    }
+}
 
 impl RuntimeCallbacks for Module {
     // Installed into the header filter chain by the parent filter module.
@@ -40,14 +77,19 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
 
     // SAFETY: scope the official request wrapper to configuration lookup. The
     // resolved MIME reference is configuration-owned, not request-owned.
-    let resolved = unsafe {
+    let config = unsafe {
         let req = Request::from_ngx_http_request(request);
-        Module::location_conf(req).map(CompressConfig::resolve)
+        Module::location_conf(req)
     };
-    let Some(resolved) = resolved else {
+    let Some(config) = config else {
         return pass();
     };
+    let resolved = config.resolve();
     if !resolved.enabled {
+        return pass();
+    }
+    // SAFETY: copy built-in gzip state before safe-core conflict enforcement.
+    if unsafe { Module::disabled_for_request(request, config, resolved.enabled) }.is_some() {
         return pass();
     }
     // SAFETY: copy all request/response facts needed by policy into Rust-owned

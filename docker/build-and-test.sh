@@ -11,11 +11,47 @@ export no_proxy=127.0.0.1,localhost
 export NO_PROXY=127.0.0.1,localhost
 
 MODULE_DIR=/repo/crates/ngx-compress-module
+NGINX_SRC=${NGINX_SRC:-/opt/nginx-1.30.4}
 RUN_DIR=/tmp/ngx-run
 WWW=/tmp/www
 PORT=8080
 
 log() { printf '\n=== %s ===\n' "$1"; }
+
+module_line() {
+    grep -n "&$2," "$1" | head -1 | cut -d: -f1
+}
+
+assert_static_order() {
+    modules=$1
+    anchor=$2
+    anchor_line=$(module_line "$modules" "$anchor")
+    compress_line=$(module_line "$modules" ngx_http_compress_module)
+    postpone_line=$(module_line "$modules" ngx_http_postpone_filter_module)
+
+    if [ -z "$anchor_line" ] || [ -z "$compress_line" ] || [ -z "$postpone_line" ] \
+        || [ "$anchor_line" -ge "$compress_line" ] \
+        || [ "$compress_line" -ge "$postpone_line" ]; then
+        echo "FAIL [static order]: expected $anchor -> compress -> postpone"
+        grep -nE '&ngx_http_(range_header_filter|gzip_filter|compress|postpone_filter|ssi_filter)_module,' "$modules" || true
+        return 1
+    fi
+
+    echo "PASS [static order]: $anchor -> compress -> postpone"
+}
+
+assert_dynamic_order() {
+    order_file=$1
+    first=$(grep -A20 'char \*ngx_module_order' "$order_file" | grep '"ngx_http_' | sed -n '1p')
+    second=$(grep -A20 'char \*ngx_module_order' "$order_file" | grep '"ngx_http_' | sed -n '2p')
+    if ! echo "$first" | grep -q 'ngx_http_compress_module' \
+        || ! echo "$second" | grep -q 'ngx_http_postpone_filter_module'; then
+        echo "FAIL [dynamic order]: compress must immediately precede postpone"
+        grep -A20 'char \*ngx_module_order' "$order_file" || true
+        return 1
+    fi
+    echo "PASS [dynamic order]: compress -> postpone"
+}
 
 setup_www() {
     mkdir -p "$WWW"
@@ -237,18 +273,119 @@ smoke() {
             n=$((n + 1))
         done
     done
-    # Subrequest position is correct for the dynamic target (nginx re-sorts
-    # dynamic modules at load time by ngx_module_order). Static builds keep the
-    # compile-time array order, which places this filter above postpone; that is
-    # a known nginx limitation for statically-added filter modules, so it is a
-    # documented caveat, not a suite failure. Non-subrequest compression is
-    # correct in both modes.
-    if [ "$2" = dynamic ]; then
-        check_ssi "$2" || rc=1
-    elif check_ssi "$2" >/dev/null 2>&1; then
-        echo "PASS [static ssi]: subrequest assembled then compressed correctly"
+    check_ssi "$2" || rc=1
+
+    kill "$ngx_pid" 2>/dev/null || true
+    wait "$ngx_pid" 2>/dev/null || true
+    return "$rc"
+}
+
+smoke_gzip_conflict() {
+    # $1 = nginx binary, $2 = label, $3 = optional load_module line
+    run=/tmp/ngx-gzip-conflict-$2
+    mkdir -p "$run/logs"
+    cat > "$run/nginx.conf" <<EOF
+$3
+daemon off;
+master_process off;
+error_log $run/logs/error.log info;
+pid $run/nginx.pid;
+events { worker_connections 64; }
+http {
+    default_type text/plain;
+    access_log off;
+    gzip on;
+    gzip_types text/plain;
+    compress on;
+    compress_gzip on;
+    compress_brotli on;
+    compress_zstd on;
+    compress_min_length 20;
+    compress_static on;
+    server {
+        listen $PORT;
+        root $WWW;
+        location / { }
+        location /override/ { alias $WWW/; gzip off; }
+        location /conflict-static/ { alias $WWW/static/; }
+        location /static-only/ {
+            alias $WWW/static/;
+            compress off;
+            compress_static on;
+        }
+    }
+}
+EOF
+    : > "$run/logs/error.log"
+    "$1" -p "$run" -c "$run/nginx.conf" -t >/tmp/gzip-conflict-$2-t.log 2>&1 \
+        || { echo "FAIL [$2 gzip conflict]: nginx -t"; cat /tmp/gzip-conflict-$2-t.log; return 1; }
+    if ! grep -q 'class=builtin_gzip_conflict' "$run/logs/error.log"; then
+        echo "FAIL [$2 gzip conflict]: nginx -t emitted no warning"
+        cat "$run/logs/error.log"
+        return 1
+    fi
+
+    "$1" -p "$run" -c "$run/nginx.conf" &
+    ngx_pid=$!
+    i=0
+    while [ "$i" -lt 50 ]; do
+        curl -s --noproxy '*' "http://127.0.0.1:$PORT/index.txt" >/dev/null 2>&1 && break
+        i=$((i + 1)); sleep 0.1
+    done
+    rc=0
+
+    # Conflict: our br path and sidecar handler both stay untouched.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$run/h" -o "$run/c" \
+        "http://127.0.0.1:$PORT/index.txt" || rc=1
+    if grep -qi '^content-encoding:' "$run/h" || ! cmp -s "$run/c" "$WWW/index.txt"; then
+        echo "FAIL [$2 gzip conflict]: runtime compression was not disabled"
+        rc=1
     else
-        echo "KNOWN LIMITATION [static ssi]: subrequest filter ordering; use the dynamic module for SSI/subrequest responses"
+        echo "PASS [$2 gzip conflict]: runtime compression disabled"
+    fi
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$run/h" -o "$run/c" \
+        "http://127.0.0.1:$PORT/conflict-static/asset.txt" || rc=1
+    if grep -qi '^content-encoding:' "$run/h" || ! cmp -s "$run/c" "$WWW/static/asset.txt"; then
+        echo "FAIL [$2 gzip conflict]: sidecar handling was not disabled"
+        rc=1
+    else
+        echo "PASS [$2 gzip conflict]: sidecar handling disabled"
+    fi
+
+    # Built-in gzip may still encode, but exactly once and with an intact body.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -D "$run/h" -o "$run/c" \
+        "http://127.0.0.1:$PORT/index.txt" || rc=1
+    if [ "$(grep -ic '^content-encoding: *gzip' "$run/h")" -ne 1 ] \
+        || ! gzip -dc < "$run/c" > "$run/d" \
+        || ! cmp -s "$run/d" "$WWW/index.txt"; then
+        echo "FAIL [$2 gzip conflict]: built-in gzip response damaged or doubled"
+        rc=1
+    else
+        echo "PASS [$2 gzip conflict]: built-in gzip remains single and intact"
+    fi
+
+    # Child gzip off accurately overrides inheritance and re-enables this module.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$run/h" -o "$run/c" \
+        "http://127.0.0.1:$PORT/override/index.txt" || rc=1
+    if ! grep -qi '^content-encoding: *br' "$run/h" \
+        || ! brotli -dc < "$run/c" > "$run/d" \
+        || ! cmp -s "$run/d" "$WWW/index.txt"; then
+        echo "FAIL [$2 gzip override]: child gzip off did not re-enable compression"
+        rc=1
+    else
+        echo "PASS [$2 gzip override]: child gzip off re-enables compression"
+    fi
+
+    # Sidecar-only mode is explicitly not a conflict.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$run/h" -o "$run/c" \
+        "http://127.0.0.1:$PORT/static-only/asset.txt" || rc=1
+    if ! grep -qi '^content-encoding: *br' "$run/h" \
+        || ! brotli -dc < "$run/c" > "$run/d" \
+        || ! cmp -s "$run/d" /tmp/sbr.txt; then
+        echo "FAIL [$2 gzip static-only]: sidecar-only location treated as conflict"
+        rc=1
+    else
+        echo "PASS [$2 gzip static-only]: sidecar-only location remains enabled"
     fi
 
     kill "$ngx_pid" 2>/dev/null || true
@@ -264,24 +401,40 @@ rustc --version
 
 log "DYNAMIC build (--add-dynamic-module, --with-compat)"
 DYN_SRC=/tmp/ngx-dynamic
-rm -rf "$DYN_SRC"; cp -a /opt/nginx-1.28.0 "$DYN_SRC"
+rm -rf "$DYN_SRC"; cp -a "$NGINX_SRC" "$DYN_SRC"
 cd "$DYN_SRC"
 ./configure --with-compat --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-dyn.log 2>&1 \
     || { echo "configure (dynamic) failed"; tail -40 /tmp/cfg-dyn.log; exit 1; }
+assert_dynamic_order "$DYN_SRC/objs/ngx_http_compress_module_modules.c"
 make >/tmp/make-dyn.log 2>&1 \
     || { echo "make (dynamic) failed"; tail -60 /tmp/make-dyn.log; exit 1; }
 ls -l "$DYN_SRC/objs/ngx_http_compress_module.so"
 smoke "$DYN_SRC/objs/nginx" "dynamic" "load_module $DYN_SRC/objs/ngx_http_compress_module.so;" \
     || exit 1
+smoke_gzip_conflict "$DYN_SRC/objs/nginx" "dynamic" \
+    "load_module $DYN_SRC/objs/ngx_http_compress_module.so;" || exit 1
 
 log "STATIC build (--add-module)"
 STATIC_SRC=/tmp/ngx-static
-rm -rf "$STATIC_SRC"; cp -a /opt/nginx-1.28.0 "$STATIC_SRC"
+rm -rf "$STATIC_SRC"; cp -a "$NGINX_SRC" "$STATIC_SRC"
 cd "$STATIC_SRC"
 ./configure --add-module="$MODULE_DIR" >/tmp/cfg-static.log 2>&1 \
     || { echo "configure (static) failed"; tail -40 /tmp/cfg-static.log; exit 1; }
+assert_static_order "$STATIC_SRC/objs/ngx_modules.c" ngx_http_gzip_filter_module
 make >/tmp/make-static.log 2>&1 \
     || { echo "make (static) failed"; tail -60 /tmp/make-static.log; exit 1; }
 smoke "$STATIC_SRC/objs/nginx" "static" "" || exit 1
+smoke_gzip_conflict "$STATIC_SRC/objs/nginx" "static" "" || exit 1
+
+log "STATIC build without built-in gzip"
+STATIC_NO_GZIP_SRC=/tmp/ngx-static-no-gzip
+rm -rf "$STATIC_NO_GZIP_SRC"; cp -a "$NGINX_SRC" "$STATIC_NO_GZIP_SRC"
+cd "$STATIC_NO_GZIP_SRC"
+./configure --without-http_gzip_module --add-module="$MODULE_DIR" >/tmp/cfg-static-no-gzip.log 2>&1 \
+    || { echo "configure (static no-gzip) failed"; tail -40 /tmp/cfg-static-no-gzip.log; exit 1; }
+assert_static_order "$STATIC_NO_GZIP_SRC/objs/ngx_modules.c" ngx_http_range_header_filter_module
+make >/tmp/make-static-no-gzip.log 2>&1 \
+    || { echo "make (static no-gzip) failed"; tail -60 /tmp/make-static-no-gzip.log; exit 1; }
+smoke "$STATIC_NO_GZIP_SRC/objs/nginx" "static-no-gzip" "" || exit 1
 
 log "ALL COMPRESSION TESTS PASSED"

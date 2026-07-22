@@ -31,7 +31,7 @@ NGINX version, configure arguments, compiler/ABI, and distribution patches as
 the target binary. `--with-compat` helps with compatible builds but does not make
 one `.so` universal.
 
-The current integration environment validates NGINX 1.28.0 on Debian Bookworm.
+The current integration environment validates NGINX 1.30.4 on Debian Bookworm.
 Other NGINX build signatures should be treated as unverified until exercised in
 the release matrix.
 

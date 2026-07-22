@@ -8,7 +8,7 @@ export no_proxy=127.0.0.1,localhost
 export NO_PROXY=127.0.0.1,localhost
 
 SRC=/tmp/ngx-tnginx
-rm -rf "$SRC"; cp -a "${NGINX_SRC:-/opt/nginx-1.28.0}" "$SRC"; cd "$SRC"
+rm -rf "$SRC"; cp -a "${NGINX_SRC:-/opt/nginx-1.30.4}" "$SRC"; cd "$SRC"
 ./configure --add-module=/repo/crates/ngx-compress-module >/tmp/cfg-tnginx.log 2>&1 \
     || { echo "configure failed"; tail -30 /tmp/cfg-tnginx.log; exit 1; }
 make >/tmp/make-tnginx.log 2>&1 \

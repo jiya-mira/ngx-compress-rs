@@ -10,6 +10,7 @@ export no_proxy=127.0.0.1,localhost
 export NO_PROXY=127.0.0.1,localhost
 
 MODULE_DIR=/repo/crates/ngx-compress-module
+NGINX_SRC=${NGINX_SRC:-/opt/nginx-1.30.4}
 WWW=/tmp/www
 PORT=8080
 
@@ -65,7 +66,7 @@ EOF
 build() {
     # $1 = backend (vendored|system), $2 = label
     src=/tmp/ngx-$2
-    rm -rf "$src"; cp -a /opt/nginx-1.28.0 "$src"; cd "$src"
+    rm -rf "$src"; cp -a "$NGINX_SRC" "$src"; cd "$src"
     NGX_COMPRESS_BACKEND=$1 ./configure --with-compat --add-dynamic-module="$MODULE_DIR" \
         >/tmp/cfg-$2.log 2>&1 || { echo "configure ($2) failed"; tail -30 /tmp/cfg-$2.log; exit 1; }
     NGX_COMPRESS_BACKEND=$1 make >/tmp/make-$2.log 2>&1 \

@@ -1,20 +1,19 @@
-//! NGINX dynamic module entrypoint for `ngx-compress-rs`.
-//!
-//! The header filter negotiates a content coding from the request's
-//! `Accept-Encoding` and the location's `compress_*` configuration; the body
-//! filter streams the response through the selected codec with free/busy chain
-//! backpressure. Builds as both a static and a dynamic NGINX module.
+//! NGINX module entrypoint: negotiates `Accept-Encoding`, then streams through
+//! the selected codec with free/busy-chain backpressure. Supports static and
+//! dynamic NGINX builds.
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use ngx_compress_core::{MimeTypes, StaticMode};
+use ngx_compress_ffi::module_conf::{BuiltinGzipState, HttpLocFlag};
 
 mod config;
 mod filter;
+mod gzip;
 mod registration;
 mod static_file;
 
-/// Which named preset the `compress` directive selected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Profile {
     Custom,
@@ -42,6 +41,14 @@ struct CompressConfig {
     vary: Option<bool>,
     buffers: Option<(usize, usize)>,
     types: Option<Arc<MimeTypes>>,
+    gzip_conflict_expected: bool,
+    gzip_runtime_warned: AtomicBool,
+}
+
+/// Cycle-owned metadata discovered without depending on gzip's private struct.
+#[derive(Debug, Default)]
+struct MainConfig {
+    builtin_gzip: Option<HttpLocFlag>,
 }
 
 /// Defaults-applied, allocation-free request-path configuration snapshot.
@@ -69,6 +76,20 @@ enum ConfigUpdate {
 /// NGINX module type shared as the configuration and request-context key.
 struct Module;
 
+/// Safe-core reasons why this module must leave a response untouched.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DisabledReason {
+    BuiltinGzipEnabled,
+}
+
+fn disabled_reason(
+    runtime_compression_enabled: bool,
+    builtin_gzip: Option<BuiltinGzipState>,
+) -> Option<DisabledReason> {
+    (runtime_compression_enabled && builtin_gzip.is_some_and(|state| state.enabled))
+        .then_some(DisabledReason::BuiltinGzipEnabled)
+}
+
 /// Configuration behavior implemented by the safe parsing layer.
 trait ApplyConfig {
     fn apply(&mut self, update: ConfigUpdate) -> bool;
@@ -95,6 +116,18 @@ trait StaticModule {
     unsafe fn register_static(cf: *mut ngx::ffi::ngx_conf_t) -> Result<(), ()>;
 }
 
+trait BuiltinGzip {
+    // SAFETY: `request` must reference a live request using `config`.
+    unsafe fn disabled_for_request(
+        request: *mut ngx::ffi::ngx_http_request_t,
+        config: &CompressConfig,
+        runtime_compression_enabled: bool,
+    ) -> Option<DisabledReason>;
+}
+trait BuiltinGzipRegistration {
+    // SAFETY: `cf` must be the live postconfiguration pointer.
+    unsafe fn discover_gzip_and_warn(cf: *mut ngx::ffi::ngx_conf_t) -> Result<(), ()>;
+}
 /// Directive callbacks supplied by the configuration FFI boundary.
 trait DirectiveCallbacks {
     extern "C" fn set_directive(

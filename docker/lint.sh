@@ -9,7 +9,7 @@ export NO_PROXY=127.0.0.1,localhost
 
 # A configure (no make) is enough for nginx-sys to generate bindings.
 LINT_SRC=/tmp/ngx-lint
-rm -rf "$LINT_SRC"; cp -a "${NGINX_SRC:-/opt/nginx-1.28.0}" "$LINT_SRC"
+rm -rf "$LINT_SRC"; cp -a "${NGINX_SRC:-/opt/nginx-1.30.4}" "$LINT_SRC"
 cd "$LINT_SRC"
 ./configure --with-compat >/tmp/cfg-lint.log 2>&1 \
     || { echo "configure (lint) failed"; tail -30 /tmp/cfg-lint.log; exit 1; }

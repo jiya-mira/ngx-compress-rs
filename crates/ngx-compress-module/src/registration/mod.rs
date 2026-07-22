@@ -2,6 +2,7 @@
 //! installation of the header/body filters during postconfiguration.
 
 mod conf;
+mod gzip;
 
 use core::ptr;
 
@@ -11,10 +12,13 @@ use ngx::ffi::{
     NGX_HTTP_MAIN_CONF, NGX_HTTP_MODULE, NGX_HTTP_SRV_CONF, ngx_command_t, ngx_conf_t,
     ngx_http_module_t, ngx_int_t, ngx_module_t, ngx_str_t, ngx_uint_t,
 };
-use ngx::http::{HttpModule, HttpModuleLocationConf};
+use ngx::http::{HttpModule, HttpModuleLocationConf, HttpModuleMainConf};
 use ngx::ngx_string;
 
-use crate::{CompressConfig, DirectiveCallbacks, FilterModule, Module, StaticModule};
+use crate::{
+    BuiltinGzipRegistration, CompressConfig, DirectiveCallbacks, FilterModule, MainConfig, Module,
+    StaticModule,
+};
 
 impl HttpModule for Module {
     fn module() -> &'static ngx_module_t {
@@ -32,6 +36,10 @@ impl HttpModule for Module {
 }
 
 unsafe fn postconfiguration_inner(cf: *mut ngx_conf_t) -> ngx_int_t {
+    // SAFETY: postconfiguration owns the live cycle and all merged HTTP confs.
+    if unsafe { Module::discover_gzip_and_warn(cf) }.is_err() {
+        return Status::NGX_ERROR.0;
+    }
     // SAFETY: postconfiguration runs once in the single-threaded master before
     // workers fork; installing filters and the content handler is safe.
     unsafe {
@@ -47,6 +55,11 @@ unsafe fn postconfiguration_inner(cf: *mut ngx_conf_t) -> ngx_int_t {
 // initializes, and merges through the module's create/merge_loc_conf callbacks.
 unsafe impl HttpModuleLocationConf for Module {
     type LocationConf = CompressConfig;
+}
+
+// SAFETY: MainConfig is the exact Rust type allocated through create_main_conf.
+unsafe impl HttpModuleMainConf for Module {
+    type MainConf = MainConfig;
 }
 
 const fn directive(name: ngx_str_t) -> ngx_command_t {
@@ -108,8 +121,8 @@ static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 16] = [
 static NGX_HTTP_COMPRESS_MODULE_CTX: ngx_http_module_t = ngx_http_module_t {
     preconfiguration: Some(Module::preconfiguration),
     postconfiguration: Some(Module::postconfiguration),
-    create_main_conf: None,
-    init_main_conf: None,
+    create_main_conf: Some(Module::create_main_conf),
+    init_main_conf: Some(Module::init_main_conf),
     create_srv_conf: None,
     merge_srv_conf: None,
     create_loc_conf: Some(Module::create_loc_conf),

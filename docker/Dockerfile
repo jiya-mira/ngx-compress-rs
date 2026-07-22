@@ -7,7 +7,7 @@ FROM rust:1-bookworm
 
 ARG HTTP_PROXY=
 ARG HTTPS_PROXY=
-ARG NGINX_VERSION=1.28.0
+ARG NGINX_VERSION=1.30.4
 
 ENV http_proxy=${HTTP_PROXY} \
     https_proxy=${HTTPS_PROXY} \

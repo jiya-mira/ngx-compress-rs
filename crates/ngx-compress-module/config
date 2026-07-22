@@ -12,12 +12,9 @@ if [ $HTTP = YES ]; then
     # main-request buffers before subrequest output is spliced in, corrupting the
     # stream. This is the same ngx_module_order google/ngx_brotli uses.
     #
-    # NOTE: NGINX honors this order for DYNAMIC modules (re-sorted at load time),
-    # which is the supported build target. For STATICALLY added modules NGINX uses
-    # the compile-time array order and does not move the module below postpone, so
-    # a static build compresses subrequest-assembled responses at the wrong point.
-    # Non-subrequest responses compress correctly in both modes; prefer the
-    # dynamic module if you serve SSI/subrequest responses.
+    # NGINX applies ngx_module_order while loading a dynamic module. Static
+    # modules need the explicit HTTP_FILTER_MODULES reorder below because
+    # auto/module appends them to the compile-time module list.
     ngx_module_type=HTTP_FILTER
     ngx_module_name=ngx_http_compress_module
     ngx_module_incs=
@@ -61,4 +58,21 @@ if [ $HTTP = YES ]; then
     fi
 
     ngx_rust_module
+
+    # Match ngx_brotli's static-module handling: place this module immediately
+    # after the built-in gzip filter when present, otherwise after the range
+    # header filter. Filter init runs in array order and prepends callbacks, so
+    # this makes postpone/SSI assemble subrequests before compression in both
+    # static and dynamic builds.
+    if [ "$ngx_module_link" != DYNAMIC ]; then
+        if [ "$HTTP_GZIP" = YES ]; then
+            ngx_compress_order_after=ngx_http_gzip_filter_module
+        else
+            ngx_compress_order_after=ngx_http_range_header_filter_module
+        fi
+
+        HTTP_FILTER_MODULES=$(echo "$HTTP_FILTER_MODULES" \
+            | sed -e "s/ngx_http_compress_module//g" \
+                  -e "s/$ngx_compress_order_after/$ngx_compress_order_after ngx_http_compress_module/")
+    fi
 fi
