@@ -68,6 +68,10 @@ OPENSSL_CONF=/etc/ssl/openssl.cnf /opt/http3/bin/openssl req \
     -keyout "$RUN/key.pem" -out "$RUN/cert.pem" >/dev/null 2>&1
 
 cd "$SRC"
+# Use the static form for this diagnostic build. NGINX dynamic modules export a
+# second `ngx_modules` array; ELF interposition is intentional there, but ASan's
+# global redzones cannot model the two same-named arrays with different sizes.
+# The ordinary HTTP/3 matrix exercises both dynamic and static loading.
 ./configure \
     --with-compat \
     --with-http_ssl_module \
@@ -76,7 +80,7 @@ cd "$SRC"
     --with-openssl-opt=no-tests \
     --with-cc-opt="$NGINX_SAN_FLAGS" \
     --with-ld-opt='-fsanitize=address,undefined' \
-    --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-h3-sanitizer.log 2>&1 \
+    --add-module="$MODULE_DIR" >/tmp/cfg-h3-sanitizer.log 2>&1 \
     || { tail -80 /tmp/cfg-h3-sanitizer.log; exit 1; }
 # The upstream 64-bit Huffman fast path stores through a potentially unaligned
 # uint64_t pointer. Select NGINX's byte-wise fallback for this diagnostic build
@@ -94,7 +98,6 @@ else
 fi
 
 cat > "$RUN/nginx.conf" <<EOF
-load_module $SRC/objs/ngx_http_compress_module.so;
 daemon off;
 worker_processes 1;
 worker_shutdown_timeout 5s;
@@ -138,7 +141,9 @@ done
 gzip -dc < "$RUN/body.gz" | cmp -s - "$WWW/body.txt"
 $CURL -sk --http3-only --limit-rate 64k --max-time 0.2 \
     -H 'Accept-Encoding: gzip' "https://127.0.0.1:$PORT/body.txt" -o /dev/null || true
-"$SRC/objs/nginx" -p "$RUN" -c "$RUN/nginx.conf" -s reload
+# Signal the existing process directly. An instrumented `nginx -s reload`
+# helper exits with its short-lived NGINX configuration pool still allocated.
+kill -HUP "$(cat "$RUN/nginx.pid")"
 i=0
 version=
 while [ "$i" -lt 50 ]; do
