@@ -1,0 +1,111 @@
+name: Bug report
+description: Report a reproducible defect in a supported or clearly identified environment
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Do not include secrets or private response data. Report suspected vulnerabilities through the private security channel instead.
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing issues and did not find this problem.
+          required: true
+        - label: This is not a security vulnerability or private-data disclosure.
+          required: true
+        - label: I agree to follow the Code of Conduct.
+          required: true
+  - type: input
+    id: project-version
+    attributes:
+      label: Project version or commit
+      placeholder: v0.1.0 or full commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: nginx-signature
+    attributes:
+      label: NGINX build signature
+      description: Paste `nginx -V` output, including version and configure arguments.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: Debian Bookworm, Linux x86_64
+    validations:
+      required: true
+  - type: dropdown
+    id: module-mode
+    attributes:
+      label: Module build mode
+      options:
+        - Dynamic
+        - Static
+    validations:
+      required: true
+  - type: dropdown
+    id: codec-backend
+    attributes:
+      label: Codec backend
+      options:
+        - Vendored
+        - System libraries
+        - Unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Client protocol
+      multiple: true
+      options:
+        - HTTP/1.1
+        - HTTP/2
+        - HTTP/3
+        - Not protocol-specific
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Minimal sanitized configuration
+      description: Include only the directives needed to reproduce the problem.
+      render: nginx
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Build or configure ...
+        2. Send ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized logs or diagnostics
+      description: Remove credentials, private headers, URIs, and response data.
+      render: text
+    validations:
+      required: false

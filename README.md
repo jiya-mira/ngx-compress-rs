@@ -115,6 +115,14 @@ The root workspace uses `default-members` because the FFI and module crates need
 an NGINX source/configure tree. Do not replace the host-side commands above with
 `cargo test --workspace` unless that environment has been prepared.
 
+## Contributing
+
+Bug reports, focused feature proposals, documentation improvements, tests, and
+pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
+submitting a contribution and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Report suspected vulnerabilities privately as described in
+[SECURITY.md](SECURITY.md).
+
 ## Architecture and safety
 
 - [Architecture and milestones](docs/architecture.md)

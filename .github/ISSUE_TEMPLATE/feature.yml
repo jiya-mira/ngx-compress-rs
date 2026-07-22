@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a focused capability or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing issues and roadmap documentation.
+          required: true
+        - label: I agree to follow the Code of Conduct.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe the user need rather than only the desired implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include configuration, protocol, codec, or compatibility impact where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Target environment
+      description: Identify NGINX versions, platforms, build modes, or protocols that motivate the request.
+    validations:
+      required: false
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Project constraints
+      options:
+        - label: I understand that a proposal may remain outside the supported Technical Preview scope.
+          required: true
+        - label: I understand that ABI, unsafe-boundary, and streaming-correctness requirements take priority over convenience.
+          required: true
