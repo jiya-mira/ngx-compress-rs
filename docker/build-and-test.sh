@@ -353,6 +353,8 @@ smoke() {
     # $1 = nginx binary, $2 = mode label, $3 = load_module line
     [ -x "$1" ] || { echo "FAIL [$2]: nginx binary $1 not found"; return 1; }
     write_conf "$3"
+    "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" -t \
+        || { echo "FAIL [$2]: nginx -t"; return 1; }
     "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" &
     ngx_pid=$!
     i=0

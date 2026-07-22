@@ -146,7 +146,10 @@ check_coding() {
     stem="$RUN/$mode-$coding"
     request /body.txt "$coding" "$stem"
     [ "$(grep -ic "^content-encoding: *$coding" "$stem.headers")" -eq 1 ]
-    ! grep -qi '^content-length:' "$stem.headers"
+    if grep -qi '^content-length:' "$stem.headers"; then
+        echo "FAIL [$mode h3 $coding]: compressed response retained content length"
+        return 1
+    fi
     decode "$coding" "$stem.body" | cmp -s - "$WWW/body.txt"
     echo "PASS [$mode h3 $coding]: byte-exact roundtrip"
 }
@@ -157,7 +160,10 @@ check_identity() {
     version=$($CURL -sk --http3-only -D "$stem.headers" -o "$stem.body" \
         -w '%{http_version}' "https://127.0.0.1:$PORT/body.txt")
     [ "$version" = 3 ]
-    ! grep -qi '^content-encoding:' "$stem.headers"
+    if grep -qi '^content-encoding:' "$stem.headers"; then
+        echo "FAIL [$mode h3 identity]: unexpected content encoding"
+        return 1
+    fi
     cmp -s "$stem.body" "$WWW/body.txt"
     echo "PASS [$mode h3 identity]: unchanged"
 }
@@ -192,10 +198,11 @@ check_pressure() {
 
 check_reload() {
     mode=$1
+    binary=/tmp/ngx-h3-$mode/objs/nginx
     $CURL -sk --http3-only --limit-rate 256k -H 'Accept-Encoding: gzip' \
         "https://127.0.0.1:$PORT/body.txt" -o /dev/null &
     active_pid=$!
-    /tmp/ngx-h3-$mode/objs/nginx -p "$RUN" -c "$RUN/nginx.conf" -s reload
+    "$binary" -p "$RUN" -c "$RUN/nginx.conf" -s reload
     wait "$active_pid"
     version=$($CURL -sk --http3-only -o /dev/null -w '%{http_version}' \
         "https://127.0.0.1:$PORT/body.txt")
@@ -205,9 +212,12 @@ check_reload() {
 
 run_mode() {
     mode=$1
+    binary=/tmp/ngx-h3-$mode/objs/nginx
     : > "$RUN/logs/error.log"
     write_conf "$mode"
-    /tmp/ngx-h3-$mode/objs/nginx -p "$RUN" -c "$RUN/nginx.conf" &
+    "$binary" -p "$RUN" -c "$RUN/nginx.conf" -t \
+        || { echo "FAIL [$mode h3]: nginx -t"; return 1; }
+    "$binary" -p "$RUN" -c "$RUN/nginx.conf" &
     ngx_pid=$!
     sleep 0.5
     for coding in gzip deflate br zstd; do
