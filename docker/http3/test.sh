@@ -38,25 +38,34 @@ setup() {
         printf 'HTTP/3 compression payload %06d abcdefghijklmnopqrstuvwxyz\n' "$i" >> "$WWW/body.txt"
         i=$((i + 1))
     done
+    python3 -c \
+        'import sys; sys.stdout.buffer.write(b"slow upstream payload abcdefghijklmnopqrstuvwxyz\n" * 16384)' \
+        > "$WWW/slow.txt"
     OPENSSL_CONF=/etc/ssl/openssl.cnf /opt/http3/bin/openssl req \
         -x509 -newkey rsa:2048 -nodes -days 1 \
         -subj '/CN=localhost' -keyout "$RUN/key.pem" -out "$RUN/cert.pem" \
         >/dev/null 2>&1
     cat > "$RUN/chunked.py" <<PY
-import socket
+import pathlib, socket, time
 server = socket.socket()
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind(("127.0.0.1", $BACKEND))
 server.listen(32)
 payload = (b"chunked upstream payload abcdefghijklmnopqrstuvwxyz\\n" * 4096)
+slow_payload = pathlib.Path("$WWW/slow.txt").read_bytes()
 while True:
     conn, _ = server.accept()
     try:
-        conn.recv(4096)
+        request = conn.recv(4096)
+        is_slow = b"GET /slow " in request
+        response = slow_payload if is_slow else payload
+        delay = 0.02 if is_slow else 0
         conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n")
-        for offset in range(0, len(payload), 4096):
-            chunk = payload[offset:offset + 4096]
+        for offset in range(0, len(response), 4096):
+            chunk = response[offset:offset + 4096]
             conn.sendall(("%x\r\n" % len(chunk)).encode() + chunk + b"\r\n")
+            if delay:
+                time.sleep(delay)
         conn.sendall(b"0\r\n\r\n")
     finally:
         conn.close()
@@ -128,6 +137,10 @@ http {
             compress on;
             compress_gzip on;
             compress_min_length 20;
+            proxy_pass http://127.0.0.1:$BACKEND;
+        }
+        location = /slow {
+            proxy_buffering off;
             proxy_pass http://127.0.0.1:$BACKEND;
         }
     }
@@ -213,9 +226,9 @@ check_reload() {
     binary=/tmp/ngx-h3-$mode/objs/nginx
     reload_body="$RUN/$mode-reload.body"
     reload_version="$RUN/$mode-reload.version"
-    $CURL -sk --http3-only --limit-rate 2m -H 'Accept-Encoding: identity' \
+    $CURL -sk --http3-only -H 'Accept-Encoding: identity' \
         -o "$reload_body" -w '%{http_version}' \
-        "https://127.0.0.1:$PORT/body.txt" > "$reload_version" &
+        "https://127.0.0.1:$PORT/slow" > "$reload_version" &
     active_pid=$!
     i=0
     while [ "$i" -lt 100 ] && [ ! -s "$reload_body" ]; do
@@ -229,7 +242,7 @@ check_reload() {
     "$binary" -p "$RUN" -c "$RUN/nginx.conf" -s reload
     wait "$active_pid"
     [ "$(cat "$reload_version")" = 3 ]
-    cmp -s "$reload_body" "$WWW/body.txt"
+    cmp -s "$reload_body" "$WWW/slow.txt"
     version=$($CURL -sk --http3-only -o /dev/null -w '%{http_version}' \
         "https://127.0.0.1:$PORT/body.txt")
     [ "$version" = 3 ]
