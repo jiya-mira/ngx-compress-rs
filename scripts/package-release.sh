@@ -6,6 +6,7 @@ version=${VERSION:-0.1.0}
 prefix=ngx-compress-rs-$version
 output_dir=${OUTPUT_DIR:-dist}
 archive=$output_dir/$prefix-source.zip
+archive_name=$prefix-source.zip
 
 git diff --quiet
 git diff --cached --quiet
@@ -17,7 +18,7 @@ mkdir -p "$output_dir"
 git archive --format=zip -9 --prefix="$prefix/" -o "$archive" HEAD
 unzip -t "$archive" >/dev/null
 unzip -l "$archive" > "$archive.contents.txt"
-sha256sum "$archive" > "$archive.sha256"
+(cd "$output_dir" && sha256sum "$archive_name" > "$archive_name.sha256")
 NGINX_VERSION=1.30.4 scripts/toolchain-manifest.sh "$output_dir/toolchain.txt"
 
 echo "$archive"
