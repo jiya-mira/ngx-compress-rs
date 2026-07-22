@@ -18,6 +18,8 @@ use core::cell::RefCell;
 
 use ngx_compress_core::{CodecError, StreamingCodec};
 
+use crate::fault::{self, Point};
+
 use super::{CodecKey, CodecPool};
 
 struct Entry {
@@ -47,6 +49,9 @@ impl CodecPool for CodecKey {
             let mut entry = pool.swap_remove(index);
             // A failed reset consumes and drops the removed entry, so a poisoned
             // codec can never return to the pool or reach another request.
+            if fault::take(Point::CodecReset) {
+                return Err(CodecError::Backend);
+            }
             entry.codec.reset()?;
             Ok(Some(entry.codec))
         })

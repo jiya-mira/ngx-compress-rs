@@ -1,0 +1,13 @@
+# NGINX 1.30.4 single-process mode keeps its copied environment until process
+# exit without freeing the pointer array. This is upstream process-lifetime
+# state, not request/module ownership. Keep the stack narrow so other leaks in
+# the same test remain release-blocking.
+{
+   nginx_single_process_environment
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:ngx_alloc
+   fun:ngx_set_environment
+   fun:ngx_single_process_cycle
+}

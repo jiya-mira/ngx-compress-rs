@@ -9,6 +9,7 @@ use ngx_compress_core::{MimeTypes, StaticMode};
 use ngx_compress_ffi::module_conf::{BuiltinGzipState, HttpLocFlag};
 
 mod config;
+mod fault;
 mod filter;
 mod gzip;
 mod observability;

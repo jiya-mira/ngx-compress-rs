@@ -38,6 +38,9 @@ zstd = ["ngx-compress-codecs/zstd"]
 # Backend selection (mutually exclusive), forwarded to the codecs crate.
 vendored = ["ngx-compress-codecs/vendored"]
 system-libs = ["ngx-compress-codecs/system-libs"]
+# Test-only failure hooks. NGINX builds never enable this unless the integration
+# harness explicitly sets NGX_COMPRESS_TEST_FAULTS=1 at configure time.
+fault-injection = []
 
 # Boundary crate: unsafe is required for the NGINX module ABI and callbacks.
 # Every unsafe block documents its invariant with a `// SAFETY:` comment.

@@ -5,6 +5,7 @@ use ngx::ffi::{NGX_HTTP_OK, ngx_chain_t, ngx_chain_update_chains, ngx_http_reque
 use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::ResponseFacts;
 
+use crate::fault::{self, Point};
 use crate::observability::{self, Callback, FailureClass};
 use crate::registration::ngx_http_compress_module;
 use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig};
@@ -107,6 +108,17 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
 
     // SAFETY: create the request wrapper only for the submit phase.
     let req = unsafe { Request::from_ngx_http_request(request) };
+    if fault::take(Point::OutputAllocation) {
+        // SAFETY: request remains live and no response headers were changed.
+        unsafe {
+            observability::request(
+                request,
+                Callback::HeaderFilter,
+                FailureClass::OutputAllocation,
+            );
+        }
+        return pass();
+    }
     // Adding Vary first makes a later Content-Encoding allocation failure safe
     // to pass through: an extra Vary is harmless, while a lone encoding is not.
     if plan.vary && req.add_header_out("Vary", "Accept-Encoding").is_none() {

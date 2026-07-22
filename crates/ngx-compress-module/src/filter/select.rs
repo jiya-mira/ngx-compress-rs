@@ -5,6 +5,7 @@
 
 use super::{CodecKey, CodecPool, CodecSelection, CodecSelectionFailure, SelectedCodec};
 use crate::Resolved;
+use crate::fault::{self, Point};
 use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
 
 /// Default tie-break order for equal client quality (no server standard exists).
@@ -98,6 +99,9 @@ fn construct(
     resolved: &Resolved<'_>,
     coding: ContentCoding,
 ) -> Result<Box<dyn StreamingCodec>, CodecSelectionFailure> {
+    if fault::take(Point::CodecInitialization) {
+        return Err(CodecSelectionFailure::Initialization);
+    }
     let codec = match coding {
         #[cfg(feature = "gzip")]
         ContentCoding::Gzip => resolved

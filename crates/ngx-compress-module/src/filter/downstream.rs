@@ -3,10 +3,18 @@
 use ngx::core::Status;
 use ngx::ffi::{ngx_chain_t, ngx_http_request_t, ngx_int_t};
 
+use crate::fault::{self, Point};
 use crate::observability::{self, Callback, FailureClass};
 
 // SAFETY: request must be live and filter installation complete.
 pub unsafe fn header(request: *mut ngx_http_request_t) -> ngx_int_t {
+    if fault::take(Point::Downstream) {
+        // SAFETY: caller guarantees request remains live.
+        unsafe {
+            observability::request(request, Callback::HeaderFilter, FailureClass::Downstream);
+        }
+        return Status::NGX_ERROR.0;
+    }
     // SAFETY: caller guarantees request and installed chain.
     let rc = unsafe { ngx_compress_ffi::filter::next_header(request) };
     if rc == Status::NGX_ERROR.0 {
