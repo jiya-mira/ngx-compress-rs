@@ -526,6 +526,20 @@ smoke "$DYN_SRC/objs/nginx" "dynamic" "load_module $DYN_SRC/objs/ngx_http_compre
 smoke_gzip_conflict "$DYN_SRC/objs/nginx" "dynamic" \
     "load_module $DYN_SRC/objs/ngx_http_compress_module.so;" || exit 1
 
+log "DYNAMIC build without built-in gzip"
+DYN_NO_GZIP_SRC=/tmp/ngx-dynamic-no-gzip
+rm -rf "$DYN_NO_GZIP_SRC"; cp -a "$NGINX_SRC" "$DYN_NO_GZIP_SRC"
+cd "$DYN_NO_GZIP_SRC"
+./configure --with-compat --without-http_gzip_module \
+    --with-http_addition_module --with-http_gunzip_module \
+    --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-dyn-no-gzip.log 2>&1 \
+    || { echo "configure (dynamic no-gzip) failed"; tail -40 /tmp/cfg-dyn-no-gzip.log; exit 1; }
+assert_dynamic_order "$DYN_NO_GZIP_SRC/objs/ngx_http_compress_module_modules.c"
+make >/tmp/make-dyn-no-gzip.log 2>&1 \
+    || { echo "make (dynamic no-gzip) failed"; tail -60 /tmp/make-dyn-no-gzip.log; exit 1; }
+smoke "$DYN_NO_GZIP_SRC/objs/nginx" "dynamic-no-gzip" \
+    "load_module $DYN_NO_GZIP_SRC/objs/ngx_http_compress_module.so;" || exit 1
+
 log "STATIC build (--add-module)"
 STATIC_SRC=/tmp/ngx-static
 rm -rf "$STATIC_SRC"; cp -a "$NGINX_SRC" "$STATIC_SRC"
