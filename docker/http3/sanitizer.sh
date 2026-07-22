@@ -20,11 +20,16 @@ WWW=/tmp/ngx-h3-sanitizer-www
 PORT=8443
 DIAGNOSTIC_DIR=${DIAGNOSTIC_DIR:-/repo/artifacts/http3/sanitizer-details}
 SAN_FLAGS='-O1 -g -fsanitize=address,undefined -fno-sanitize=nonnull-attribute -fno-omit-frame-pointer'
-# NGINX's ARM HTTP/3 Huffman encoder deliberately emits unaligned u64 stores.
-# The release target is x86_64, where the full alignment check remains enabled.
-if [ "$(uname -m)" = aarch64 ]; then
-    SAN_FLAGS="$SAN_FLAGS -fno-sanitize=alignment"
-fi
+# NGINX's x86 NGX_HAVE_NONALIGNED QUIC parser directly dereferences packet
+# bytes. Hardware permits that fast path, but C alignment rules do not. Keep
+# alignment UBSan enabled and select NGINX's own portable byte-parser branch in
+# this diagnostic build; the ordinary x86 matrix still exercises the fast path.
+NGINX_SAN_FLAGS=$SAN_FLAGS
+case "$(uname -m)" in
+    x86_64) NGINX_SAN_FLAGS="$SAN_FLAGS -DNGX_HAVE_NONALIGNED=0" ;;
+    # NGINX's ARM HTTP/3 Huffman encoder deliberately emits unaligned u64 stores.
+    aarch64) SAN_FLAGS="$SAN_FLAGS -fno-sanitize=alignment"; NGINX_SAN_FLAGS=$SAN_FLAGS ;;
+esac
 export CC=clang
 export CFLAGS="$SAN_FLAGS"
 
@@ -71,7 +76,7 @@ cd "$SRC"
     --with-http_v3_module \
     --with-openssl="$TLS" \
     --with-openssl-opt=no-tests \
-    --with-cc-opt="$SAN_FLAGS" \
+    --with-cc-opt="$NGINX_SAN_FLAGS" \
     --with-ld-opt='-fsanitize=address,undefined' \
     --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-h3-sanitizer.log 2>&1 \
     || { tail -80 /tmp/cfg-h3-sanitizer.log; exit 1; }
