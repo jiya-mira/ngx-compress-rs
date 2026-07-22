@@ -1,6 +1,6 @@
 #!/bin/sh
-# Dynamic/static HTTP/3 integration. Every QUIC request is --http3-only and
-# asserts curl's negotiated protocol, so HTTP/2 fallback cannot pass.
+# Dynamic/static H1/H2/H3 installation and integration. Every QUIC request is
+# --http3-only and asserts curl's negotiated protocol, so fallback cannot pass.
 set -eu
 
 export no_proxy=127.0.0.1,localhost
@@ -31,7 +31,7 @@ trap capture_diagnostics EXIT
 
 setup() {
     rm -rf "$RUN" "$WWW"
-    mkdir -p "$RUN/logs" "$WWW"
+    mkdir -p "$RUN/logs" "$RUN/modules" "$RUN/sbin" "$WWW"
     : > "$WWW/body.txt"
     i=0
     while [ "$i" -lt 160000 ]; do
@@ -98,12 +98,17 @@ build_mode() {
         || { tail -80 "/tmp/cfg-h3-$mode.log"; exit 1; }
     make >"/tmp/make-h3-$mode.log" 2>&1 \
         || { tail -100 "/tmp/make-h3-$mode.log"; exit 1; }
+    cp "$src/objs/nginx" "$RUN/sbin/nginx-$mode"
+    if [ "$mode" = dynamic ]; then
+        cp "$src/objs/ngx_http_compress_module.so" \
+            "$RUN/modules/ngx_http_compress_module.so"
+    fi
 }
 
 write_conf() {
     mode=$1
     if [ "$mode" = dynamic ]; then
-        load="load_module /tmp/ngx-h3-dynamic/objs/ngx_http_compress_module.so;"
+        load="load_module $RUN/modules/ngx_http_compress_module.so;"
     else
         load=
     fi
@@ -120,7 +125,9 @@ http {
     access_log off;
     default_type text/plain;
     server {
+        listen $PORT ssl;
         listen $PORT quic reuseport;
+        http2 on;
         ssl_certificate $RUN/cert.pem;
         ssl_certificate_key $RUN/key.pem;
         ssl_protocols TLSv1.3;
@@ -194,6 +201,25 @@ check_identity() {
     echo "PASS [$mode h3 identity]: unchanged"
 }
 
+check_tcp_protocols() {
+    mode=$1
+    for protocol in h1 h2; do
+        case "$protocol" in
+            h1) option=--http1.1; expected=1.1 ;;
+            h2) option=--http2; expected=2 ;;
+        esac
+        stem="$RUN/$mode-$protocol"
+        version=$($CURL -sk "$option" -H 'Accept-Encoding: gzip' \
+            -D "$stem.headers" -o "$stem.body" -w '%{http_version}' \
+            "https://127.0.0.1:$PORT/body.txt")
+        [ "$version" = "$expected" ] \
+            || { echo "FAIL [$mode $protocol]: expected $expected, got $version"; return 1; }
+        [ "$(grep -ic '^content-encoding: *gzip' "$stem.headers")" -eq 1 ]
+        gzip -dc < "$stem.body" | cmp -s - "$WWW/body.txt"
+        echo "PASS [$mode $protocol]: byte-exact gzip roundtrip"
+    done
+}
+
 check_chunked_upstream() {
     mode=$1
     stem="$RUN/$mode-chunked"
@@ -224,7 +250,7 @@ check_pressure() {
 
 check_reload() {
     mode=$1
-    binary=/tmp/ngx-h3-$mode/objs/nginx
+    binary="$RUN/sbin/nginx-$mode"
     reload_body="$RUN/$mode-reload.body"
     reload_version="$RUN/$mode-reload.version"
     $CURL -sk --http3-only -H 'Accept-Encoding: identity' \
@@ -252,7 +278,7 @@ check_reload() {
 
 run_mode() {
     mode=$1
-    binary=/tmp/ngx-h3-$mode/objs/nginx
+    binary="$RUN/sbin/nginx-$mode"
     : > "$RUN/logs/error.log"
     write_conf "$mode"
     "$binary" -p "$RUN" -c "$RUN/nginx.conf" -t \
@@ -264,6 +290,7 @@ run_mode() {
         check_coding "$mode" "$coding"
     done
     check_identity "$mode"
+    check_tcp_protocols "$mode"
     check_chunked_upstream "$mode"
     check_pressure "$mode"
     check_reload "$mode"
