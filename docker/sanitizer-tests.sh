@@ -8,6 +8,7 @@ export no_proxy=127.0.0.1,localhost
 export NO_PROXY=127.0.0.1,localhost
 export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
 export ASAN_SYMBOLIZER_PATH="${ASAN_SYMBOLIZER_PATH:-/usr/bin/llvm-symbolizer-14}"
+export LSAN_OPTIONS="${LSAN_OPTIONS:-suppressions=/repo/docker/lsan.supp:print_suppressions=0}"
 
 MODULE_DIR=/repo/crates/ngx-compress-module
 NGINX_SRC=${NGINX_SRC:-/opt/nginx-1.30.4}

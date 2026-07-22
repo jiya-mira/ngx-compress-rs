@@ -1,0 +1,6 @@
+# NGINX 1.30.4 single-process mode allocates its event connection/read/write
+# arrays in ngx_event_process_init and intentionally leaves them live until
+# process exit. The sanitizer harness uses single-process mode so LeakSanitizer
+# can observe the module in the serving process. Keep this suppression at the
+# upstream allocation function so request, codec, and module leaks still fail.
+leak:ngx_event_process_init
