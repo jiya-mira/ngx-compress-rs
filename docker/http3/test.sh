@@ -14,8 +14,20 @@ RUN=/tmp/ngx-h3-run
 WWW=/tmp/ngx-h3-www
 PORT=8443
 BACKEND=8093
+DIAGNOSTIC_DIR=${DIAGNOSTIC_DIR:-/repo/artifacts/http3/integration-details}
 
 log() { printf '\n=== %s ===\n' "$1"; }
+
+capture_diagnostics() {
+    mkdir -p "$DIAGNOSTIC_DIR"
+    for file in /tmp/cfg-h3-*.log /tmp/make-h3-*.log "$RUN/logs/error.log"; do
+        if [ -f "$file" ]; then
+            cp "$file" "$DIAGNOSTIC_DIR/$(basename "$file")"
+        fi
+    done
+    chmod -R a+rX "$DIAGNOSTIC_DIR"
+}
+trap capture_diagnostics EXIT
 
 setup() {
     rm -rf "$RUN" "$WWW"
@@ -90,7 +102,7 @@ write_conf() {
 $load
 daemon off;
 worker_processes 2;
-worker_shutdown_timeout 5s;
+worker_shutdown_timeout 15s;
 error_log $RUN/logs/error.log info;
 pid $RUN/nginx.pid;
 events { worker_connections 512; }
@@ -199,11 +211,25 @@ check_pressure() {
 check_reload() {
     mode=$1
     binary=/tmp/ngx-h3-$mode/objs/nginx
-    $CURL -sk --http3-only --limit-rate 256k -H 'Accept-Encoding: gzip' \
-        "https://127.0.0.1:$PORT/body.txt" -o /dev/null &
+    reload_body="$RUN/$mode-reload.body"
+    reload_version="$RUN/$mode-reload.version"
+    $CURL -sk --http3-only --limit-rate 2m -H 'Accept-Encoding: identity' \
+        -o "$reload_body" -w '%{http_version}' \
+        "https://127.0.0.1:$PORT/body.txt" > "$reload_version" &
     active_pid=$!
+    i=0
+    while [ "$i" -lt 100 ] && [ ! -s "$reload_body" ]; do
+        kill -0 "$active_pid" 2>/dev/null \
+            || { echo "FAIL [$mode h3 reload]: request ended before reload"; return 1; }
+        i=$((i + 1))
+        sleep 0.02
+    done
+    [ -s "$reload_body" ] \
+        || { echo "FAIL [$mode h3 reload]: request did not start"; return 1; }
     "$binary" -p "$RUN" -c "$RUN/nginx.conf" -s reload
     wait "$active_pid"
+    [ "$(cat "$reload_version")" = 3 ]
+    cmp -s "$reload_body" "$WWW/body.txt"
     version=$($CURL -sk --http3-only -o /dev/null -w '%{http_version}' \
         "https://127.0.0.1:$PORT/body.txt")
     [ "$version" = 3 ]
