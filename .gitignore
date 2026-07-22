@@ -5,6 +5,8 @@
 *.dylib
 *.dll
 *.profraw
+*.pyc
+__pycache__/
 /build/
 /dist/
 /artifacts/

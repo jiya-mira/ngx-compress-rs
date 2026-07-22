@@ -1,0 +1,76 @@
+name: HTTP/3
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_benchmark:
+        description: Run the full five-round x86_64 benchmark
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: http3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  http3:
+    name: HTTP/3 / http3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare diagnostics
+        run: mkdir -p artifacts/http3
+
+      - name: Build pinned QUIC toolchain
+        run: |
+          set -o pipefail
+          docker build -f docker/http3/Dockerfile -t ngx-compress-http3:ci . 2>&1 \
+            | tee artifacts/http3/docker-build.log
+
+      - name: Dynamic/static HTTP/3 matrix
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" ngx-compress-http3:ci \
+            sh /repo/docker/http3/test.sh 2>&1 | tee artifacts/http3/integration.log
+
+      - name: HTTP/3 sanitizer
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" ngx-compress-http3:ci sh -c '
+            rustup toolchain install nightly-2026-07-01 --profile minimal
+            RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/http3/sanitizer.sh
+          ' 2>&1 | tee artifacts/http3/sanitizer.log
+
+      - name: Balanced buffer benchmark
+        if: github.event_name == 'workflow_dispatch' && inputs.run_benchmark
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" -v "$PWD/artifacts/http3/evidence:/evidence" \
+            -e ROUNDS=5 ngx-compress-http3:ci \
+            sh /repo/docker/http3/benchmark.sh 2>&1 | tee artifacts/http3/benchmark.log
+
+      - name: Upload benchmark evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.run_benchmark && success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: http3-benchmark-evidence-${{ github.sha }}
+          path: artifacts/http3/evidence/
+          if-no-files-found: error
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: http3-diagnostics-${{ github.sha }}
+          path: artifacts/http3/
+          if-no-files-found: error

@@ -15,6 +15,7 @@ NGINX_SRC=${NGINX_SRC:-/opt/nginx-1.30.4}
 RUN_DIR=/tmp/ngx-run
 WWW=/tmp/www
 PORT=8080
+BACKEND=8091
 
 log() { printf '\n=== %s ===\n' "$1"; }
 
@@ -72,6 +73,9 @@ setup_www() {
         i=$((i + 1))
     done
     printf 'HEAD\n<!--#include virtual="/inc.txt" -->\nTAIL\n' > "$WWW/page.shtml"
+    printf 'ADDITION BEFORE\n' > "$WWW/before.txt"
+    printf 'ADDITION AFTER\n' > "$WWW/after.txt"
+    cp "$WWW/index.txt" /tmp/upstream.txt
 
     # Precompressed-sidecar fixtures. The sidecars decode to payloads DISTINCT
     # from the original file, so a matching decoded body proves we served the
@@ -96,6 +100,33 @@ setup_www() {
     cp "$WWW/static/asset.txt" "$WWW/astatic/asset.txt"
     cp "$WWW/static/asset.txt.gz" "$WWW/astatic/asset.txt.gz"
     cp "$WWW/static/asset.txt.br" "$WWW/astatic/asset.txt.br"
+}
+
+start_backend() {
+    cat > /tmp/ngx-compress-backend.py <<PY
+import gzip, socket
+body = open("/tmp/upstream.txt", "rb").read()
+encoded = gzip.compress(body)
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("127.0.0.1", $BACKEND))
+server.listen(16)
+while True:
+    conn, _ = server.accept()
+    try:
+        conn.recv(4096)
+        headers = (
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
+            b"Content-Encoding: gzip\r\nContent-Length: "
+            + str(len(encoded)).encode() + b"\r\nConnection: close\r\n\r\n"
+        )
+        conn.sendall(headers + encoded)
+    finally:
+        conn.close()
+PY
+    python3 /tmp/ngx-compress-backend.py &
+    backend_pid=$!
+    trap 'kill "$backend_pid" 2>/dev/null || true; wait "$backend_pid" 2>/dev/null || true' EXIT
 }
 
 write_conf() {
@@ -129,6 +160,23 @@ http {
             compress on;
             compress_gzip on;
             compress_min_length 20;
+        }
+        location = /addition {
+            default_type text/plain;
+            addition_types text/plain;
+            add_before_body /before.txt;
+            add_after_body /after.txt;
+            compress on;
+            compress_gzip on;
+            compress_min_length 20;
+            alias $WWW/index.txt;
+        }
+        location = /upstream-gzip {
+            gunzip on;
+            compress on;
+            compress_brotli on;
+            compress_min_length 20;
+            proxy_pass http://127.0.0.1:$BACKEND;
         }
         # Sidecar serving with runtime compression OFF, so only compress_static
         # can add a Content-Encoding.
@@ -197,6 +245,52 @@ check_ssi() {
     cmp -s "$RUN_DIR/got.html" "$RUN_DIR/ref.html" \
         || { echo "FAIL [$1 ssi]: subrequest body corrupted under compression"; return 1; }
     echo "PASS [$1 ssi]: subrequest assembled then compressed correctly"
+}
+
+check_filter_coexistence() {
+    # $1 = mode label
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -D "$RUN_DIR/h.txt" \
+        -o "$RUN_DIR/c.bin" "http://127.0.0.1:$PORT/index.txt"
+    [ "$(grep -ic '^content-encoding: *gzip' "$RUN_DIR/h.txt")" -eq 1 ]
+    if grep -qi '^content-length:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 coexistence]: compressed response retained Content-Length"
+        return 1
+    fi
+    grep -qi '^transfer-encoding: *chunked' "$RUN_DIR/h.txt"
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - "$WWW/index.txt"
+
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -H 'Range: bytes=0-99' \
+        -D "$RUN_DIR/range.h" -o "$RUN_DIR/range.body" \
+        "http://127.0.0.1:$PORT/index.txt"
+    grep -q '^HTTP/1.1 206' "$RUN_DIR/range.h"
+    head -c 100 "$WWW/index.txt" | cmp -s - "$RUN_DIR/range.body"
+    if grep -qi '^content-encoding:' "$RUN_DIR/range.h"; then
+        echo "FAIL [$1 coexistence]: range response was encoded"
+        return 1
+    fi
+
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$RUN_DIR/gunzip.h" \
+        -o "$RUN_DIR/gunzip.body" "http://127.0.0.1:$PORT/upstream-gzip"
+    if grep -qi '^content-encoding:' "$RUN_DIR/gunzip.h"; then
+        echo "FAIL [$1 coexistence]: gunzip response retained Content-Encoding"
+        return 1
+    fi
+    cmp -s "$RUN_DIR/gunzip.body" /tmp/upstream.txt
+    echo "PASS [$1 coexistence]: copy/chunked/range/gunzip filters intact"
+}
+
+check_addition() {
+    # $1 = mode label; addition subrequests must be assembled before compression.
+    curl -sf --noproxy '*' -o "$RUN_DIR/addition.ref" \
+        "http://127.0.0.1:$PORT/addition"
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -D "$RUN_DIR/addition.h" \
+        -o "$RUN_DIR/addition.gz" "http://127.0.0.1:$PORT/addition"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/addition.h"
+    gzip -dc < "$RUN_DIR/addition.gz" > "$RUN_DIR/addition.out"
+    cmp -s "$RUN_DIR/addition.out" "$RUN_DIR/addition.ref"
+    grep -q 'ADDITION BEFORE' "$RUN_DIR/addition.out"
+    grep -q 'ADDITION AFTER' "$RUN_DIR/addition.out"
+    echo "PASS [$1 addition]: before/after subrequests assembled then compressed"
 }
 
 check_static() {
@@ -274,6 +368,8 @@ smoke() {
         done
     done
     check_ssi "$2" || rc=1
+    check_addition "$2" || rc=1
+    check_filter_coexistence "$2" || rc=1
 
     kill "$ngx_pid" 2>/dev/null || true
     wait "$ngx_pid" 2>/dev/null || true
@@ -317,8 +413,9 @@ http {
 }
 EOF
     : > "$run/logs/error.log"
-    "$1" -p "$run" -c "$run/nginx.conf" -t >/tmp/gzip-conflict-$2-t.log 2>&1 \
-        || { echo "FAIL [$2 gzip conflict]: nginx -t"; cat /tmp/gzip-conflict-$2-t.log; return 1; }
+    test_log="/tmp/gzip-conflict-$2-t.log"
+    "$1" -p "$run" -c "$run/nginx.conf" -t >"$test_log" 2>&1 \
+        || { echo "FAIL [$2 gzip conflict]: nginx -t"; cat "$test_log"; return 1; }
     if ! grep -q 'class=builtin_gzip_conflict' "$run/logs/error.log"; then
         echo "FAIL [$2 gzip conflict]: nginx -t emitted no warning"
         cat "$run/logs/error.log"
@@ -394,6 +491,7 @@ EOF
 }
 
 setup_www
+start_backend
 
 log "toolchain"
 cargo --version
@@ -403,7 +501,8 @@ log "DYNAMIC build (--add-dynamic-module, --with-compat)"
 DYN_SRC=/tmp/ngx-dynamic
 rm -rf "$DYN_SRC"; cp -a "$NGINX_SRC" "$DYN_SRC"
 cd "$DYN_SRC"
-./configure --with-compat --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-dyn.log 2>&1 \
+./configure --with-compat --with-http_addition_module --with-http_gunzip_module \
+    --add-dynamic-module="$MODULE_DIR" >/tmp/cfg-dyn.log 2>&1 \
     || { echo "configure (dynamic) failed"; tail -40 /tmp/cfg-dyn.log; exit 1; }
 assert_dynamic_order "$DYN_SRC/objs/ngx_http_compress_module_modules.c"
 make >/tmp/make-dyn.log 2>&1 \
@@ -418,7 +517,8 @@ log "STATIC build (--add-module)"
 STATIC_SRC=/tmp/ngx-static
 rm -rf "$STATIC_SRC"; cp -a "$NGINX_SRC" "$STATIC_SRC"
 cd "$STATIC_SRC"
-./configure --add-module="$MODULE_DIR" >/tmp/cfg-static.log 2>&1 \
+./configure --with-http_addition_module --with-http_gunzip_module \
+    --add-module="$MODULE_DIR" >/tmp/cfg-static.log 2>&1 \
     || { echo "configure (static) failed"; tail -40 /tmp/cfg-static.log; exit 1; }
 assert_static_order "$STATIC_SRC/objs/ngx_modules.c" ngx_http_gzip_filter_module
 make >/tmp/make-static.log 2>&1 \
@@ -430,7 +530,8 @@ log "STATIC build without built-in gzip"
 STATIC_NO_GZIP_SRC=/tmp/ngx-static-no-gzip
 rm -rf "$STATIC_NO_GZIP_SRC"; cp -a "$NGINX_SRC" "$STATIC_NO_GZIP_SRC"
 cd "$STATIC_NO_GZIP_SRC"
-./configure --without-http_gzip_module --add-module="$MODULE_DIR" >/tmp/cfg-static-no-gzip.log 2>&1 \
+./configure --without-http_gzip_module --with-http_addition_module --with-http_gunzip_module \
+    --add-module="$MODULE_DIR" >/tmp/cfg-static-no-gzip.log 2>&1 \
     || { echo "configure (static no-gzip) failed"; tail -40 /tmp/cfg-static-no-gzip.log; exit 1; }
 assert_static_order "$STATIC_NO_GZIP_SRC/objs/ngx_modules.c" ngx_http_range_header_filter_module
 make >/tmp/make-static-no-gzip.log 2>&1 \

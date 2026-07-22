@@ -1,0 +1,103 @@
+name: Security and release
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact commit to audit for the private release gate
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: security-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Security and release / security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Advisories, licenses, bans, and sources
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+
+      - name: Install CycloneDX generator
+        run: cargo install --locked cargo-cyclonedx --version 0.5.9
+
+      - name: Generate vendored and system SBOMs
+        run: |
+          mkdir -p artifacts/sbom
+          cargo cyclonedx --manifest-path crates/ngx-compress-module/Cargo.toml \
+            --format json --override-filename ngx-compress-rs-0.1.0-vendored.cdx
+          cargo cyclonedx --manifest-path crates/ngx-compress-module/Cargo.toml \
+            --format json --no-default-features \
+            --features 'gzip,deflate,brotli,zstd,system-libs' \
+            --override-filename ngx-compress-rs-0.1.0-system.cdx
+          find crates/ngx-compress-module -maxdepth 1 -name 'ngx-compress-rs-0.1.0-*.cdx.json' \
+            -exec cp {} artifacts/sbom/ \;
+          test "$(find artifacts/sbom -name '*.cdx.json' | wc -l)" -eq 2
+          scripts/toolchain-manifest.sh artifacts/sbom/toolchain.txt
+
+      - name: Build diagnostic image
+        run: docker build -f docker/Dockerfile -t ngx-compress-build:security .
+
+      - name: ASan/UBSan and Valgrind
+        run: |
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:security sh -c '
+            rustup toolchain install nightly-2026-07-01 --profile minimal
+            RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/sanitizer-tests.sh
+          '
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:security \
+            sh /repo/docker/valgrind-tests.sh
+
+      - name: Upload SBOM and toolchain inventory
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: supply-chain-${{ github.sha }}
+          path: artifacts/sbom/
+          if-no-files-found: error
+
+  rehearsal:
+    name: Security and release / rehearsal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out full source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Source artifact rehearsal
+        run: scripts/package-release.sh
+
+      - name: Upload source rehearsal
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-rehearsal-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+
+  release-gate:
+    name: Security and release / release-gate
+    if: github.event_name == 'workflow_dispatch' && inputs.target_sha != ''
+    needs: [security, rehearsal]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out gate script
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require all checks on the exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/verify-release-checks.sh '${{ inputs.target_sha }}'

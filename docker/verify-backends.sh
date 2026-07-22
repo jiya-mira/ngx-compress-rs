@@ -2,8 +2,8 @@
 # Verify both build backends produce a working module:
 #   - vendored (default): codecs self-compiled and statically embedded
 #   - system-libs:        flate2->libz, zstd->libzstd linked as shared objects
-# For each, build a dynamic module and smoke gzip + zstd end-to-end. For the
-# system build also assert via ldd that libz/libzstd are shared dependencies.
+# Cross with dynamic/static linking and smoke every result. For system builds,
+# also assert via ldd that libz/libzstd/libbrotli are shared dependencies.
 set -eu
 
 export no_proxy=127.0.0.1,localhost
@@ -23,11 +23,16 @@ while [ "$i" -lt 220 ]; do
 done
 
 smoke() {
-    # $1 = nginx binary, $2 = .so path, $3 = label
+    # $1 = nginx binary, $2 = optional .so path, $3 = label
     run=/tmp/run-$3
     mkdir -p "$run/logs"
+    if [ -n "$2" ]; then
+        load="load_module $2;"
+    else
+        load=
+    fi
     cat > "$run/n.conf" <<EOF
-load_module $2;
+$load
 daemon off;
 master_process off;
 error_log $run/logs/e.log info;
@@ -56,7 +61,12 @@ EOF
             zstd) zstd -dc < "$run/c" > "$run/d" ;;
             br) brotli -dc < "$run/c" > "$run/d" ;;
         esac
-        cmp -s "$run/d" "$WWW/index.txt" && echo "PASS [$3 $enc]" || { echo "FAIL [$3 $enc] decode"; rc=1; }
+        if cmp -s "$run/d" "$WWW/index.txt"; then
+            echo "PASS [$3 $enc]"
+        else
+            echo "FAIL [$3 $enc] decode"
+            rc=1
+        fi
     done
     kill "$ngx_pid" 2>/dev/null || true
     wait "$ngx_pid" 2>/dev/null || true
@@ -64,29 +74,46 @@ EOF
 }
 
 build() {
-    # $1 = backend (vendored|system), $2 = label
-    src=/tmp/ngx-$2
+    # $1 = backend (vendored|system), $2 = link (dynamic|static), $3 = label
+    src=/tmp/ngx-$3
     rm -rf "$src"; cp -a "$NGINX_SRC" "$src"; cd "$src"
-    NGX_COMPRESS_BACKEND=$1 ./configure --with-compat --add-dynamic-module="$MODULE_DIR" \
-        >/tmp/cfg-$2.log 2>&1 || { echo "configure ($2) failed"; tail -30 /tmp/cfg-$2.log; exit 1; }
-    NGX_COMPRESS_BACKEND=$1 make >/tmp/make-$2.log 2>&1 \
-        || { echo "make ($2) failed"; tail -50 /tmp/make-$2.log; exit 1; }
-    echo "$src/objs/ngx_http_compress_module.so"
+    if [ "$2" = dynamic ]; then
+        add="--add-dynamic-module=$MODULE_DIR"
+    else
+        add="--add-module=$MODULE_DIR"
+    fi
+    NGX_COMPRESS_BACKEND=$1 ./configure --with-compat "$add" \
+        >"/tmp/cfg-$3.log" 2>&1 \
+        || { echo "configure ($3) failed"; tail -30 "/tmp/cfg-$3.log"; exit 1; }
+    NGX_COMPRESS_BACKEND=$1 make >"/tmp/make-$3.log" 2>&1 \
+        || { echo "make ($3) failed"; tail -50 "/tmp/make-$3.log"; exit 1; }
+    echo "$src"
 }
 
-printf '\n=== VENDORED backend ===\n'
-so=$(build vendored vendored)
-ls -l "$so"
-smoke /tmp/ngx-vendored/objs/nginx "$so" vendored || exit 1
-
-printf '\n=== SYSTEM-LIBS backend ===\n'
-so=$(build system system)
-ls -l "$so"
-echo "shared codec libraries:"
-ldd "$so" | grep -iE 'libz\.|libzstd|libbrotli' || { echo "FAIL: shared codec libs not linked"; exit 1; }
-for lib in 'libz\.' libzstd libbrotlienc; do
-    ldd "$so" | grep -qiE "$lib" || { echo "FAIL: $lib not a shared dependency"; exit 1; }
+for backend in vendored system; do
+    for link in dynamic static; do
+        label=$backend-$link
+        printf '\n=== %s ===\n' "$label"
+        src=$(build "$backend" "$link" "$label")
+        if [ "$link" = dynamic ]; then
+            module="$src/objs/ngx_http_compress_module.so"
+            ls -l "$module"
+            linked=$module
+        else
+            module=
+            linked="$src/objs/nginx"
+        fi
+        if [ "$backend" = system ]; then
+            echo "shared codec libraries:"
+            ldd "$linked" | grep -iE 'libz\.|libzstd|libbrotli' \
+                || { echo "FAIL: shared codec libs not linked"; exit 1; }
+            for lib in 'libz\.' libzstd libbrotlienc; do
+                ldd "$linked" | grep -qiE "$lib" \
+                    || { echo "FAIL: $lib not a shared dependency"; exit 1; }
+            done
+        fi
+        smoke "$src/objs/nginx" "$module" "$label" || exit 1
+    done
 done
-smoke /tmp/ngx-system/objs/nginx "$so" system || exit 1
 
-printf '\n=== BOTH BACKENDS OK ===\n'
+printf '\n=== ALL LINK/BACKEND COMBINATIONS OK ===\n'

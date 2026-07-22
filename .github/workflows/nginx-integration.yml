@@ -1,0 +1,60 @@
+name: NGINX integration
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nginx-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: NGINX integration / integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prepare diagnostics
+        run: mkdir -p artifacts
+
+      - name: Build exact Bookworm toolchain
+        run: |
+          set -o pipefail
+          docker build -f docker/Dockerfile -t ngx-compress-build:ci . 2>&1 \
+            | tee artifacts/docker-build.log
+
+      - name: Dynamic/static integration and filter coexistence
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:ci \
+            sh /repo/docker/build-and-test.sh 2>&1 | tee artifacts/integration.log
+
+      - name: Dynamic/static by vendored/system backend
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:ci \
+            sh /repo/docker/verify-backends.sh 2>&1 | tee artifacts/backends.log
+
+      - name: Edge and Test::Nginx suites
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:ci \
+            sh /repo/docker/edge-tests.sh 2>&1 | tee artifacts/edge.log
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:ci \
+            sh /repo/docker/test-nginx.sh 2>&1 | tee artifacts/test-nginx.log
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nginx-integration-diagnostics-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
