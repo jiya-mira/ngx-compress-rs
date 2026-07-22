@@ -12,6 +12,8 @@ use ngx::ffi::{
 };
 use ngx_compress_core::ContentCoding;
 
+use crate::observability::{self, Callback, FailureClass};
+
 use super::{ERROR, OK, SidecarSubmit};
 
 /// Checked mapped-path buffer with room reserved for one sidecar extension.
@@ -72,12 +74,12 @@ impl SidecarSubmit for ngx_compress_core::StaticCandidate {
         // and, if present, emits the file as the response body.
         unsafe {
             let Ok(mut path) = MappedPath::with_extension(request, self.extension) else {
-                return Some(server_error());
+                return Some(fail(request, FailureClass::InvalidFfiState));
             };
 
             let clcf = core_loc_conf(request);
             if clcf.is_null() {
-                return Some(server_error());
+                return Some(fail(request, FailureClass::InvalidFfiState));
             }
             let mut of = core::mem::zeroed::<ngx_open_file_info_t>();
             of.read_ahead = (*clcf).read_ahead;
@@ -112,6 +114,7 @@ unsafe fn send_file(
     unsafe {
         let discard = ngx_http_discard_request_body(request);
         if discard != OK {
+            observability::request(request, Callback::StaticHandler, FailureClass::Downstream);
             return discard;
         }
 
@@ -119,16 +122,16 @@ unsafe fn send_file(
         (*request).headers_out.content_length_n = of.size;
         (*request).headers_out.last_modified_time = of.mtime;
         if ngx_http_set_content_type(request) != OK || !add_content_encoding(request, coding) {
-            return server_error();
+            return fail(request, FailureClass::OutputAllocation);
         }
         if ngx_http_set_etag(request) != OK {
-            return server_error();
+            return fail(request, FailureClass::OutputAllocation);
         }
 
         let buf = ngx_pcalloc((*request).pool, size_of::<ngx_buf_t>()).cast::<ngx_buf_t>();
         let file = ngx_pcalloc((*request).pool, size_of::<ngx_file_t>()).cast::<ngx_file_t>();
         if buf.is_null() || file.is_null() {
-            return ERROR;
+            return fail(request, FailureClass::OutputAllocation);
         }
         (*file).fd = of.fd;
         (*file).name = path;
@@ -147,9 +150,16 @@ unsafe fn send_file(
         };
         let rc = ngx_http_send_header(request);
         if rc == ERROR || rc > OK || (*request).header_only() != 0 {
+            if rc == ERROR {
+                observability::request(request, Callback::StaticHandler, FailureClass::Downstream);
+            }
             return rc;
         }
-        ngx_http_output_filter(request, &raw mut out)
+        let rc = ngx_http_output_filter(request, &raw mut out);
+        if rc == ERROR {
+            observability::request(request, Callback::StaticHandler, FailureClass::Downstream);
+        }
+        rc
     }
 }
 
@@ -187,6 +197,13 @@ unsafe fn core_loc_conf(
 /// `500 Internal Server Error` as an `ngx_int_t` return code.
 fn server_error() -> ngx_int_t {
     ngx_int_t::try_from(NGX_HTTP_INTERNAL_SERVER_ERROR).unwrap_or(ERROR)
+}
+
+// SAFETY: request must remain live for logging.
+unsafe fn fail(request: *mut ngx_http_request_t, class: FailureClass) -> ngx_int_t {
+    // SAFETY: caller guarantees the live request.
+    unsafe { observability::request(request, Callback::StaticHandler, class) };
+    server_error()
 }
 
 /// Wraps a `'static` string as an `ngx_str_t`; its bytes outlive the response.

@@ -4,59 +4,36 @@ use ngx::core::Status;
 use ngx::ffi::{NGX_HTTP_OK, ngx_chain_t, ngx_chain_update_chains, ngx_http_request_t, ngx_int_t};
 use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::ResponseFacts;
-use ngx_compress_ffi::filter;
 
+use crate::observability::{self, Callback, FailureClass};
 use crate::registration::ngx_http_compress_module;
 use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig};
 
 use super::{
-    CompressChain, HeaderDecision, Plan, RequestContext, RequestCtx, RuntimeCallbacks, Snapshot,
+    CompressChain, CompressionFailure, HeaderDecision, Plan, RequestContext, RequestCtx,
+    RuntimeCallbacks, Snapshot,
 };
-
-impl FilterModule for Module {
-    // SAFETY: registration calls this once during single-threaded postconfiguration.
-    unsafe fn install_filters() {
-        // SAFETY: postconfiguration owns filter-chain installation.
-        unsafe {
-            filter::install(Some(Module::header_filter), Some(Module::body_filter));
-        }
-    }
-
-    /// Copies and parses Accept-Encoding into Rust-owned state. The public
-    /// header list works even with `--without-http_gzip_module`, where NGINX
-    /// omits its convenience `headers_in.accept_encoding` field.
-    // SAFETY: `request` must reference a live NGINX request.
-    unsafe fn accept_encoding(
-        request: *mut ngx_http_request_t,
-    ) -> ngx_compress_core::AcceptEncoding {
-        // SAFETY: caller guarantees the request remains live during iteration.
-        let request = unsafe { Request::from_ngx_http_request(request) };
-        let value = request
-            .headers_in_iterator()
-            .filter(|(name, _)| name.as_ref().eq_ignore_ascii_case(b"accept-encoding"))
-            .filter_map(|(_, value)| value.to_str().ok())
-            .fold(String::new(), |mut combined, value| {
-                if !combined.is_empty() {
-                    combined.push(',');
-                }
-                combined.push_str(value);
-                combined
-            });
-        if value.is_empty() {
-            ngx_compress_core::AcceptEncoding::absent()
-        } else {
-            ngx_compress_core::AcceptEncoding::parse(&value)
-        }
-    }
-}
 
 impl RuntimeCallbacks for Module {
     // Installed into the header filter chain by the parent filter module.
     unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) -> ngx_int_t {
-        ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
-            // SAFETY: nginx supplied the request pointer to this callback.
-            unsafe { header_filter_inner(request) }
-        })
+        ngx_compress_ffi::guard::callback(
+            Status::NGX_ERROR.0,
+            || {
+                // SAFETY: nginx supplied the live request to this callback.
+                unsafe {
+                    observability::request(
+                        request,
+                        Callback::HeaderFilter,
+                        FailureClass::RustPanic,
+                    );
+                }
+            },
+            || {
+                // SAFETY: nginx supplied the request pointer to this callback.
+                unsafe { header_filter_inner(request) }
+            },
+        )
     }
 
     // Installed into the body filter chain by the parent filter module.
@@ -64,16 +41,25 @@ impl RuntimeCallbacks for Module {
         request: *mut ngx_http_request_t,
         chain: *mut ngx_chain_t,
     ) -> ngx_int_t {
-        ngx_compress_ffi::guard::callback(Status::NGX_ERROR.0, || {
-            // SAFETY: nginx supplied both pointers to this callback.
-            unsafe { body_filter_inner(request, chain) }
-        })
+        ngx_compress_ffi::guard::callback(
+            Status::NGX_ERROR.0,
+            || {
+                // SAFETY: nginx supplied the live request to this callback.
+                unsafe {
+                    observability::request(request, Callback::BodyFilter, FailureClass::RustPanic);
+                }
+            },
+            || {
+                // SAFETY: nginx supplied both pointers to this callback.
+                unsafe { body_filter_inner(request, chain) }
+            },
+        )
     }
 }
 
 unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     // SAFETY: install() ran during postconfiguration; used for every fall-through.
-    let pass = || unsafe { filter::next_header(request) };
+    let pass = || unsafe { super::downstream::header(request) };
 
     // SAFETY: scope the official request wrapper to configuration lookup. The
     // resolved MIME reference is configuration-owned, not request-owned.
@@ -97,21 +83,55 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     let Some(snapshot) = (unsafe { prefetch_header(request) }) else {
         return pass();
     };
-    let Some(plan) = Plan::decide(&resolved, &snapshot) else {
-        return pass();
+    let plan = match Plan::decide(&resolved, &snapshot) {
+        Ok(Some(plan)) => plan,
+        Ok(None) => return pass(),
+        Err(_) => {
+            // SAFETY: request remains live and no response headers were changed.
+            unsafe {
+                observability::request(
+                    request,
+                    Callback::HeaderFilter,
+                    FailureClass::CodecInitialization,
+                );
+            }
+            return pass();
+        }
     };
+    if plan.reset_recovered {
+        // SAFETY: request remains live and a fresh codec recovered the request.
+        unsafe {
+            observability::request(request, Callback::HeaderFilter, FailureClass::CodecReset);
+        }
+    }
 
     // SAFETY: create the request wrapper only for the submit phase.
     let req = unsafe { Request::from_ngx_http_request(request) };
     // Adding Vary first makes a later Content-Encoding allocation failure safe
     // to pass through: an extra Vary is harmless, while a lone encoding is not.
     if plan.vary && req.add_header_out("Vary", "Accept-Encoding").is_none() {
+        // SAFETY: request remains live in this header callback.
+        unsafe {
+            observability::request(
+                request,
+                Callback::HeaderFilter,
+                FailureClass::OutputAllocation,
+            );
+        }
         return pass();
     }
     if req
         .add_header_out("Content-Encoding", plan.coding.as_str())
         .is_none()
     {
+        // SAFETY: request remains live in this header callback.
+        unsafe {
+            observability::request(
+                request,
+                Callback::HeaderFilter,
+                FailureClass::OutputAllocation,
+            );
+        }
         return pass();
     }
     // SAFETY: require in-memory input (materialize file buffers first, like the
@@ -120,9 +140,14 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
         if RequestCtx::install(request, plan.codec, plan.key, plan.buffer_size).is_none() {
+            observability::request(
+                request,
+                Callback::HeaderFilter,
+                FailureClass::OutputAllocation,
+            );
             return Status::NGX_ERROR.0;
         }
-        filter::next_header(request)
+        super::downstream::header(request)
     }
 }
 
@@ -140,7 +165,7 @@ unsafe fn body_filter_inner(
     };
     let Some(rc) = (unsafe { RequestCtx::with(request, run) }) else {
         // SAFETY: install() ran during postconfiguration.
-        return unsafe { filter::next_body(request, chain) };
+        return unsafe { super::downstream::body(request, chain) };
     };
     rc
 }
@@ -153,7 +178,15 @@ unsafe fn body_filter_with_ctx(
     ctx: &mut RequestCtx,
 ) -> ngx_int_t {
     // SAFETY: walks the input chain, feeding each buffer to the codec.
-    if unsafe { ctx.compress(request, chain) }.is_err() {
+    if let Err(error) = unsafe { ctx.compress(request, chain) } {
+        let class = match error {
+            CompressionFailure::OutputAllocation => FailureClass::OutputAllocation,
+            CompressionFailure::InvalidFfiState => FailureClass::InvalidFfiState,
+            CompressionFailure::InvalidCodecProgress => FailureClass::InvalidCodecProgress,
+            CompressionFailure::CodecBackend => FailureClass::CodecBackend,
+        };
+        // SAFETY: request remains live in this body callback.
+        unsafe { observability::request(request, Callback::BodyFilter, class) };
         return Status::NGX_ERROR.0;
     }
 
@@ -164,7 +197,7 @@ unsafe fn body_filter_with_ctx(
     }
 
     // SAFETY: forwards the produced output chain and reclaims consumed buffers.
-    let rc = unsafe { filter::next_body(request, ctx.out) };
+    let rc = unsafe { super::downstream::body(request, ctx.out) };
     // SAFETY: moves fully-sent buffers from busy to free and resets `out`.
     unsafe {
         ngx_chain_update_chains(

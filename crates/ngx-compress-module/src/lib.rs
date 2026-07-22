@@ -11,6 +11,7 @@ use ngx_compress_ffi::module_conf::{BuiltinGzipState, HttpLocFlag};
 mod config;
 mod filter;
 mod gzip;
+mod observability;
 mod registration;
 mod static_file;
 
@@ -73,7 +74,6 @@ enum ConfigUpdate {
     Types(Vec<String>),
 }
 
-/// NGINX module type shared as the configuration and request-context key.
 struct Module;
 
 /// Safe-core reasons why this module must leave a response untouched.

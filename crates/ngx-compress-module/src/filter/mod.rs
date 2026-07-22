@@ -2,8 +2,10 @@
 
 mod buffer;
 mod context;
+mod downstream;
 mod header;
 mod input;
+mod integration;
 mod runtime;
 mod select;
 mod worker;
@@ -15,7 +17,6 @@ use ngx_compress_core::{
 
 use crate::Resolved;
 
-/// Per-request compression state, owned through the request context slot.
 struct RequestCtx {
     codec: Box<dyn StreamingCodec>,
     key: CodecKey,
@@ -31,16 +32,21 @@ struct Snapshot {
     accept_encoding: AcceptEncoding,
 }
 
-/// Complete safe-core decision consumed by the FFI submit layer.
 struct Plan {
     codec: Box<dyn StreamingCodec>,
     key: CodecKey,
     coding: ContentCoding,
     vary: bool,
     buffer_size: usize,
+    reset_recovered: bool,
 }
 
-/// Identifies an interchangeable worker-local codec instance.
+struct SelectedCodec {
+    codec: Box<dyn StreamingCodec>,
+    key: CodecKey,
+    reset_recovered: bool,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct CodecKey {
     coding: ContentCoding,
@@ -62,6 +68,25 @@ struct InputBuffer<'a> {
     raw: &'a mut ngx_buf_t,
     bytes: &'a [u8],
     operation: Operation,
+}
+
+#[derive(Clone, Copy)]
+enum OutputFailure {
+    Allocation,
+    InvalidFfiState,
+}
+
+#[derive(Clone, Copy)]
+enum CompressionFailure {
+    OutputAllocation,
+    InvalidFfiState,
+    InvalidCodecProgress,
+    CodecBackend,
+}
+
+#[derive(Clone, Copy)]
+enum CodecSelectionFailure {
+    Initialization,
 }
 
 trait RuntimeCallbacks {
@@ -94,7 +119,7 @@ trait CompressChain {
         &mut self,
         request: *mut ngx_http_request_t,
         chain: *mut ngx_chain_t,
-    ) -> Result<(), ()>;
+    ) -> Result<(), CompressionFailure>;
 }
 
 trait InputView<'a>: Sized {
@@ -106,14 +131,17 @@ trait InputView<'a>: Sized {
 }
 
 trait HeaderDecision: Sized {
-    fn decide(resolved: &Resolved<'_>, snapshot: &Snapshot) -> Option<Self>;
+    fn decide(
+        resolved: &Resolved<'_>,
+        snapshot: &Snapshot,
+    ) -> Result<Option<Self>, CodecSelectionFailure>;
 }
 
 trait CodecSelection {
     fn choose(
         resolved: &Resolved<'_>,
         accept: &AcceptEncoding,
-    ) -> Option<(Box<dyn StreamingCodec>, CodecKey)>;
+    ) -> Result<Option<SelectedCodec>, CodecSelectionFailure>;
 }
 
 trait CodecPool: Sized {

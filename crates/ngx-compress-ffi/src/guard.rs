@@ -5,8 +5,15 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 /// The caller supplies the value NGINX should receive if internal Rust code
 /// panics. `AssertUnwindSafe` is appropriate here because the callback is being
 /// abandoned and NGINX receives an explicit failure result.
-pub fn callback<T>(fallback: T, run: impl FnOnce() -> T) -> T {
-    catch_unwind(AssertUnwindSafe(run)).unwrap_or(fallback)
+pub fn callback<T>(fallback: T, on_panic: impl FnOnce(), run: impl FnOnce() -> T) -> T {
+    if let Ok(value) = catch_unwind(AssertUnwindSafe(run)) {
+        value
+    } else {
+        // Observability must never turn a contained panic into a second
+        // unwind across the C ABI.
+        drop(catch_unwind(AssertUnwindSafe(on_panic)));
+        fallback
+    }
 }
 
 #[cfg(test)]
@@ -15,11 +22,28 @@ mod tests {
 
     #[test]
     fn returns_callback_value() {
-        assert_eq!(callback(-1, || 42), 42);
+        assert_eq!(callback(-1, || {}, || 42), 42);
     }
 
     #[test]
     fn maps_panic_to_fallback() {
-        assert_eq!(callback(-1, || panic!("boundary failure")), -1);
+        let mut observed = false;
+        assert_eq!(
+            callback(-1, || observed = true, || panic!("boundary failure")),
+            -1
+        );
+        assert!(observed);
+    }
+
+    #[test]
+    fn contains_panic_from_observer() {
+        assert_eq!(
+            callback(
+                -1,
+                || panic!("logger failure"),
+                || panic!("callback failure")
+            ),
+            -1
+        );
     }
 }

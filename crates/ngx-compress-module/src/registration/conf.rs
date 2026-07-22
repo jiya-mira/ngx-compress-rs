@@ -6,6 +6,7 @@ use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
 use ngx::ffi::{NGX_LOG_EMERG, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
 use ngx::ngx_conf_log_error;
 
+use crate::observability::{self, Callback, FailureClass};
 use crate::{ApplyConfig, CompressConfig, ConfigUpdate, DirectiveCallbacks, Module};
 
 impl DirectiveCallbacks for Module {
@@ -14,10 +15,19 @@ impl DirectiveCallbacks for Module {
         _cmd: *mut ngx_command_t,
         conf: *mut c_void,
     ) -> *mut c_char {
-        ngx_compress_ffi::guard::callback(NGX_CONF_ERROR, || {
-            // SAFETY: nginx supplies valid configuration pointers to this setter.
-            unsafe { set_directive_inner(cf, conf) }
-        })
+        ngx_compress_ffi::guard::callback(
+            NGX_CONF_ERROR,
+            || {
+                // SAFETY: nginx supplied the live configuration pointer.
+                unsafe {
+                    observability::config(cf, Callback::SetDirective, FailureClass::RustPanic);
+                }
+            },
+            || {
+                // SAFETY: nginx supplies valid configuration pointers to this setter.
+                unsafe { set_directive_inner(cf, conf) }
+            },
+        )
     }
 
     extern "C" fn set_buffers(
@@ -25,10 +35,19 @@ impl DirectiveCallbacks for Module {
         _cmd: *mut ngx_command_t,
         conf: *mut c_void,
     ) -> *mut c_char {
-        ngx_compress_ffi::guard::callback(NGX_CONF_ERROR, || {
-            // SAFETY: nginx supplies valid configuration pointers to this setter.
-            unsafe { set_buffers_inner(cf, conf) }
-        })
+        ngx_compress_ffi::guard::callback(
+            NGX_CONF_ERROR,
+            || {
+                // SAFETY: nginx supplied the live configuration pointer.
+                unsafe {
+                    observability::config(cf, Callback::SetBuffers, FailureClass::RustPanic);
+                }
+            },
+            || {
+                // SAFETY: nginx supplies valid configuration pointers to this setter.
+                unsafe { set_buffers_inner(cf, conf) }
+            },
+        )
     }
 
     extern "C" fn set_types(
@@ -36,10 +55,19 @@ impl DirectiveCallbacks for Module {
         _cmd: *mut ngx_command_t,
         conf: *mut c_void,
     ) -> *mut c_char {
-        ngx_compress_ffi::guard::callback(NGX_CONF_ERROR, || {
-            // SAFETY: nginx supplies valid configuration pointers to this setter.
-            unsafe { set_types_inner(cf, conf) }
-        })
+        ngx_compress_ffi::guard::callback(
+            NGX_CONF_ERROR,
+            || {
+                // SAFETY: nginx supplied the live configuration pointer.
+                unsafe {
+                    observability::config(cf, Callback::SetTypes, FailureClass::RustPanic);
+                }
+            },
+            || {
+                // SAFETY: nginx supplies valid configuration pointers to this setter.
+                unsafe { set_types_inner(cf, conf) }
+            },
+        )
     }
 }
 

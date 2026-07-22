@@ -3,7 +3,7 @@
 //! Server-side codec selection: honor the client's `Accept-Encoding` quality
 //! values, break ties by the default priority order, and build the codec.
 
-use super::{CodecKey, CodecPool, CodecSelection};
+use super::{CodecKey, CodecPool, CodecSelection, CodecSelectionFailure, SelectedCodec};
 use crate::Resolved;
 use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
 
@@ -22,7 +22,7 @@ impl CodecSelection for CodecKey {
     fn choose(
         resolved: &Resolved<'_>,
         accept: &AcceptEncoding,
-    ) -> Option<(Box<dyn StreamingCodec>, Self)> {
+    ) -> Result<Option<SelectedCodec>, CodecSelectionFailure> {
         let coding = PRIORITY
             .iter()
             .copied()
@@ -35,8 +35,8 @@ impl CodecSelection for CodecKey {
                     _ => best,
                 }
             })
-            .map(|(coding, _)| coding)?;
-        build(resolved, coding)
+            .map(|(coding, _)| coding);
+        coding.map_or(Ok(None), |coding| build(resolved, coding).map(Some))
     }
 }
 
@@ -60,20 +60,25 @@ fn boxed<C: StreamingCodec + 'static>(codec: C) -> Box<dyn StreamingCodec> {
 fn build(
     resolved: &Resolved<'_>,
     coding: ContentCoding,
-) -> Option<(Box<dyn StreamingCodec>, CodecKey)> {
-    let level = level_i32(resolved, coding)?;
+) -> Result<SelectedCodec, CodecSelectionFailure> {
+    let level = level_i32(resolved, coding).ok_or(CodecSelectionFailure::Initialization)?;
     let window = match coding {
         ContentCoding::Brotli => resolved.brotli.map_or(0, |(_, window)| window),
         _ => 0,
     };
     let key = CodecKey::new(coding, level, window);
-    let codec = match key.acquire() {
-        Ok(Some(codec)) => codec,
-        // A missing pooled codec or one that failed to reset is replaced before
-        // this request starts; the failed instance was already dropped.
-        Ok(None) | Err(_) => construct(resolved, coding)?,
+    let (codec, reset_recovered) = match key.acquire() {
+        Ok(Some(codec)) => (codec, false),
+        Ok(None) => (construct(resolved, coding)?, false),
+        // The poisoned pooled instance was dropped; a fresh encoder can safely
+        // recover this request while preserving a reset-failure signal.
+        Err(_) => (construct(resolved, coding)?, true),
     };
-    Some((codec, key))
+    Ok(SelectedCodec {
+        codec,
+        key,
+        reset_recovered,
+    })
 }
 
 /// The discriminating compression level for a coding's pool key.
@@ -89,8 +94,11 @@ fn level_i32(resolved: &Resolved<'_>, coding: ContentCoding) -> Option<i32> {
 }
 
 /// Builds a fresh codec (pool miss). Kept separate so `build` can prefer reuse.
-fn construct(resolved: &Resolved<'_>, coding: ContentCoding) -> Option<Box<dyn StreamingCodec>> {
-    match coding {
+fn construct(
+    resolved: &Resolved<'_>,
+    coding: ContentCoding,
+) -> Result<Box<dyn StreamingCodec>, CodecSelectionFailure> {
+    let codec = match coding {
         #[cfg(feature = "gzip")]
         ContentCoding::Gzip => resolved
             .gzip
@@ -109,5 +117,6 @@ fn construct(resolved: &Resolved<'_>, coding: ContentCoding) -> Option<Box<dyn S
             .and_then(|level| ngx_compress_codecs::Zstd::new(level).ok())
             .map(boxed),
         _ => None,
-    }
+    };
+    codec.ok_or(CodecSelectionFailure::Initialization)
 }

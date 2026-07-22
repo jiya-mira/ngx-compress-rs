@@ -3,11 +3,13 @@
 use core::{ptr, slice};
 
 use ngx::ffi::{ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t, ngx_http_request_t, ngx_palloc};
-use ngx_compress_core::{OutputAction, OutputBoundary, OutputProvider, OutputUse, drive_input};
+use ngx_compress_core::{
+    DriveError, OutputAction, OutputBoundary, OutputProvider, OutputUse, StepError, drive_input,
+};
 
 use crate::registration::ngx_http_compress_module;
 
-use super::{CompressChain, InputBuffer, InputView, RequestCtx};
+use super::{CompressChain, CompressionFailure, InputBuffer, InputView, OutputFailure, RequestCtx};
 
 /// A validated, callback-scoped view of one writable nginx output buffer.
 struct OutputBuffer<'a> {
@@ -23,15 +25,18 @@ impl<'a> OutputBuffer<'a> {
     /// Non-empty `last..end` must belong to one live writable allocation for
     /// `'a`, and this borrow must be the only access to that region.
     // SAFETY: the caller must uphold the allocation, uniqueness, and lifetime contract above.
-    unsafe fn new(raw: &'a mut ngx_buf_t) -> Result<Self, ()> {
+    unsafe fn new(raw: &'a mut ngx_buf_t) -> Result<Self, OutputFailure> {
         let last = raw.last;
         let end = raw.end;
         let capacity = if last == end {
             &mut []
         } else {
-            let len = end.addr().checked_sub(last.addr()).ok_or(())?;
+            let len = end
+                .addr()
+                .checked_sub(last.addr())
+                .ok_or(OutputFailure::InvalidFfiState)?;
             if last.is_null() {
-                return Err(());
+                return Err(OutputFailure::InvalidFfiState);
             }
             // SAFETY: the caller guarantees that validated last..end is one
             // live, uniquely borrowed writable allocation.
@@ -44,9 +49,9 @@ impl<'a> OutputBuffer<'a> {
         self.capacity
     }
 
-    fn commit(&mut self, produced: usize, boundary: OutputBoundary) -> Result<(), ()> {
+    fn commit(&mut self, produced: usize, boundary: OutputBoundary) -> Result<(), OutputFailure> {
         if produced > self.capacity.len() {
-            return Err(());
+            return Err(OutputFailure::InvalidFfiState);
         }
         // SAFETY: `produced` was validated against this view's capacity, which
         // is the live allocation beginning at raw.last.
@@ -69,7 +74,7 @@ struct NgxOutput<'a> {
 }
 
 impl OutputProvider for NgxOutput<'_> {
-    type Error = ();
+    type Error = OutputFailure;
 
     fn with_output<T>(
         &mut self,
@@ -80,9 +85,9 @@ impl OutputProvider for NgxOutput<'_> {
         unsafe {
             let link = free_buf(self.request, self.free, self.buffer_size);
             if link.is_null() {
-                return Err(());
+                return Err(OutputFailure::Allocation);
             }
-            let buf = (*link).buf.as_mut().ok_or(())?;
+            let buf = (*link).buf.as_mut().ok_or(OutputFailure::InvalidFfiState)?;
             let mut output = OutputBuffer::new(buf)?;
             let used = use_output(output.capacity());
             match used.action {
@@ -109,13 +114,16 @@ impl CompressChain for RequestCtx {
         &mut self,
         request: *mut ngx_http_request_t,
         mut chain: *mut ngx_chain_t,
-    ) -> Result<(), ()> {
+    ) -> Result<(), CompressionFailure> {
         while !chain.is_null() {
             // SAFETY: `chain` is a valid link and its buffer remains live while the
             // callback-scoped view is used.
             let input = unsafe {
-                let buf = (*chain).buf.as_mut().ok_or(())?;
-                InputBuffer::new(buf)?
+                let buf = (*chain)
+                    .buf
+                    .as_mut()
+                    .ok_or(CompressionFailure::InvalidFfiState)?;
+                InputBuffer::new(buf).map_err(|()| CompressionFailure::InvalidFfiState)?
             };
             let outcome = {
                 let mut output = NgxOutput {
@@ -130,7 +138,18 @@ impl CompressChain for RequestCtx {
                     input.bytes(),
                     &mut output,
                 )
-                .map_err(|_| ())?
+                .map_err(|error| match error {
+                    DriveError::Step(StepError::Codec(_)) => CompressionFailure::CodecBackend,
+                    DriveError::Step(StepError::InvalidProgress(_)) => {
+                        CompressionFailure::InvalidCodecProgress
+                    }
+                    DriveError::Output(OutputFailure::Allocation) => {
+                        CompressionFailure::OutputAllocation
+                    }
+                    DriveError::Output(OutputFailure::InvalidFfiState) => {
+                        CompressionFailure::InvalidFfiState
+                    }
+                })?
             };
             self.done = outcome.finished;
 

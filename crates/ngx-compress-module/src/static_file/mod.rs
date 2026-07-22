@@ -16,6 +16,7 @@ use ngx::ffi::{
 use ngx::http::{HttpModuleLocationConf, Request};
 use ngx_compress_core::{StaticMode, StaticRequestFacts, static_candidates};
 
+use crate::observability::{self, Callback, FailureClass};
 use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig, StaticModule};
 
 const DECLINED: ngx_int_t = Status::NGX_DECLINED.0;
@@ -53,10 +54,19 @@ impl StaticModule for Module {
 
 /// Content-phase entry point.
 unsafe extern "C" fn handler(request: *mut ngx_http_request_t) -> ngx_int_t {
-    ngx_compress_ffi::guard::callback(ERROR, || {
-        // SAFETY: nginx passes a valid request to a content-phase handler.
-        unsafe { serve(request) }
-    })
+    ngx_compress_ffi::guard::callback(
+        ERROR,
+        || {
+            // SAFETY: nginx supplied the live request to this callback.
+            unsafe {
+                observability::request(request, Callback::StaticHandler, FailureClass::RustPanic);
+            }
+        },
+        || {
+            // SAFETY: nginx passes a valid request to a content-phase handler.
+            unsafe { serve(request) }
+        },
+    )
 }
 
 // SAFETY: `request` must remain valid for the content-phase callback.

@@ -10,16 +10,20 @@ use super::{CodecKey, CodecPool, RequestContext, RequestCtx};
 use crate::Module;
 
 unsafe extern "C" fn cleanup(data: *mut c_void) {
-    ngx_compress_ffi::guard::callback((), || {
-        if !data.is_null() {
-            // SAFETY: `data` is the RequestCtx pointer allocated in install_ctx.
-            let ctx = *unsafe { Box::from_raw(data.cast::<RequestCtx>()) };
-            // Return the codec to this worker's pool for reuse; `reset` on the next
-            // acquire clears its state. The raw chain pointers are pool-owned and
-            // need no drop.
-            ctx.key.release(ctx.codec);
-        }
-    });
+    ngx_compress_ffi::guard::callback(
+        (),
+        || {},
+        || {
+            if !data.is_null() {
+                // SAFETY: `data` is the RequestCtx pointer allocated in install_ctx.
+                let ctx = *unsafe { Box::from_raw(data.cast::<RequestCtx>()) };
+                // Return the codec to this worker's pool for reuse; `reset` on the next
+                // acquire clears its state. The raw chain pointers are pool-owned and
+                // need no drop.
+                ctx.key.release(ctx.codec);
+            }
+        },
+    );
 }
 
 // SAFETY: `request` must be valid; invoked once per request by the header filter.
