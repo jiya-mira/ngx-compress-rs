@@ -7,7 +7,7 @@ use ngx_compress_core::{
     DriveError, OutputAction, OutputBoundary, OutputProvider, OutputUse, StepError, drive_input,
 };
 
-use crate::registration::ngx_http_compress_module;
+use crate::{fault, fault::Point, registration::ngx_http_compress_module};
 
 use super::{CompressChain, CompressionFailure, InputBuffer, InputView, OutputFailure, RequestCtx};
 
@@ -188,6 +188,9 @@ unsafe fn free_buf(
     free: &mut *mut ngx_chain_t,
     buffer_size: usize,
 ) -> *mut ngx_chain_t {
+    if fault::take(Point::OutputAllocation) {
+        return ptr::null_mut();
+    }
     // SAFETY: pool is valid; ngx_chain_get_free_buf reuses or allocates a link.
     unsafe {
         let pool = (*request).pool;

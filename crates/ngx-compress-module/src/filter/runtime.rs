@@ -108,7 +108,7 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
 
     // SAFETY: create the request wrapper only for the submit phase.
     let req = unsafe { Request::from_ngx_http_request(request) };
-    if fault::take(Point::OutputAllocation) {
+    if fault::take(Point::HeaderAllocation) {
         // SAFETY: request remains live and no response headers were changed.
         unsafe {
             observability::request(

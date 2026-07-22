@@ -97,7 +97,7 @@ fault_case() {
             compressed_request
             compressed_request
             ;;
-        downstream)
+        output_allocation|downstream)
             if curl -s --noproxy '*' --max-time 3 -H 'Accept-Encoding: gzip' \
                 -D "$RUN/fault-headers" -o "$RUN/fault-body" \
                 "http://127.0.0.1:$PORT/body.txt"; then
@@ -138,8 +138,9 @@ lifecycle() {
     master_pid=$(cat "$RUN/nginx.pid")
     # Linux exposes direct children without needing procps in the test image.
     children=$(cat "/proc/$master_pid/task/$master_pid/children")
-    set -- $children
-    [ "$#" -eq 4 ] || { echo "FAIL [lifecycle]: expected 4 workers, found $#"; return 1; }
+    worker_count=$(printf '%s\n' "$children" | awk '{ print NF }')
+    [ "$worker_count" -eq 4 ] \
+        || { echo "FAIL [lifecycle]: expected 4 workers, found $worker_count"; return 1; }
     concurrent_batch
 
     log '20 graceful reloads under active traffic'
@@ -191,6 +192,7 @@ NGX_COMPRESS_TEST_FAULTS=1 make >/tmp/make-lifecycle.log 2>&1 \
 log 'test-only fault injection'
 fault_case codec_initialization codec_initialization
 fault_case codec_reset codec_reset
+fault_case header_allocation output_allocation
 fault_case output_allocation output_allocation
 fault_case downstream downstream
 

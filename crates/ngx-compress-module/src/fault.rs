@@ -4,6 +4,7 @@
 pub enum Point {
     CodecInitialization,
     CodecReset,
+    HeaderAllocation,
     OutputAllocation,
     Downstream,
 }
@@ -21,6 +22,7 @@ pub fn take(point: Point) -> bool {
             .and_then(|value| match value.as_str() {
                 "codec_initialization" => Some(Point::CodecInitialization),
                 "codec_reset" => Some(Point::CodecReset),
+                "header_allocation" => Some(Point::HeaderAllocation),
                 "output_allocation" => Some(Point::OutputAllocation),
                 "downstream" => Some(Point::Downstream),
                 _ => None,

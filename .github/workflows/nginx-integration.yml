@@ -51,6 +51,12 @@ jobs:
           docker run --rm -v "$PWD:/repo" ngx-compress-build:ci \
             sh /repo/docker/test-nginx.sh 2>&1 | tee artifacts/test-nginx.log
 
+      - name: Fault injection, reload, and five-minute soak
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:ci \
+            sh /repo/docker/lifecycle-tests.sh 2>&1 | tee artifacts/lifecycle.log
+
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
