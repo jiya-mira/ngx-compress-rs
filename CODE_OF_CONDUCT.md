@@ -31,11 +31,15 @@ of the behavior, and may skip intermediate steps for serious incidents.
 
 ## Reporting
 
-Report a possible violation confidentially through the repository's
-[private reporting channel](https://github.com/jiya-mira/ngx-compress-rs/security/advisories/new)
-and identify it as a Code of Conduct report. Include relevant links or records
-without unnecessarily exposing personal information. Maintainers will limit
-report details to the people needed to review and address the matter.
+Report a possible violation privately using contact information published by
+the [`jiya-mira` organization](https://github.com/jiya-mira) or the
+[`@Angleline` maintainer](https://github.com/Angleline). If no private contact
+method is available, open a minimal issue mentioning `@Angleline` and request a
+private follow-up; do not include incident details in that public issue.
+
+Include relevant links or records without unnecessarily exposing personal
+information. Maintainers will limit report details to the people needed to
+review and address the matter.
 
 ## Attribution
 

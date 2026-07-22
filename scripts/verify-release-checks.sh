@@ -1,5 +1,5 @@
 #!/bin/sh
-# Private-repository substitute for branch protection. Checks the exact commit.
+# Verify every required check on the exact commit before tagging a release.
 set -eu
 
 sha=${1:?target commit SHA is required}

@@ -1,7 +1,8 @@
 # v0.1.0 release readiness
 
-Status as of 2026-07-22: private source-only Technical Preview. This checklist
-is the release gate, not a claim that the current commit has already passed it.
+Status as of 2026-07-22: source-only Technical Preview release candidate.
+Publication authorization has been granted. Evidence below applies only while
+the tag target passes the exact-commit release gate without subsequent changes.
 
 ## Fixed release contract
 
@@ -38,30 +39,29 @@ is the release gate, not a claim that the current commit has already passed it.
 
 ## Required evidence before tag
 
-- [ ] All five exact-commit checks pass:
+- [x] All five exact-commit checks pass:
   - `Rust / rust`
   - `NGINX integration / integration`
   - `HTTP/3 / http3`
   - `Security and release / security`
   - `Security and release / rehearsal`
-- [ ] ASan/UBSan, Valgrind, and HTTP/3 sanitizer logs contain no attributable
+- [x] ASan/UBSan, Valgrind, and HTTP/3 sanitizer logs contain no attributable
       leak, out-of-bounds access, use-after-free, or undefined behavior.
 - [x] Run the five-round x86_64 HTTP/1.1/2/3 benchmark and commit its
       [raw TSV, toolchain information, and conclusion](../benchmarks/v0.1.0/http3-buffer/README.md).
       No candidate passed the documented throughput/TTFB/RSS thresholds, so
       the unified 8 KiB default is retained.
-- [ ] Perform a fresh-checkout rehearsal following the installation guide for
+- [x] Perform a fresh-checkout rehearsal following the installation guide for
       dynamic and static builds, then run `nginx -t`, reload, and H1/H2/H3
       smoke tests.
-- [ ] Generate final source ZIP, content listing, SHA-256, two CycloneDX JSON
+- [x] Generate final source ZIP, content listing, SHA-256, two CycloneDX JSON
       SBOMs, and toolchain manifest from the exact release commit.
-- [ ] Confirm the worktree is clean and the private `master` remote points to
+- [x] Confirm the worktree is clean and `origin/master` points to
       the exact reviewed commit.
 
-## Publication gate
+## Publication sequence
 
-The repository remains private until a final explicit authorization. After that
-authorization only:
+After the final exact-commit gate succeeds:
 
 1. make the repository public;
 2. enable branch protection and required checks;

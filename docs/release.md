@@ -7,7 +7,7 @@ tagging, and GitHub Release creation require explicit final authorization.
 
 1. Confirm NGINX 1.30.4 is still the latest 1.30 stable patch. If not, update
    every pin and checksum and rerun all checks.
-2. Require a clean worktree and an exact private remote commit:
+2. Require a clean worktree and an exact remote commit:
 
 ```sh
 git status --short
@@ -15,7 +15,7 @@ git rev-parse HEAD
 git rev-parse origin/master
 ```
 
-1. Run the private exact-commit gate:
+1. Run the exact-commit gate:
 
 ```sh
 gh workflow run security-release.yml -f target_sha="$(git rev-parse HEAD)"

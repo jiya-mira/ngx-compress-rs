@@ -3,3 +3,6 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/jiya-mira/ngx-compress-rs/security/advisories/new
     about: Report suspected vulnerabilities privately; do not open a public issue.
+  - name: Code of Conduct concern
+    url: https://github.com/Angleline
+    about: Use a private contact method published by the maintainer or organization.

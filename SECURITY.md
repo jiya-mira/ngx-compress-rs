@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-Until v0.1.0 is published, the private `master` branch is a Technical Preview
-and receives security fixes. After publication, the latest `0.1.x` release is
-supported; older preview commits and unverified NGINX build signatures are not.
+The latest published `0.1.x` release is supported. Before a release is
+available, the latest `master` commit is treated as a Technical Preview. Older
+preview commits and unverified NGINX build signatures are not supported.
 
 ## Reporting a vulnerability
 
