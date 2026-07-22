@@ -112,6 +112,7 @@ $load
 daemon off;
 worker_processes 2;
 worker_shutdown_timeout 15s;
+quic_bpf on;
 error_log $RUN/logs/error.log info;
 pid $RUN/nginx.pid;
 events { worker_connections 512; }

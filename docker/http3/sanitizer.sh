@@ -98,6 +98,7 @@ load_module $SRC/objs/ngx_http_compress_module.so;
 daemon off;
 worker_processes 1;
 worker_shutdown_timeout 5s;
+quic_bpf on;
 error_log $RUN/logs/error.log info;
 pid $RUN/nginx.pid;
 events { worker_connections 256; }

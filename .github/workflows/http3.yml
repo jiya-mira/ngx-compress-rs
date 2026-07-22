@@ -40,13 +40,13 @@ jobs:
       - name: Dynamic/static HTTP/3 matrix
         run: |
           set -o pipefail
-          docker run --rm -v "$PWD:/repo" ngx-compress-http3:ci \
+          docker run --rm --privileged -v "$PWD:/repo" ngx-compress-http3:ci \
             sh /repo/docker/http3/test.sh 2>&1 | tee artifacts/http3/integration.log
 
       - name: HTTP/3 sanitizer
         run: |
           set -o pipefail
-          docker run --rm -v "$PWD:/repo" ngx-compress-http3:ci sh -c '
+          docker run --rm --privileged -v "$PWD:/repo" ngx-compress-http3:ci sh -c '
             rustup toolchain install nightly-2026-07-01 --profile minimal
             RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/http3/sanitizer.sh
           ' 2>&1 | tee artifacts/http3/sanitizer.log

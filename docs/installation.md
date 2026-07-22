@@ -227,6 +227,8 @@ make -j"$(getconf _NPROCESSORS_ONLN)"
 ```
 
 ```nginx
+quic_bpf on;
+
 server {
     listen 443 ssl;
     listen 443 quic reuseport;
@@ -249,3 +251,7 @@ curl --http3-only --fail --show-error \
 NGINX HTTP/3 is experimental upstream. The v0.1.0 contract covers ordinary
 QUIC/HTTP/3 only and excludes 0-RTT. The repository's pinned client uses curl's
 non-experimental ngtcp2 backend and asserts the negotiated protocol is HTTP/3.
+The supported Linux baseline enables `quic_bpf on` so `reuseport` keeps an
+existing QUIC connection routed to its worker across a graceful reload. This
+native NGINX directive requires Linux 5.7 or newer and belongs in the `main`
+context, outside the `http` block.
