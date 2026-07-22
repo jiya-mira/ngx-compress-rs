@@ -4,7 +4,7 @@
 
 ```text
 Nginx worker
-  -> NGINX dynamic module ABI
+  -> NGINX static registration or dynamic module ABI
   -> nginx/ngx-rust bindings and Rust FFI boundary
   -> negotiation and policy
   -> typed streaming state machine
@@ -12,7 +12,11 @@ Nginx worker
   -> Nginx output chain
 ```
 
-The module is implemented as a Rust dynamic library and exports the symbols expected by NGINX. The default integration path uses the official [`nginx/ngx-rust`](https://github.com/nginx/ngx-rust) project (`ngx` and `nginx-sys`) instead of maintaining a parallel hand-written C adapter. A C shim remains a fallback only if a verified ABI or toolchain limitation requires one.
+The module is built through NGINX's native static or dynamic module flow. The
+default integration path uses the official [`nginx/ngx-rust`](https://github.com/nginx/ngx-rust)
+project (`ngx` and `nginx-sys`) instead of maintaining a parallel hand-written
+C adapter. A C shim remains a fallback only if a verified ABI or toolchain
+limitation requires one.
 
 The Rust boundary registers directives and header/body filters and converts raw NGINX pointers into request-scoped views. Required `unsafe` code belongs only in this boundary and must validate lengths, nullability, ownership, and lifetime assumptions before constructing slices. No panic may unwind across an `extern "C"` callback.
 
@@ -74,7 +78,12 @@ No mature, reusable, public Rust compression body-filter implementation was foun
 2. Generate bindings against the exact NGINX source tree and configure arguments used for the target binary. NGINX exposes conditionally compiled structures directly to modules, so `--with-compat` is not a substitute for testing the exact production build.
 3. Use `ngx-rust` wrappers where they preserve NGINX semantics; use `nginx-sys` only inside a narrow filter boundary for APIs that have no high-level wrapper.
 4. Store non-trivial per-request Rust state through the request `ctx` and register pool cleanup so codec destructors run. Raw pool allocation alone is insufficient for Rust values that own resources.
-5. Register header and body filters during post-configuration, retain the next filter pointers, and test the module's position relative to gzip, gunzip, copy, chunked, range, and third-party filters. NGINX documents that [dynamic-module order is significant for filters](https://blog.nginx.org/blog/nginx-dynamic-modules-how-they-work).
+5. Register header and body filters during post-configuration, retain the next
+   filter pointers, and test the module's position relative to gzip, gunzip,
+   copy, chunked, range, SSI, and addition. Dynamic builds declare
+   `ngx_module_order`; static builds reorder `HTTP_FILTER_MODULES` after module
+   registration so both paths run after SSI/postpone assembly. NGINX documents
+   that [dynamic-module order is significant for filters](https://blog.nginx.org/blog/nginx-dynamic-modules-how-they-work).
 6. Model NGINX backpressure explicitly. Input buffers not fully accepted downstream remain request-owned and are retried through saved/free/busy/output chains; `NGX_AGAIN` must never be treated as success or data consumption.
 7. Put a non-unwinding error boundary around every callback exported to C. Invalid state, allocation failure, or codec failure must map to a documented NGINX status and an error log with request context.
 
@@ -83,7 +92,25 @@ No mature, reusable, public Rust compression body-filter implementation was foun
 - `ngx-rust` has useful buffer and pool primitives but no public high-level body-filter abstraction. The M1 identity filter must prove chain ownership and backpressure before any codec is integrated.
 - The SDK declares breaking API changes possible. Pinning, dependency update policy, and a small compatibility layer owned by this project are required.
 - Dynamic module compatibility depends on NGINX version, configure flags, compiler/ABI, and distribution patches. Release artifacts need an explicit compatibility matrix; a single universal `.so` is not a goal.
-- Filter order differs between static and dynamic builds. Both modes require integration tests if both are supported; the first release should prefer dynamic builds only.
+- Filter order differs between static and dynamic registration. v0.1.0 supports
+  both only because generated `objs/ngx_modules.c` order and SSI/addition output
+  are checked directly in the release matrix.
+
+## v0.1.0 support boundary
+
+- Source-only Technical Preview; no universal `.so`.
+- NGINX 1.30.4, Debian Bookworm, Linux x86_64.
+- Dynamic/static linking crossed with vendored/system codec backends.
+- HTTP/1.1, HTTP/2, and ordinary HTTP/3; NGINX HTTP/3 remains experimental and
+  0-RTT is excluded.
+- `gzip`, `deflate`, `br`, `zstd`, and `identity`; dictionary transports remain
+  M4.
+
+Built-in `gzip on` plus effective runtime compression is handled fail-closed.
+The FFI boundary discovers the public module/command metadata and copies only a
+typed `BuiltinGzipState`; no private gzip configuration structure is mirrored.
+Configuration scanning emits warnings, and request-time validation disables
+runtime and sidecar paths if the effective state conflicts.
 
 ## Project naming
 

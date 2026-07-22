@@ -41,9 +41,10 @@ Runs the streaming state machine over the NGINX buffer chain:
 
 ## 2. Crate structure
 
-The final artifact is a single NGINX dynamic module (`.so`, one `cdylib`).
-Codecs compiled into it are selected at runtime by configuration; there is no
-plugin-within-plugin loading. "On-demand" therefore means build-time trimming,
+The Rust artifact is linked into one NGINX module, dynamically (`.so`) or
+statically into the NGINX executable. Codecs compiled into it are selected at
+runtime by configuration; there is no plugin-within-plugin loading. "On-demand"
+therefore means build-time trimming,
 and in Rust that is done with **Cargo features (optional dependencies)**, not
 with one crate per algorithm. Splitting a codec into its own crate solves a
 different problem — isolation, independent testing/versioning, and third-party
@@ -99,10 +100,12 @@ features.
 
 These are hard rules, not defaults.
 
-1. **The module owns response compression.** Documentation requires
-   `gzip off;`. As defense in depth, the header filter skips any response that
-   already carries `Content-Encoding` (upstream already compressed, or the
-   built-in gzip filter ran first). The module never double-compresses.
+1. **Compression ownership is fail-closed.** If built-in `gzip on` and runtime
+   `compress` are both effective, configuration validation warns and this
+   module disables both runtime and sidecar handling for that location. A child
+   `gzip off` is honored, while `compress off` plus sidecar-only handling is not
+   a conflict. An existing `Content-Encoding` remains an independent second
+   defense. The module never double-compresses.
 2. **Unknown `Content-Length` (chunked upstream)** is compressed as a stream.
    `compress_min_length` only applies when the length is known, matching NGINX
    gzip behavior.
@@ -110,9 +113,9 @@ These are hard rules, not defaults.
    reset, not dropped, to avoid rebuilding a codec context per request. Codec
    state is never shared between workers or requests.
 4. **No panic crosses the C ABI.** Every `extern "C"` callback has a
-   non-unwinding error boundary that maps invalid state, allocation failure, or
-   codec failure to a documented NGINX status plus an error log with request
-   context.
+   non-unwinding error boundary. Logs use stable, payload-free key/value classes
+   (`module`, `callback`, `class`) and never include panic payloads, URIs,
+   headers, or response data.
 
 ## 4. Content negotiation and server priority
 
@@ -217,8 +220,7 @@ ceilings.
   `deflate` is never enabled by a preset (clients rarely request raw deflate) —
   turn it on explicitly if needed.
 - **Stability:** tier *names* express intent, so re-tuning a tier's numbers after
-  benchmarking is not a breaking change; the concrete values are placeholders
-  until the M3 benchmark calibrates them.
+  later evidence is not a breaking change. The table records the v0.1.0 values.
 
 ### 4.3 Per-codec parameters
 
@@ -351,9 +353,9 @@ Harness: **Test::Nginx** (the official Perl framework, matching
 a pinned NGINX source tree.
 
 Current coverage includes compression round-trips, dynamic/static link modes,
-filter order for dynamic SSI, backpressure, client disconnect, truncated and
-chunked upstream responses, and HTTP/1.1 / HTTP/2 interoperability. Reload and
-HTTP/3 remain release-matrix work.
+SSI/addition order, gzip conflict inheritance, filter coexistence, backpressure,
+client disconnect, truncated/chunked upstream responses, repeated reloads, and
+HTTP/1.1, HTTP/2, and HTTP/3 interoperability.
 
 ### Docker build-and-integration environment (static + dynamic)
 
@@ -368,12 +370,9 @@ filter order differs between them:
 3. **Smoke** — `curl -H 'Accept-Encoding: zstd,br,gzip'`, assert the correct
    `Content-Encoding`, decode the body with the system `zstd`/`brotli`/`gzip`
    CLI back to the original, and assert `Vary` is present.
-4. **Edge tests** — the supported dynamic target exercises filter order,
-   backpressure, client disconnect, truncated/chunked upstream responses, and
-   HTTP/2. Both link modes run the ordinary compression and sidecar smoke suite.
-
-The dynamic build is the first release target; static support is validated in
-parallel but the release matrix in architecture.md prefers dynamic modules.
+4. **Edge tests** — exercise filter order, backpressure, client disconnect,
+   truncated/chunked upstream responses, reload, HTTP/2, and HTTP/3. Both link
+   modes run ordinary compression, sidecar, SSI, and addition validation.
 
 ### L3 — Fuzzing and conformance (ongoing)
 
@@ -431,23 +430,14 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 
 ## 8. Deferred / open items
 
-- HTTP/3 (QUIC) interop test — deferred. The body filter is transport-agnostic
-  and HTTP/2 interop is verified in `docker/edge-tests.sh`; a full HTTP/3 test
-  needs `--with-http_v3_module`, TLS certificates, and a QUIC-capable client,
-  which is disproportionate for the marginal added coverage. The L0 property
-  tests, L2 Test::Nginx suite (`t/`), L3 fuzz scaffolding (`fuzz/`), and the
-  edge suite (backpressure, client disconnect, truncated upstream, HTTP/2,
-  no-panic) are in place.
-- Static-build subrequest filter position — known limitation. The body filter is
-  ordered at the gzip slot (after `postpone_filter`) via `ngx_module_order` so
-  subrequest-assembled responses (SSI includes, `add_after_body`) are compressed
-  after assembly. NGINX honors this for **dynamic** modules (re-sorted at load
-  time), the supported target — verified by an SSI round-trip test. **Static**
-  builds keep the compile-time array order, which places the filter above
-  `postpone`, so a static build compresses subrequest responses at the wrong
-  point (non-subrequest responses are correct in both modes; the build test
-  records this as a documented caveat, not a failure). Consistent with the
-  design's dynamic-first stance. Revisit if static SSI support is required.
+- HTTP/3 is included in v0.1.0 through a dedicated pinned NGINX/OpenSSL/
+  ngtcp2/nghttp3/curl image. Every request uses `--http3-only`; fallback is a
+  test failure. Upstream NGINX HTTP/3 remains experimental and 0-RTT is out of
+  scope.
+- Static SSI/subrequest ordering is resolved by reordering NGINX's generated
+  `HTTP_FILTER_MODULES` after registration. Dynamic order remains declared with
+  `ngx_module_order`. Generated `objs/ngx_modules.c`, SSI, and addition output
+  are release-blocking checks for both modes.
 - Static precompressed serving (`.br` / `.gz` / `.zst` sidecar) — M3, done. A
   content-phase handler (`compress_static on|off|always`, §4.7) that serves a
   precompressed sidecar file when one exists and the client accepts it, like

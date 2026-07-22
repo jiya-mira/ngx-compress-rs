@@ -1,7 +1,9 @@
 # Installation
 
 `ngx-compress-rs` is distributed as source during the technical-preview phase.
-Build the dynamic module against the exact NGINX build that will load it.
+The v0.1.0 supported baseline is NGINX 1.30.4 on Debian Bookworm/Linux x86_64.
+Build dynamic or static against the exact NGINX build signature that will run
+it; the release does not include a generic `.so`.
 
 ## Compatibility rule
 
@@ -94,6 +96,21 @@ Use the vendored backend unless the deployment requires distribution-managed
 shared libraries. A system-backend artifact also depends on compatible runtime
 versions of those shared libraries.
 
+## Build statically
+
+Use the target NGINX configure arguments and append `--add-module`:
+
+```sh
+NGX_COMPRESS_BACKEND=vendored ./configure \
+  <the target nginx configure arguments> \
+  --add-module="$MODULE_DIR"
+make -j"$(getconf _NPROCESSORS_ONLN)"
+```
+
+Use `NGX_COMPRESS_BACKEND=system` for the system codec backend. The resulting
+`objs/nginx` contains the module; do not add `load_module`. The build hook
+places the filter after SSI/postpone assembly in both static and dynamic modes.
+
 ## Install and load
 
 Copy the module to the module directory used by the target NGINX installation.
@@ -121,6 +138,25 @@ nginx -t
 
 Then use the deployment's normal graceful-reload mechanism. Keep the previous
 module artifact available so the deployment can be rolled back atomically.
+
+## Built-in gzip coexistence
+
+Do not enable runtime `compress` in an effective location that also inherits or
+sets built-in `gzip on`. During `nginx -t`, startup, and reload the module emits
+one warning for each conflicting effective configuration. At request time it
+fails closed: it creates no codec, changes no response header or body, and also
+declines sidecars. Built-in gzip continues normally.
+
+A child `gzip off` removes the conflict for that child. Sidecar-only operation
+is also valid:
+
+```nginx
+location /assets/ {
+    gzip on;
+    compress off;
+    compress_static on;
+}
+```
 
 ## Manual configuration
 
@@ -175,10 +211,41 @@ tool and compare it with an identity response.
 Also verify at least one response that must remain uncompressed, such as an
 unsupported MIME type or a body below `compress_min_length`.
 
-## Known limitation
+## HTTP/3
 
-The first release supports dynamically loaded modules. A statically linked
-module compresses ordinary responses correctly, but NGINX's compile-time filter
-order can place it incorrectly for SSI/subrequest-assembled responses. Use the
-dynamic module whenever SSI, `add_after_body`, or similar subrequest assembly is
-involved.
+HTTP/3 uses the same module build and request path. Build NGINX with the SSL,
+HTTP/2, and HTTP/3 modules, then configure a TLS 1.3 QUIC listener:
+
+```sh
+./configure \
+  <the target nginx configure arguments> \
+  --with-http_ssl_module \
+  --with-http_v2_module \
+  --with-http_v3_module \
+  --add-module="$MODULE_DIR"
+make -j"$(getconf _NPROCESSORS_ONLN)"
+```
+
+```nginx
+server {
+    listen 443 ssl;
+    listen 443 quic reuseport;
+    ssl_protocols TLSv1.3;
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/private-key.pem;
+    add_header Alt-Svc 'h3=":443"; ma=86400' always;
+
+    compress balanced;
+}
+```
+
+Verify with a QUIC-capable client that forbids fallback:
+
+```sh
+curl --http3-only --fail --show-error \
+  -H 'Accept-Encoding: zstd, br, gzip' https://example.test/resource
+```
+
+NGINX HTTP/3 is experimental upstream. The v0.1.0 contract covers ordinary
+QUIC/HTTP/3 only and excludes 0-RTT. The repository's pinned client uses curl's
+non-experimental ngtcp2 backend and asserts the negotiated protocol is HTTP/3.

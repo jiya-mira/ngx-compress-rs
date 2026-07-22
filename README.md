@@ -4,9 +4,9 @@
 on top of the official [`nginx/ngx-rust`](https://github.com/nginx/ngx-rust)
 integration layer.
 
-The project is currently a **technical preview**. Its first supported deployment
-target is a dynamically loaded NGINX module built from source against the exact
-NGINX build signature used in production.
+The project is a source-only **v0.1.0 Technical Preview**. It supports dynamic
+and static builds, but every build must use the exact NGINX source and configure
+signature of the target deployment. No universal binary module is distributed.
 
 ## Features
 
@@ -20,6 +20,7 @@ NGINX build signature used in production.
 - Worker-local codec reuse and streaming progress validation.
 - A narrow NGINX FFI boundary around a safe Rust protocol and policy core.
 - Vendored and system-library codec backends.
+- HTTP/1.1, HTTP/2, and experimental NGINX HTTP/3 interoperability.
 
 Compression Dictionary Transport (`dcb` and `dcz`) is intentionally deferred to
 a later milestone.
@@ -31,13 +32,16 @@ NGINX version, configure arguments, compiler/ABI, and distribution patches as
 the target binary. `--with-compat` helps with compatible builds but does not make
 one `.so` universal.
 
-The current integration environment validates NGINX 1.30.4 on Debian Bookworm.
-Other NGINX build signatures should be treated as unverified until exercised in
-the release matrix.
+The v0.1.0 support baseline is **NGINX 1.30.4, Debian Bookworm, Linux x86_64**,
+using either dynamic/static linking and vendored/system codec libraries. Other
+versions, distributions, architectures, and signatures are unverified. HTTP/3
+inherits NGINX upstream's experimental status and does not include 0-RTT.
 
-Dynamic loading is the supported target for the first release. Static builds
-work for ordinary responses, but static SSI/subrequest response compression has
-a documented filter-order limitation; use the dynamic module for those cases.
+If built-in `gzip on` and runtime `compress` are both effective in a location,
+`nginx -t`, startup, or reload emits one warning and this module fails closed
+for that location: runtime compression and sidecar handling are both disabled.
+The built-in gzip filter remains authoritative. `compress off` with only
+`compress_static on` is not a conflict.
 
 ## Installation
 
@@ -45,10 +49,11 @@ Build and install the module from source by following
 [docs/installation.md](docs/installation.md). The short form is:
 
 1. Obtain the exact NGINX source and configure arguments for the target binary.
-2. Configure NGINX with `--with-compat` and
+2. For a dynamic build, configure NGINX with `--with-compat` and
    `--add-dynamic-module=/path/to/ngx-compress-rs/crates/ngx-compress-module`.
-3. Build `ngx_http_compress_module.so`, install it in the target NGINX module
-   directory, and add a top-level `load_module` directive.
+   For a static build, use `--add-module` with the same exact signature.
+3. Build and install the resulting NGINX/module artifact. Dynamic builds add a
+   top-level `load_module`; static builds do not.
 4. Run `nginx -t` before reloading NGINX.
 
 ## Configuration
@@ -100,6 +105,10 @@ docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
   sh /repo/docker/edge-tests.sh
 docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
   sh /repo/docker/verify-backends.sh
+
+docker build -t ngx-compress-http3:latest -f docker/http3/Dockerfile .
+docker run --rm -v "$PWD:/repo" ngx-compress-http3:latest \
+  sh /repo/docker/http3/test.sh
 ```
 
 The root workspace uses `default-members` because the FFI and module crates need
@@ -112,6 +121,8 @@ an NGINX source/configure tree. Do not replace the host-side commands above with
 - [Detailed module design](docs/design.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
 - [Release-readiness checklist](docs/release-readiness.md)
+- [Release, tag, and rollback runbook](docs/release.md)
+- [v0.1.0 release notes](docs/releases/v0.1.0.md)
 
 The governing rule is `NGINX/codec FFI -> validated prefetch -> safe Rust core ->
 typed submit plan -> NGINX/codec FFI`. Panics must not unwind across C callbacks,
