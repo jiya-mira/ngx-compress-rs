@@ -62,11 +62,12 @@ def main(raw_path: Path, output_path: Path) -> None:
         "",
         "The gate requires at least 10% median HTTP/3 throughput improvement, no more than 5% H1/H2 throughput regression, 10% TTFB regression, or 10% worker RSS regression for every workload.",
         "",
-        "| Candidate | Median H3 throughput delta | Gate |",
-        "|---:|---:|:---|",
+        "## Candidates",
+        "",
     ]
     lines.extend(
-        f"| {buffer} KiB | {gain:.1%} | {'pass' if accepted else 'fail'} |"
+        f"- {buffer} KiB: median HTTP/3 throughput {gain:+.1%}; "
+        f"gate {'pass' if accepted else 'fail'}"
         for buffer, gain, accepted, _ in candidates
     )
     lines.extend(["", "## Violations", ""])

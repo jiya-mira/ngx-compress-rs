@@ -1,0 +1,12 @@
+date_utc=2026-07-22T13:30:06Z
+machine=Linux a5dc94878b47 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:09:14 UTC 2026 x86_64 GNU/Linux
+cpu=INTEL(R) XEON(R) PLATINUM 8573C
+rustc=rustc 1.97.1 (8bab26f4f 2026-07-14)
+cargo=cargo 1.97.1 (c980f4866 2026-06-30)
+nginx=1.30.4
+openssl=OpenSSL 3.5.7 9 Jun 2026 (Library: OpenSSL 3.5.7 9 Jun 2026)
+curl=curl 8.21.0 (x86_64-pc-linux-gnu) libcurl/8.21.0 OpenSSL/3.5.7 zlib/1.2.13 brotli/1.0.9 zstd/1.5.4 nghttp2/1.52.0 ngtcp2/1.22.1 nghttp3/1.15.0
+nghttp3=1.15.0
+ngtcp2=1.22.1
+rounds=5
+profile=balanced

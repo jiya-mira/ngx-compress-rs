@@ -46,9 +46,10 @@ is the release gate, not a claim that the current commit has already passed it.
   - `Security and release / rehearsal`
 - [ ] ASan/UBSan, Valgrind, and HTTP/3 sanitizer logs contain no attributable
       leak, out-of-bounds access, use-after-free, or undefined behavior.
-- [ ] Run the five-round x86_64 HTTP/1.1/2/3 benchmark and commit its raw TSV,
-      toolchain information, and conclusion. Keep the 8 KiB default unless the
-      documented throughput/TTFB/RSS thresholds all pass.
+- [x] Run the five-round x86_64 HTTP/1.1/2/3 benchmark and commit its
+      [raw TSV, toolchain information, and conclusion](../benchmarks/v0.1.0/http3-buffer/README.md).
+      No candidate passed the documented throughput/TTFB/RSS thresholds, so
+      the unified 8 KiB default is retained.
 - [ ] Perform a fresh-checkout rehearsal following the installation guide for
       dynamic and static builds, then run `nginx -t`, reload, and H1/H2/H3
       smoke tests.
