@@ -16,6 +16,7 @@ SRC=/tmp/ngx-sanitizer
 RUN=/tmp/ngx-sanitizer-run
 WWW=/tmp/ngx-sanitizer-www
 PORT=8085
+BACKEND=8095
 DIAGNOSTIC_DIR=${DIAGNOSTIC_DIR:-/tmp/ngx-sanitizer-diagnostics}
 mkdir -p "$DIAGNOSTIC_DIR"
 
@@ -27,7 +28,17 @@ capture_diagnostics() {
     done
     chmod -R a+rX "$DIAGNOSTIC_DIR"
 }
-trap capture_diagnostics EXIT
+backend_pid=
+cleanup() {
+    status=$?
+    if [ -n "$backend_pid" ]; then
+        kill "$backend_pid" 2>/dev/null || true
+        wait "$backend_pid" 2>/dev/null || true
+    fi
+    capture_diagnostics
+    exit "$status"
+}
+trap cleanup EXIT
 
 export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=1:halt_on_error=1:abort_on_error=1:log_path=$DIAGNOSTIC_DIR/asan}"
 # NGINX intentionally uses memcpy(NULL, NULL, 0) for empty ngx_str values.
@@ -48,6 +59,24 @@ while [ "$i" -lt 20000 ]; do
 done
 printf 'INCLUDED SANITIZER SUBREQUEST\n' > "$WWW/inc.txt"
 printf 'HEAD\n<!--#include virtual="/inc.txt" -->\nTAIL\n' > "$WWW/page.shtml"
+cat > "$RUN/truncated.py" <<PY
+import socket
+
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("127.0.0.1", $BACKEND))
+server.listen(8)
+while True:
+    conn, _ = server.accept()
+    try:
+        conn.recv(4096)
+        conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n")
+        conn.sendall(b"1000\r\n" + b"x" * 4096 + b"\r\n")
+    finally:
+        conn.close()
+PY
+python3 "$RUN/truncated.py" &
+backend_pid=$!
 
 cd "$SRC"
 ./configure \
@@ -88,6 +117,12 @@ http {
             compress_gzip on;
             compress_min_length 1;
         }
+        location = /truncated {
+            compress on;
+            compress_gzip on;
+            compress_min_length 1;
+            proxy_pass http://127.0.0.1:$BACKEND;
+        }
     }
 }
 EOF
@@ -115,11 +150,21 @@ kill -9 "$client_pid" 2>/dev/null || true
 wait "$client_pid" 2>/dev/null || true
 curl -sf --noproxy '*' "http://127.0.0.1:$PORT/body.txt" >/dev/null
 
+if curl -s --noproxy '*' --max-time 3 -H 'Accept-Encoding: gzip' \
+    "http://127.0.0.1:$PORT/truncated" -o "$RUN/truncated.gz"; then
+    echo 'truncated upstream unexpectedly produced a successful response' >&2
+    exit 1
+fi
+curl -sf --noproxy '*' "http://127.0.0.1:$PORT/body.txt" >/dev/null
+
 kill -QUIT "$ngx_pid"
 wait "$ngx_pid"
+kill "$backend_pid" 2>/dev/null || true
+wait "$backend_pid" 2>/dev/null || true
+backend_pid=
 if grep -iE 'AddressSanitizer|UndefinedBehaviorSanitizer|runtime error:|LeakSanitizer' \
     "$RUN/logs/error.log" >/dev/null 2>&1; then
     cat "$RUN/logs/error.log"
     exit 1
 fi
-echo 'PASS [sanitizer]: compression, SSI and disconnect paths are clean'
+echo 'PASS [sanitizer]: compression, SSI, disconnect and truncated upstream are clean'
