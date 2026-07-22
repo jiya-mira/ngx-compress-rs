@@ -17,10 +17,12 @@ Runs once per response, before any body buffer. It:
 
 1. Reads the request `Accept-Encoding` and parses it with the allocation-free
    negotiation model in `ngx-compress-core`.
-2. Reads response `Content-Type`, `Content-Length`, `Content-Encoding`, and
-   `Cache-Control`.
-3. Applies eligibility (module enabled, MIME allowlist, size threshold, HTTP
-   version, proxied policy) and selects a coding via server preference order.
+2. Reads response `Content-Type`, `Content-Length`, and `Content-Encoding` into
+   an owned snapshot.
+3. Applies the shipped eligibility rules (module enabled, MIME allowlist, size
+   threshold, response status, main request, and existing encoding) and selects
+   a coding via the fixed server preference order. The planned v0.2.0
+   `compress_proxied` work will add owned proxy/cache facts here.
 4. On a hit: sets `Content-Encoding`, drops or rewrites `Content-Length`
    (streaming responses switch to chunked), adds `Vary: Accept-Encoding` when
    configured, and stores typed per-request state in the request `ctx`.
@@ -135,19 +137,15 @@ Default order for equal client quality:
 zstd > br > gzip > deflate > identity
 ```
 
-Rationale (industry practice, refined per response class in M3): `zstd`
+Rationale (industry practice and the M3 benchmark work): `zstd`
 compresses fast (good for dynamic responses), `br` reaches smaller sizes at
 high quality (good for cacheable/static), `gzip`/`deflate` are the
 compatibility floor, `identity` is the implicit fallback.
 
-The order is overridable:
-
-```nginx
-compress_priority zstd br gzip;
-```
-
-Only codecs that are enabled and pass eligibility participate. `identity` is
-always an implicit final candidate and is never listed.
+The v0.1 order is fixed. Only codecs that are enabled and pass eligibility
+participate. `identity` is always an implicit final candidate and is never
+listed. A configurable `compress_priority` is an unscheduled candidate, not a
+registered directive; see [roadmap.md](roadmap.md).
 
 ## 5. Configuration schema
 
@@ -165,9 +163,10 @@ name compatibility, the schema is designed as one tidy `compress_*` family with
 our own consistent semantics (read-as-you-see). Two ideas are worth borrowing
 because all three upstream modules converged on them — a MIME allowlist
 (`compress_types`) and output buffer sizing (`compress_buffers`) — so those are
-provided under our naming. Directives with no elegant home in our scheme
-(`gzip_proxied`, `gzip_http_version`, `gzip_disable`) are intentionally not
-mirrored.
+provided under our naming. `gzip_proxied` has a codec-independent policy
+meaning, so v0.2.0 will expose it as `compress_proxied`. `gzip_http_version`
+remains an unscheduled candidate and a `gzip_disable`-style legacy user-agent
+regex is not currently planned.
 
 ### 4.2 Master switch, profiles, and per-codec toggles
 
@@ -238,33 +237,36 @@ the upstream range and default.
 Levels are validated at configuration time against the codec's range; an
 out-of-range value is a configuration error, not a clamp.
 
-### 4.4 Shared parameters (global default, per-codec override)
+### 4.4 Shared parameters
 
-These apply to all codecs by default and may be overridden per codec with the
-`compress_<codec>_*` form (e.g. `compress_brotli_types`). A per-codec value
-fully replaces the shared value for that codec.
+These shipped directives apply to all enabled codecs.
 
 | Directive | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `compress_types <mime>...` | set | text/html (always), text/\*, application/json, application/javascript, … | `*` = all types |
 | `compress_min_length <n>` | size | 20 | only when Content-Length known; 256+ recommended |
 | `compress_vary on\|off` | bool | `on` | adds `Vary: Accept-Encoding`; on by default because a multi-codec module serving different encodings must mark shared-cache variance |
-| `compress_proxied <flags>...` | flags | `off` | mirrors `gzip_proxied`: off / expired / no-cache / no-store / private / no_last_modified / no_etag / auth / any |
 | `compress_buffers <n> <size>` | (count, size) | `16 8k` | per-request output buffer pool |
-| `compress_http_version 1.0\|1.1` | enum | `1.1` | minimum HTTP version to compress |
 
-Per-codec override examples: `compress_brotli_min_length`,
-`compress_zstd_types`, `compress_gzip_buffers`, etc.
+Per-codec MIME, minimum-length, and buffer overrides are not registered. The
+per-codec controls in v0.1 are enablement and compression level, plus the
+Brotli window.
+
+#### 4.4.1 Planned v0.2.0 proxied policy
+
+`compress_proxied <flags>...` will mirror the policy vocabulary and default of
+`gzip_proxied`: `off`, `expired`, `no-cache`, `no-store`, `private`,
+`no_last_modified`, `no_etag`, `auth`, and `any`. It will apply to all runtime
+codings and to `compress_static on`; `compress_static always` will bypass it.
+The directive is planned and is not accepted by v0.1.0.
 
 ### 4.5 Typed configuration model
 
-Directives are parsed at configuration time into a strongly typed
-`CompressConfig` in the policy crate (which keeps `forbid(unsafe)`):
-
-- one `CodecConfig` per codec (enabled flag, level, codec-specific knobs,
-  resolved shared parameters after per-codec override),
-- a resolved priority order,
-- shared defaults.
+Directives are parsed at configuration time into a strongly typed,
+Rust-owned `CompressConfig`. Its optional fields preserve NGINX inheritance;
+resolution produces an allocation-free `Resolved` snapshot containing the
+effective shared policy, enabled codec levels, Brotli window, sidecar mode, and
+output-buffer size.
 
 `serde_json::Value`-style dynamic structures are confined to any external
 boundary; business logic operates only on the typed model. Merge and
@@ -285,9 +287,6 @@ compress_gzip_comp_level   6;
 compress_types      text/plain text/css application/json application/javascript;
 compress_min_length 256;
 compress_vary       on;
-
-# optional: override the default zstd > br > gzip order
-compress_priority zstd br gzip;
 ```
 
 Dictionary directives (`dcb`/`dcz`) are deliberately out of scope here and are
@@ -430,6 +429,11 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 
 ## 8. Deferred / open items
 
+- Proxied-response eligibility — committed for v0.2.0 as
+  `compress_proxied`; see [roadmap.md](roadmap.md). The decision will use
+  Rust-owned `Via`, authorization, expiry, cache-control, Last-Modified, and
+  ETag facts and will cover both runtime and eligible static-sidecar paths.
+
 - HTTP/3 is included in v0.1.0 through a dedicated pinned NGINX/OpenSSL/
   ngtcp2/nghttp3/curl image. Every request uses `--http3-only`; fallback is a
   test failure. Upstream NGINX HTTP/3 remains experimental and 0-RTT is out of
@@ -453,10 +457,9 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
   seam already exists). Worker-local only, no cross-worker/cross-request shared
   mutable state, no request-path locks.
 - Benchmark-driven profiles — M3. A reproducible ratio × throughput × CPU
-  harness that calibrates the profile tiers' default levels and the
-  per-response-class priority order.
-- Per-response-class priority (dynamic vs cacheable) refining the default
-  order — M3, calibrated by the benchmark above.
+  harness that calibrates the profile tiers' default levels.
+- Per-response-class priority (dynamic vs cacheable) and configurable
+  `compress_priority` are unscheduled candidates. v0.1 uses a fixed order.
 - A runtime cache of the module's *own* compressed output — explicitly **not
   built**. Static content is served from precompressed sidecars (the filesystem
   is the cache); "compress once, reuse" for dynamic content is delegated to

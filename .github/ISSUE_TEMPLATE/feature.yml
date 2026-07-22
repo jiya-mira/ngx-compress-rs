@@ -3,6 +3,10 @@ description: Propose a focused capability or improvement
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Use Discussions for an early idea or open-ended design question. Use this form when you can describe a focused problem and testable outcome.
   - type: checkboxes
     id: prerequisites
     attributes:
