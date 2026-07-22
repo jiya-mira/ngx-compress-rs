@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Check out source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Advisories, licenses, bans, and sources
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
@@ -57,16 +57,18 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/repo" ngx-compress-build:security sh -c '
             rustup toolchain install nightly-2026-07-01 --profile minimal
-            RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/sanitizer-tests.sh
+            DIAGNOSTIC_DIR=/repo/artifacts/security \
+              RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/sanitizer-tests.sh
           '
           docker run --rm -v "$PWD:/repo" ngx-compress-build:security \
             sh /repo/docker/valgrind-tests.sh
 
       - name: Upload SBOM and toolchain inventory
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: supply-chain-${{ github.sha }}
-          path: artifacts/sbom/
+          path: artifacts/
           if-no-files-found: error
 
   rehearsal:
@@ -75,7 +77,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out full source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -83,7 +85,7 @@ jobs:
         run: scripts/package-release.sh
 
       - name: Upload source rehearsal
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: source-rehearsal-${{ github.sha }}
           path: dist/
@@ -96,7 +98,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out gate script
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Require all checks on the exact commit
         env:
           GH_TOKEN: ${{ github.token }}

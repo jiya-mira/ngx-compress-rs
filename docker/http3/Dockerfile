@@ -18,7 +18,7 @@ ARG CURL_SHA256=aa1b66a70eace83dc624508745646c08ae561de512ab403adffb93ac87fc72e6
 
 RUN if [ "${INSTALL_DEPS}" = 1 ]; then apt-get update \
     && apt-get install -y --no-install-recommends \
-        autoconf automake ca-certificates clang curl gcc libclang-rt-14-dev libtool llvm-14 make \
+        autoconf automake ca-certificates clang cmake curl gcc libclang-rt-14-dev libtool llvm-14 make \
         pkg-config perl python3 libbrotli-dev libnghttp2-dev libpcre2-dev libzstd-dev zlib1g-dev \
         brotli gzip zstd \
     && rm -rf /var/lib/apt/lists/*; fi

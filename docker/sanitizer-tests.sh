@@ -6,9 +6,8 @@ set -eu
 
 export no_proxy=127.0.0.1,localhost
 export NO_PROXY=127.0.0.1,localhost
-export ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=1:halt_on_error=1:abort_on_error=1}
-export UBSAN_OPTIONS=${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}
-export ASAN_SYMBOLIZER_PATH=${ASAN_SYMBOLIZER_PATH:-/usr/bin/llvm-symbolizer-14}
+export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
+export ASAN_SYMBOLIZER_PATH="${ASAN_SYMBOLIZER_PATH:-/usr/bin/llvm-symbolizer-14}"
 
 MODULE_DIR=/repo/crates/ngx-compress-module
 NGINX_SRC=${NGINX_SRC:-/opt/nginx-1.30.4}
@@ -16,12 +15,25 @@ SRC=/tmp/ngx-sanitizer
 RUN=/tmp/ngx-sanitizer-run
 WWW=/tmp/ngx-sanitizer-www
 PORT=8085
+DIAGNOSTIC_DIR=${DIAGNOSTIC_DIR:-/tmp/ngx-sanitizer-diagnostics}
+mkdir -p "$DIAGNOSTIC_DIR"
+
+capture_diagnostics() {
+    for file in /tmp/cfg-sanitizer.log /tmp/make-sanitizer.log "$RUN/logs/error.log"; do
+        if [ -f "$file" ]; then
+            cp "$file" "$DIAGNOSTIC_DIR/$(basename "$file")"
+        fi
+    done
+}
+trap capture_diagnostics EXIT
+
+export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=1:halt_on_error=1:abort_on_error=1:log_path=$DIAGNOSTIC_DIR/asan}"
 # NGINX intentionally uses memcpy(NULL, NULL, 0) for empty ngx_str values.
 # Clang's nonnull-attribute check diagnoses that established upstream idiom, so
 # suppress only that check while retaining all other undefined checks.
 SAN_FLAGS='-O1 -g -fsanitize=address,undefined -fno-sanitize=nonnull-attribute -fno-omit-frame-pointer'
 export CC=clang
-export CFLAGS=$SAN_FLAGS
+export CFLAGS="$SAN_FLAGS"
 
 rm -rf "$SRC" "$RUN" "$WWW"
 cp -a "$NGINX_SRC" "$SRC"

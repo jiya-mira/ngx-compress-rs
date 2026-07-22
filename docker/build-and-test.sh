@@ -261,21 +261,32 @@ check_filter_coexistence() {
 
     curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -H 'Range: bytes=0-99' \
         -D "$RUN_DIR/range.h" -o "$RUN_DIR/range.body" \
-        "http://127.0.0.1:$PORT/index.txt"
-    grep -q '^HTTP/1.1 206' "$RUN_DIR/range.h"
-    head -c 100 "$WWW/index.txt" | cmp -s - "$RUN_DIR/range.body"
-    if grep -qi '^content-encoding:' "$RUN_DIR/range.h"; then
-        echo "FAIL [$1 coexistence]: range response was encoded"
+        "http://127.0.0.1:$PORT/index.txt" \
+        || { echo "FAIL [$1 coexistence]: range request failed"; return 1; }
+    if grep -q '^HTTP/1.1 206' "$RUN_DIR/range.h"; then
+        if grep -qi '^content-encoding:' "$RUN_DIR/range.h"; then
+            echo "FAIL [$1 coexistence]: partial range response was encoded"
+            return 1
+        fi
+        head -c 100 "$WWW/index.txt" | cmp -s - "$RUN_DIR/range.body" \
+            || { echo "FAIL [$1 coexistence]: partial range body was damaged"; return 1; }
+    elif grep -q '^HTTP/1.1 200' "$RUN_DIR/range.h"; then
+        [ "$(grep -ic '^content-encoding: *gzip' "$RUN_DIR/range.h")" -eq 1 ] \
+            || { echo "FAIL [$1 coexistence]: full range fallback has invalid encoding"; return 1; }
+        gzip -dc < "$RUN_DIR/range.body" | cmp -s - "$WWW/index.txt" \
+            || { echo "FAIL [$1 coexistence]: full range fallback was damaged"; return 1; }
+    else
+        echo "FAIL [$1 coexistence]: unexpected range status"
+        cat "$RUN_DIR/range.h"
         return 1
     fi
 
     curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$RUN_DIR/gunzip.h" \
         -o "$RUN_DIR/gunzip.body" "http://127.0.0.1:$PORT/upstream-gzip"
-    if grep -qi '^content-encoding:' "$RUN_DIR/gunzip.h"; then
-        echo "FAIL [$1 coexistence]: gunzip response retained Content-Encoding"
-        return 1
-    fi
-    cmp -s "$RUN_DIR/gunzip.body" /tmp/upstream.txt
+    [ "$(grep -ic '^content-encoding: *br' "$RUN_DIR/gunzip.h")" -eq 1 ] \
+        || { echo "FAIL [$1 coexistence]: gunzip response was not re-encoded as br"; cat "$RUN_DIR/gunzip.h"; return 1; }
+    brotli -dc < "$RUN_DIR/gunzip.body" | cmp -s - /tmp/upstream.txt \
+        || { echo "FAIL [$1 coexistence]: gunzip/re-encode response was damaged"; return 1; }
     echo "PASS [$1 coexistence]: copy/chunked/range/gunzip filters intact"
 }
 
