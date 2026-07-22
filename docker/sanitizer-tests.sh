@@ -24,6 +24,7 @@ capture_diagnostics() {
             cp "$file" "$DIAGNOSTIC_DIR/$(basename "$file")"
         fi
     done
+    chmod -R a+rX "$DIAGNOSTIC_DIR"
 }
 trap capture_diagnostics EXIT
 

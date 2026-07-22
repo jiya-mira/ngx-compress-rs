@@ -5,9 +5,9 @@ set -eu
 
 export no_proxy=127.0.0.1,localhost
 export NO_PROXY=127.0.0.1,localhost
-export ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=1:halt_on_error=1:abort_on_error=1}
-export UBSAN_OPTIONS=${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}
-export ASAN_SYMBOLIZER_PATH=${ASAN_SYMBOLIZER_PATH:-/usr/bin/llvm-symbolizer-14}
+export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=1:halt_on_error=1:abort_on_error=1}"
+export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
+export ASAN_SYMBOLIZER_PATH="${ASAN_SYMBOLIZER_PATH:-/usr/bin/llvm-symbolizer-14}"
 
 MODULE_DIR=/repo/crates/ngx-compress-module
 NGINX_SRC=${NGINX_SRC:-/opt/src/nginx-1.30.4}
@@ -18,6 +18,7 @@ TLS=/tmp/openssl-h3-sanitizer
 RUN=/tmp/ngx-h3-sanitizer-run
 WWW=/tmp/ngx-h3-sanitizer-www
 PORT=8443
+DIAGNOSTIC_DIR=${DIAGNOSTIC_DIR:-/repo/artifacts/http3/sanitizer-details}
 SAN_FLAGS='-O1 -g -fsanitize=address,undefined -fno-sanitize=nonnull-attribute -fno-omit-frame-pointer'
 # NGINX's ARM HTTP/3 Huffman encoder deliberately emits unaligned u64 stores.
 # The release target is x86_64, where the full alignment check remains enabled.
@@ -25,7 +26,29 @@ if [ "$(uname -m)" = aarch64 ]; then
     SAN_FLAGS="$SAN_FLAGS -fno-sanitize=alignment"
 fi
 export CC=clang
-export CFLAGS=$SAN_FLAGS
+export CFLAGS="$SAN_FLAGS"
+
+mkdir -p "$DIAGNOSTIC_DIR"
+ngx_pid=
+capture_diagnostics() {
+    for file in /tmp/cfg-h3-sanitizer.log /tmp/make-h3-sanitizer.log \
+        "$RUN/sanitizer.log" "$RUN/logs/error.log"; do
+        if [ -f "$file" ]; then
+            cp "$file" "$DIAGNOSTIC_DIR/$(basename "$file")"
+        fi
+    done
+    chmod -R a+rX "$DIAGNOSTIC_DIR"
+}
+cleanup() {
+    status=$?
+    if [ -n "$ngx_pid" ] && kill -0 "$ngx_pid" 2>/dev/null; then
+        kill -QUIT "$ngx_pid" 2>/dev/null || true
+        wait "$ngx_pid" 2>/dev/null || true
+    fi
+    capture_diagnostics
+    exit "$status"
+}
+trap cleanup EXIT INT TERM
 
 rm -rf "$SRC" "$TLS" "$RUN" "$WWW"
 cp -a "$NGINX_SRC" "$SRC"
@@ -83,19 +106,42 @@ EOF
 
 "$SRC/objs/nginx" -p "$RUN" -c "$RUN/nginx.conf" >"$RUN/sanitizer.log" 2>&1 &
 ngx_pid=$!
-sleep 0.5
-version=$($CURL -sk --http3-only -H 'Accept-Encoding: gzip' \
-    -o "$RUN/body.gz" -w '%{http_version}' "https://127.0.0.1:$PORT/body.txt")
+i=0
+version=
+while [ "$i" -lt 100 ]; do
+    if ! kill -0 "$ngx_pid" 2>/dev/null; then
+        echo 'instrumented NGINX exited before accepting HTTP/3 traffic' >&2
+        exit 1
+    fi
+    if version=$($CURL -sk --http3-only --connect-timeout 1 --max-time 2 \
+        -H 'Accept-Encoding: gzip' -o "$RUN/body.gz" -w '%{http_version}' \
+        "https://127.0.0.1:$PORT/body.txt"); then
+        break
+    fi
+    version=
+    i=$((i + 1))
+    sleep 0.1
+done
 [ "$version" = 3 ]
 gzip -dc < "$RUN/body.gz" | cmp -s - "$WWW/body.txt"
 $CURL -sk --http3-only --limit-rate 64k --max-time 0.2 \
     -H 'Accept-Encoding: gzip' "https://127.0.0.1:$PORT/body.txt" -o /dev/null || true
 "$SRC/objs/nginx" -p "$RUN" -c "$RUN/nginx.conf" -s reload
-version=$($CURL -sk --http3-only -o /dev/null -w '%{http_version}' \
-    "https://127.0.0.1:$PORT/body.txt")
+i=0
+version=
+while [ "$i" -lt 50 ]; do
+    if version=$($CURL -sk --http3-only --connect-timeout 1 --max-time 2 \
+        -o /dev/null -w '%{http_version}' "https://127.0.0.1:$PORT/body.txt"); then
+        break
+    fi
+    version=
+    i=$((i + 1))
+    sleep 0.1
+done
 [ "$version" = 3 ]
 kill -QUIT "$(cat "$RUN/nginx.pid")"
 wait "$ngx_pid"
+ngx_pid=
 
 if grep -iE 'AddressSanitizer|UndefinedBehaviorSanitizer|runtime error:|LeakSanitizer' \
     "$RUN/sanitizer.log" "$RUN/logs/error.log" >/dev/null 2>&1; then
