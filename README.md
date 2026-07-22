@@ -78,7 +78,6 @@ http {
     compress_gzip on;
     compress_min_length 256;
     compress_types text/plain text/css application/json application/javascript;
-    compress_priority zstd br gzip;
 }
 ```
 
@@ -127,6 +126,7 @@ Report suspected vulnerabilities privately as described in
 
 - [Architecture and milestones](docs/architecture.md)
 - [Detailed module design](docs/design.md)
+- [Post-v0.1 roadmap](docs/roadmap.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
 - [Release-readiness checklist](docs/release-readiness.md)
 - [Release, tag, and rollback runbook](docs/release.md)

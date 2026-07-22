@@ -5,7 +5,7 @@ for its public configuration and documented support contract.
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-07-22
 
 ### Added
 

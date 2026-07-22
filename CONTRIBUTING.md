@@ -9,11 +9,17 @@ Participation in this project is governed by the
 ## Before opening an issue
 
 - Search existing issues first.
-- Use the bug or feature issue form and include the requested context.
+- Use Discussions for questions, early ideas, and design trade-offs that do not
+  yet have an accepted implementation scope.
+- Use the bug, compatibility-report, or focused feature issue form and include
+  the requested context.
 - Do not report suspected vulnerabilities in a public issue. Follow
   [SECURITY.md](SECURITY.md) instead.
 - Questions about unsupported NGINX versions or platforms are welcome, but the
-  current support contract remains the one documented in [README.md](README.md).
+current support contract remains the one documented in [README.md](README.md).
+
+The prioritization rules and the distinction between committed, feedback-gated,
+and proposed work are documented in [docs/roadmap.md](docs/roadmap.md).
 
 ## Development setup
 

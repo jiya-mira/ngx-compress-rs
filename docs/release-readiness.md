@@ -1,8 +1,7 @@
 # v0.1.0 release readiness
 
-Status as of 2026-07-22: source-only Technical Preview release candidate.
-Publication authorization has been granted. Evidence below applies only while
-the tag target passes the exact-commit release gate without subsequent changes.
+Released on 2026-07-22 as a source-only Technical Preview. The evidence below
+applies to the exact annotated `v0.1.0` tag target.
 
 ## Fixed release contract
 

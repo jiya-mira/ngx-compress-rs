@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Roadmap and design discussion
+    url: https://github.com/jiya-mira/ngx-compress-rs/discussions
+    about: Discuss early ideas, priorities, use cases, and design trade-offs before opening an implementation issue.
   - name: Security vulnerability
     url: https://github.com/jiya-mira/ngx-compress-rs/security/advisories/new
     about: Report suspected vulnerabilities privately; do not open a public issue.

@@ -1,0 +1,104 @@
+name: Compatibility report
+description: Share a successful or unsuccessful build and deployment outside the verified baseline
+title: "[Compatibility]: "
+labels: ["needs-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Compatibility reports help prioritize future support but do not expand the current support contract by themselves. Remove credentials, private headers, URIs, and response data.
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I searched existing compatibility reports for this build signature.
+          required: true
+        - label: This report contains no secrets or private production data.
+          required: true
+        - label: I agree to follow the Code of Conduct.
+          required: true
+  - type: input
+    id: project-version
+    attributes:
+      label: Project version or commit
+      placeholder: v0.1.0 or full commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: nginx-signature
+    attributes:
+      label: Exact NGINX build signature
+      description: Paste `nginx -V` output, including configure arguments and downstream package revision where applicable.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: Ubuntu 24.04, Linux aarch64
+    validations:
+      required: true
+  - type: dropdown
+    id: module-mode
+    attributes:
+      label: Module build mode
+      options:
+        - Dynamic
+        - Static
+    validations:
+      required: true
+  - type: dropdown
+    id: codec-backend
+    attributes:
+      label: Codec backend
+      options:
+        - Vendored
+        - System libraries
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - Build, nginx -t, and runtime smoke passed
+        - Build passed but configuration or runtime failed
+        - Build failed
+    validations:
+      required: true
+  - type: dropdown
+    id: protocols
+    attributes:
+      label: Protocols verified
+      multiple: true
+      options:
+        - HTTP/1.1
+        - HTTP/2
+        - HTTP/3
+        - Not tested
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Build and verification summary
+      description: Include relevant commands, backend selection, minimal configuration, and response-decoding checks.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: adjustments
+    attributes:
+      label: Required patches or adjustments
+      description: Describe distribution patches, linker changes, dependency versions, or workarounds.
+    validations:
+      required: false
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      render: text
+    validations:
+      required: false

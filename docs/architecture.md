@@ -34,7 +34,9 @@ Initial default order for equal client quality:
 4. `deflate`
 5. `identity`
 
-The defaults remain configurable and must be justified by benchmarks before release.
+The v0.1 tie-break order is fixed. A configurable order and adaptive
+response-class selection remain unscheduled candidates and must be justified by
+benchmarks before they become release commitments.
 
 ## Streaming contract
 
@@ -142,20 +144,34 @@ Regardless of repository name, keep runtime names language-neutral: use an NGINX
 - streaming, backpressure, truncation, and disconnect tests
 - HTTP/1.1, HTTP/2, and HTTP/3 interoperability tests
 
-### M3: Static and adaptive optimization
+### M3: Static and profile optimization
 
 - precompressed static variants (`.gz`/`.br`/`.zst` sidecar content handler)
 - named profiles (`compress fast|balanced|max`) — turnkey presets over the
   per-codec knobs, explicit directives override
 - worker-local context reuse (reset a per-worker codec instead of reallocating)
-- benchmark-driven compression profiles (calibrate the preset tiers and the
-  per-response-class priority order)
+- benchmark-driven compression profiles (calibrate the preset tiers and fixed
+  default priority order)
 
 Dropped from the original M3 list: per-MIME/per-size *policy* beyond the shipped
 `compress_types` + `compress_min_length` + per-codec level — no upstream module
 has it and the gain does not justify the config surface. A runtime cache of the
 module's own compressed output is a non-goal (precompressed sidecars + upstream
 `proxy_cache` cover it).
+
+### v0.2.0: Proxied-response policy
+
+- add `compress_proxied` with the complete `gzip_proxied` flag vocabulary and
+  NGINX-compatible `Via` semantics;
+- apply one safe-core eligibility decision to every runtime codec and to
+  `compress_static on`, while `compress_static always` bypasses it;
+- prefetch only owned header facts at the FFI boundary; do not call the
+  gzip-specific `ngx_http_gzip_ok()` helper;
+- verify inheritance, cache-header combinations, static/runtime parity, and
+  HTTP/1.1, HTTP/2, and HTTP/3 behavior.
+
+The detailed post-v0.1 sequence and status labels are maintained in
+[roadmap.md](roadmap.md).
 
 ### M4: Compression Dictionary Transport
 
