@@ -190,6 +190,26 @@ The asynchronous execution milestone is a prerequisite for lazy generation. No
 NGINX request, pool, buffer, chain, or borrowed header pointer may cross into a
 compression or dictionary-generation thread.
 
+Two design decisions are deliberately deferred:
+
+1. **Dictionary URL namespace.** RFC 9842 defines dictionary discovery through
+   an ordinary same-origin URL, but does not reserve a path or a well-known URI.
+   A module-generated standalone dictionary therefore unavoidably consumes
+   externally reachable URI space. The current direction is a disabled-by-default,
+   module-owned, content-addressed prefix with strict request matching and
+   configuration-time conflict detection. This can reduce and expose collisions,
+   but cannot make them impossible. Do not commit to a concrete prefix or add a
+   user-facing override until implementation research shows which compromise is
+   least harmful.
+2. **Progressive update policy.** Neither a fixed time interval nor a raw
+   request-count interval is sufficient. The current direction is to sample
+   distinct resources or content versions, use time and sample volume only as
+   minimum-evidence and cooldown guardrails, detect content/benefit drift, and
+   publish a new immutable generation only when holdout evaluation shows a
+   meaningful net gain over the active dictionary after download and churn
+   costs. Exact sampling, drift detection, thresholds, and retention defaults
+   remain open until realistic workloads can be measured.
+
 Revisit these questions before implementation:
 
 - NGINX thread pools versus a narrowly owned module executor;
