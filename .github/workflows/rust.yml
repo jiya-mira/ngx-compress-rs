@@ -47,3 +47,22 @@ jobs:
           fi
           test "$(wc -l < crates/ngx-compress-module/src/filter/mod.rs)" -le 150
           git diff --check
+
+  miri:
+    name: Rust / miri
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Install nightly toolchain with Miri
+        run: rustup toolchain install nightly-2026-07-01 --profile minimal --component miri
+
+      # ngx-compress-core is the only hermetic (non-nginx) crate, so it is the
+      # only one Miri can build here. It forbids unsafe today, so this is a
+      # guardrail for future unsafe/arithmetic UB rather than active coverage;
+      # the unsafe FFI pointer code is Miri-checked in the security workflow.
+      # `--lib` keeps Miri off the proptest integration test (slow, needs entropy).
+      - name: Miri undefined-behaviour check (protocol core)
+        run: cargo +nightly-2026-07-01 miri test -p ngx-compress-core --lib --locked
