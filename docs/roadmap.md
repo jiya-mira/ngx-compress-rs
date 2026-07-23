@@ -187,7 +187,10 @@ Compatibility work continues alongside the numbered sequence:
 - fix reproducible build friction, crashes, corrupt output, reload failures, or
   static/dynamic differences immediately;
 - add a supported target only when it can be reproduced and maintained in the
-  automated matrix.
+  automated matrix;
+- promote the `miri-ffi` job (Miri undefined-behaviour / aliasing check over the
+  unsafe FFI pointer boundary) from an advisory check to a required branch-
+  protection gate once it has stayed green across several runs.
 
 An absence of external reports means only that no additional target is proven.
 It does not block work on the known design sequence.
