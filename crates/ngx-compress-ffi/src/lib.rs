@@ -5,6 +5,7 @@
 //! primitives here validate their invariants at each boundary and never let a
 //! panic unwind across the C ABI.
 
+pub mod buffer;
 pub mod filter;
 pub mod guard;
 pub mod module_conf;

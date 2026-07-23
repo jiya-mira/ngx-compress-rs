@@ -96,6 +96,7 @@ setup_www() {
     done
     gzip -c /tmp/sgz.txt > "$WWW/static/asset.txt.gz"
     brotli -c /tmp/sbr.txt > "$WWW/static/asset.txt.br"
+    printf 'PLAIN STATIC FILE WITHOUT A SIDECAR\n' > "$WWW/static/plain.txt"
     # A second copy for the `always` location.
     cp "$WWW/static/asset.txt" "$WWW/astatic/asset.txt"
     cp "$WWW/static/asset.txt.gz" "$WWW/astatic/asset.txt.gz"
@@ -187,6 +188,12 @@ http {
         location /astatic/ {
             compress off;
             compress_static always;
+        }
+        location /static-novary/ {
+            alias $WWW/static/;
+            compress off;
+            compress_static on;
+            compress_vary off;
         }
     }
 }
@@ -313,6 +320,8 @@ check_static() {
         "http://127.0.0.1:$PORT/static/asset.txt" || { echo "FAIL [$1 static gzip]: request failed"; return 1; }
     grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
         || { echo "FAIL [$1 static gzip]: no Content-Encoding (static handler served original?)"; return 1; }
+    grep -qi '^vary: *Accept-Encoding' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static gzip]: Vary missing"; return 1; }
     gzip -dc < "$RUN_DIR/c.bin" > "$RUN_DIR/d.txt" 2>/dev/null
     cmp -s "$RUN_DIR/d.txt" /tmp/sgz.txt \
         || { echo "FAIL [$1 static gzip]: served body is not the .gz sidecar"; return 1; }
@@ -323,6 +332,8 @@ check_static() {
         "http://127.0.0.1:$PORT/static/asset.txt" || { echo "FAIL [$1 static prio]: request failed"; return 1; }
     grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
         || { echo "FAIL [$1 static prio]: expected br sidecar"; return 1; }
+    grep -qi '^vary: *Accept-Encoding' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static prio]: Vary missing"; return 1; }
     brotli -dc < "$RUN_DIR/c.bin" > "$RUN_DIR/d.txt" 2>/dev/null
     cmp -s "$RUN_DIR/d.txt" /tmp/sbr.txt \
         || { echo "FAIL [$1 static prio]: served body is not the .br sidecar"; return 1; }
@@ -334,11 +345,23 @@ check_static() {
     if grep -qi '^content-encoding:' "$RUN_DIR/h.txt"; then
         echo "FAIL [$1 static none]: unexpected Content-Encoding without Accept-Encoding"; return 1
     fi
+    grep -qi '^vary: *Accept-Encoding' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static none]: identity fallback lacks Vary"; return 1; }
     cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
         || { echo "FAIL [$1 static none]: original not served intact"; return 1; }
     echo "PASS [$1 static none]: declines to original when unaccepted"
 
-    # 4) `always` + no Accept-Encoding: serve the highest-priority sidecar anyway.
+    # 4) No sidecar means the resource cannot vary and should not get Vary.
+    curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static/plain.txt" || { echo "FAIL [$1 static plain]: request failed"; return 1; }
+    if grep -qi '^vary:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static plain]: Vary present without any sidecar"; return 1
+    fi
+    cmp -s "$RUN_DIR/c.bin" "$WWW/static/plain.txt" \
+        || { echo "FAIL [$1 static plain]: original not served intact"; return 1; }
+    echo "PASS [$1 static plain]: no sidecar leaves Vary absent"
+
+    # 5) `always` + no Accept-Encoding: serve the highest-priority sidecar anyway.
     curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
         "http://127.0.0.1:$PORT/astatic/asset.txt" || { echo "FAIL [$1 static always]: request failed"; return 1; }
     grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
@@ -346,7 +369,27 @@ check_static() {
     brotli -dc < "$RUN_DIR/c.bin" > "$RUN_DIR/d.txt" 2>/dev/null
     cmp -s "$RUN_DIR/d.txt" /tmp/sbr.txt \
         || { echo "FAIL [$1 static always]: served body is not the .br sidecar"; return 1; }
+    if grep -qi '^vary:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static always]: Vary present for non-negotiated mode"; return 1
+    fi
     echo "PASS [$1 static always]: serves sidecar regardless of Accept-Encoding"
+
+    # 6) compress_vary off suppresses Vary for encoded and identity responses.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-novary/asset.txt" || { echo "FAIL [$1 static vary-off encoded]: request failed"; return 1; }
+    grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static vary-off encoded]: expected br sidecar"; return 1; }
+    if grep -qi '^vary:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static vary-off encoded]: unexpected Vary"; return 1
+    fi
+    curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-novary/asset.txt" || { echo "FAIL [$1 static vary-off identity]: request failed"; return 1; }
+    if grep -qi '^content-encoding:\\|^vary:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static vary-off identity]: unexpected encoding or Vary"; return 1
+    fi
+    cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
+        || { echo "FAIL [$1 static vary-off identity]: original not served intact"; return 1; }
+    echo "PASS [$1 static vary-off]: Vary suppressed for both variants"
 }
 
 smoke() {

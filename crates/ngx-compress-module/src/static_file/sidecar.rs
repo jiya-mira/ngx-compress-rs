@@ -14,7 +14,7 @@ use ngx_compress_core::ContentCoding;
 
 use crate::observability::{self, Callback, FailureClass};
 
-use super::{ERROR, OK, SidecarSubmit};
+use super::{DECLINED, ERROR, OK};
 
 /// Checked mapped-path buffer with room reserved for one sidecar extension.
 struct MappedPath(ngx_str_t);
@@ -65,40 +65,83 @@ impl MappedPath {
     }
 }
 
-/// Attempts to open and serve the sidecar for one coding. `Some(rc)` means we
-/// handled the request; `None` means no such sidecar, so try the next candidate.
+struct OpenedSidecar {
+    coding: ContentCoding,
+    path: ngx_str_t,
+    of: ngx_open_file_info_t,
+}
+
+/// Probes all configured representations, marks cache variance once any
+/// sidecar exists, and sends the first acceptable sidecar.
 // SAFETY: `request` must be a valid NGINX request for the full probe and submit.
-impl SidecarSubmit for ngx_compress_core::StaticCandidate {
-    unsafe fn try_serve(self, request: *mut ngx_http_request_t) -> Option<ngx_int_t> {
-        // SAFETY: builds the sidecar path, opens it via the location's file cache,
-        // and, if present, emits the file as the response body.
-        unsafe {
-            let Ok(mut path) = MappedPath::with_extension(request, self.extension) else {
-                return Some(fail(request, FailureClass::InvalidFfiState));
-            };
+pub(super) unsafe fn probe_and_serve(
+    request: *mut ngx_http_request_t,
+    candidates: Vec<ngx_compress_core::StaticCandidate>,
+    vary: bool,
+) -> ngx_int_t {
+    let mut vary_added = false;
+    for candidate in candidates {
+        // SAFETY: request remains live for every sidecar probe.
+        let opened = match unsafe { probe(request, candidate.coding, candidate.extension) } {
+            Ok(opened) => opened,
+            Err(class) => return unsafe { fail(request, class) },
+        };
+        let Some(opened) = opened else {
+            continue;
+        };
 
-            let clcf = core_loc_conf(request);
-            if clcf.is_null() {
-                return Some(fail(request, FailureClass::InvalidFfiState));
+        if vary && !vary_added {
+            // Add Vary before either sending Content-Encoding or declining to
+            // the ordinary static handler. Failure must not expose a cache-unsafe response.
+            if unsafe { add_header(request, "Vary", "Accept-Encoding") }.is_null() {
+                return unsafe { fail(request, FailureClass::OutputAllocation) };
             }
-            let mut of = core::mem::zeroed::<ngx_open_file_info_t>();
-            of.read_ahead = (*clcf).read_ahead;
-            of.directio = (*clcf).directio;
-            of.valid = (*clcf).open_file_cache_valid;
-            of.min_uses = (*clcf).open_file_cache_min_uses;
-
-            if ngx_open_cached_file(
-                (*clcf).open_file_cache,
-                path.as_mut_ptr(),
-                &raw mut of,
-                (*request).pool,
-            ) != OK
-                || of.is_dir() != 0
-            {
-                return None;
-            }
-            Some(send_file(request, self.coding, path.into_raw(), &of))
+            vary_added = true;
         }
+        if candidate.accepted {
+            // SAFETY: the successful probe owns a live cached-file description.
+            return unsafe { send_file(request, opened.coding, opened.path, &opened.of) };
+        }
+    }
+    DECLINED
+}
+
+/// Attempts to open one sidecar without deciding whether the client accepts it.
+// SAFETY: `request` must remain valid throughout the path mapping and open.
+unsafe fn probe(
+    request: *mut ngx_http_request_t,
+    coding: ContentCoding,
+    extension: &str,
+) -> Result<Option<OpenedSidecar>, FailureClass> {
+    // SAFETY: builds the sidecar path and opens it via the location's file cache.
+    unsafe {
+        let mut path = MappedPath::with_extension(request, extension)
+            .map_err(|()| FailureClass::InvalidFfiState)?;
+        let clcf = core_loc_conf(request);
+        if clcf.is_null() {
+            return Err(FailureClass::InvalidFfiState);
+        }
+        let mut of = core::mem::zeroed::<ngx_open_file_info_t>();
+        of.read_ahead = (*clcf).read_ahead;
+        of.directio = (*clcf).directio;
+        of.valid = (*clcf).open_file_cache_valid;
+        of.min_uses = (*clcf).open_file_cache_min_uses;
+
+        if ngx_open_cached_file(
+            (*clcf).open_file_cache,
+            path.as_mut_ptr(),
+            &raw mut of,
+            (*request).pool,
+        ) != OK
+            || of.is_dir() != 0
+        {
+            return Ok(None);
+        }
+        Ok(Some(OpenedSidecar {
+            coding,
+            path: path.into_raw(),
+            of,
+        }))
     }
 }
 
@@ -166,19 +209,36 @@ unsafe fn send_file(
 /// Adds `Content-Encoding: <coding>` to the response and records it.
 // SAFETY: `request` must own a live, mutable output-header list.
 unsafe fn add_content_encoding(request: *mut ngx_http_request_t, coding: ContentCoding) -> bool {
-    // SAFETY: pushes a header onto the (uninitialized) headers_out list slot.
+    // SAFETY: pushes a header onto the live headers_out list.
     unsafe {
-        let elt = ngx_list_push(&raw mut (*request).headers_out.headers).cast::<ngx_table_elt_t>();
+        let elt = add_header(request, "Content-Encoding", coding.as_str());
         if elt.is_null() {
             return false;
         }
-        (*elt).hash = 1;
-        (*elt).key = static_str("Content-Encoding");
-        (*elt).value = static_str(coding.as_str());
-        (*elt).lowcase_key = ptr::null_mut();
-        (*elt).next = ptr::null_mut();
         (*request).headers_out.content_encoding = elt;
         true
+    }
+}
+
+/// Adds one static string-valued response header.
+// SAFETY: `request` must own a live, mutable output-header list.
+unsafe fn add_header(
+    request: *mut ngx_http_request_t,
+    key: &'static str,
+    value: &'static str,
+) -> *mut ngx_table_elt_t {
+    // SAFETY: pushes a header onto the live headers_out list.
+    unsafe {
+        let elt = ngx_list_push(&raw mut (*request).headers_out.headers).cast::<ngx_table_elt_t>();
+        if elt.is_null() {
+            return ptr::null_mut();
+        }
+        (*elt).hash = 1;
+        (*elt).key = static_str(key);
+        (*elt).value = static_str(value);
+        (*elt).lowcase_key = ptr::null_mut();
+        (*elt).next = ptr::null_mut();
+        elt
     }
 }
 

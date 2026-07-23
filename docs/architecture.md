@@ -34,9 +34,9 @@ Initial default order for equal client quality:
 4. `deflate`
 5. `identity`
 
-The v0.1 tie-break order is fixed. A configurable order and adaptive
-response-class selection remain unscheduled candidates and must be justified by
-benchmarks before they become release commitments.
+The v0.1 tie-break order is fixed. An inherited `compress_priority` directive is
+the second post-v0.1 phase. Adaptive response-class selection remains deferred
+and requires benchmark evidence before it becomes a release commitment.
 
 ## Streaming contract
 
@@ -106,7 +106,7 @@ No mature, reusable, public Rust compression body-filter implementation was foun
 - HTTP/1.1, HTTP/2, and ordinary HTTP/3; NGINX HTTP/3 remains experimental and
   0-RTT is excluded.
 - `gzip`, `deflate`, `br`, `zstd`, and `identity`; dictionary transports remain
-  M4.
+  outside the v0.1.0 support boundary.
 
 Built-in `gzip on` plus effective runtime compression is handled fail-closed.
 The FFI boundary discovers the public module/command metadata and copies only a
@@ -121,6 +121,10 @@ The public project and repository name is **`ngx-compress-rs`**. It balances NGI
 Regardless of repository name, keep runtime names language-neutral: use an NGINX module symbol such as `ngx_http_compress_module` and a consistent `compress_*` directive namespace. This avoids forcing configuration changes if the implementation language or repository branding changes later.
 
 ## Milestones
+
+M0-M3 are the delivered v0.1.0 foundation. Post-v0.1 work is ordered by the
+technical dependencies below; external issue or discussion activity is evidence,
+not the planning authority.
 
 ### M0: Protocol core
 
@@ -159,7 +163,32 @@ has it and the gain does not justify the config surface. A runtime cache of the
 module's own compressed output is a non-goal (precompressed sidecars + upstream
 `proxy_cache` cover it).
 
-### v0.2.0: Proxied-response policy
+### Post-v0.1 phase 1: remove `max` and bound event-loop work
+
+- remove the `max` profile from the active configuration surface without
+  spending another round deciding whether to retain or retune it;
+- measure callback latency, codec iterations, throughput, and worker RSS for the
+  remaining profiles and representative explicit levels;
+- add a resumable safe-core work budget without losing input, flush/finish
+  state, or NGINX chain ownership.
+
+### Post-v0.1 phase 2: configurable server priority
+
+- add inherited `compress_priority` for equal-client-quality tie-breaking;
+- keep client `q=0`, wildcard, identity, and duplicate-coding semantics
+  authoritative;
+- apply the configured order consistently to runtime codecs and precompressed
+  representations, with an extension path for `dcb` and `dcz`.
+
+### Post-v0.1 phase 3: asynchronous execution
+
+- move eligible expensive codec work off the NGINX event loop;
+- hand threads only bounded Rust-owned data and return completion to the owning
+  event loop before touching request or chain state;
+- bound queue depth and copied bytes, and verify disconnect, cancellation,
+  graceful reload, backpressure, and H1/H2/H3 ordering.
+
+### Post-v0.1 phase 4: proxied-response policy
 
 - add `compress_proxied` with the complete `gzip_proxied` flag vocabulary and
   NGINX-compatible `Via` semantics;
@@ -170,18 +199,22 @@ module's own compressed output is a non-goal (precompressed sidecars + upstream
 - verify inheritance, cache-header combinations, static/runtime parity, and
   HTTP/1.1, HTTP/2, and HTTP/3 behavior.
 
-The detailed post-v0.1 sequence and status labels are maintained in
-[roadmap.md](roadmap.md).
+The detailed engineering sequence and its exit gates are maintained in
+[the post-v0.1 development plan](roadmap.md).
 
-### M4: Compression Dictionary Transport
+### Post-v0.1 phase 5: complete Compression Dictionary Transport
 
-- dictionary advertisement and lifecycle
-- `dcb` and `dcz`
-- dictionary hash validation
-- cache isolation and correct `Vary` handling
-- cross-origin and sensitive-response protections
+- first complete the remaining implementation research around the
+  [recorded dictionary-transport direction](dictionary-transport.md);
+- then implement RFC 9842 advertisement, selection, `dcb` and `dcz`, hash
+  validation, cache isolation, correct `Vary`, fallback, and origin/privacy
+  protections as one production milestone;
+- expose only `compress_dictionary off|lazy|<file>`: lazy mode compiles the
+  inherited configuration tree into per-origin/per-location collection plans
+  and manages zero, one-shot, or progressive immutable dictionary generations;
+- do not publish a static-only prototype as a separate product milestone.
 
-## Explicit non-goals for the first production release
+## Explicit non-goals for v0.1.0
 
 - implementing compression algorithms from scratch
 - asynchronous thread-pool compression

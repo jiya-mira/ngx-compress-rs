@@ -28,24 +28,20 @@ pub struct StaticCandidate {
     pub coding: ContentCoding,
     /// Conventional filename extension for that coding.
     pub extension: &'static str,
+    /// Whether the client accepts this coding, or the mode bypasses negotiation.
+    pub accepted: bool,
 }
 
-const CANDIDATES: [StaticCandidate; 3] = [
-    StaticCandidate {
-        coding: ContentCoding::Zstd,
-        extension: ".zst",
-    },
-    StaticCandidate {
-        coding: ContentCoding::Brotli,
-        extension: ".br",
-    },
-    StaticCandidate {
-        coding: ContentCoding::Gzip,
-        extension: ".gz",
-    },
+const CANDIDATES: [(ContentCoding, &str); 3] = [
+    (ContentCoding::Zstd, ".zst"),
+    (ContentCoding::Brotli, ".br"),
+    (ContentCoding::Gzip, ".gz"),
 ];
 
-/// Returns the complete ordered list of sidecars that the FFI layer may probe.
+/// Returns every sidecar to probe, with client acceptance recorded separately.
+///
+/// `On` deliberately retains unacceptable candidates: finding one means the
+/// eventual identity response still varies on `Accept-Encoding`.
 #[must_use]
 pub fn static_candidates(mode: StaticMode, facts: &StaticRequestFacts) -> Vec<StaticCandidate> {
     if mode == StaticMode::Off
@@ -58,9 +54,10 @@ pub fn static_candidates(mode: StaticMode, facts: &StaticRequestFacts) -> Vec<St
 
     CANDIDATES
         .iter()
-        .copied()
-        .filter(|candidate| {
-            mode == StaticMode::Always || facts.accept_encoding.quality(candidate.coding) > 0
+        .map(|&(coding, extension)| StaticCandidate {
+            coding,
+            extension,
+            accepted: mode == StaticMode::Always || facts.accept_encoding.quality(coding) > 0,
         })
         .collect()
 }
@@ -79,12 +76,17 @@ mod tests {
     }
 
     #[test]
-    fn on_filters_unacceptable_candidates() {
+    fn on_retains_unacceptable_candidates_for_vary_detection() {
         let facts = facts(AcceptEncoding::parse("br, gzip;q=0"));
         let selected = static_candidates(StaticMode::On, &facts);
 
-        assert_eq!(selected.len(), 1);
-        assert_eq!(selected[0].coding, ContentCoding::Brotli);
+        assert_eq!(selected.len(), 3);
+        assert_eq!(selected[0].coding, ContentCoding::Zstd);
+        assert!(!selected[0].accepted);
+        assert_eq!(selected[1].coding, ContentCoding::Brotli);
+        assert!(selected[1].accepted);
+        assert_eq!(selected[2].coding, ContentCoding::Gzip);
+        assert!(!selected[2].accepted);
     }
 
     #[test]
@@ -93,6 +95,7 @@ mod tests {
 
         assert_eq!(selected.len(), 3);
         assert_eq!(selected[0].coding, ContentCoding::Zstd);
+        assert!(selected.iter().all(|candidate| candidate.accepted));
     }
 
     #[test]

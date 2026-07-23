@@ -5,6 +5,22 @@ for its public configuration and documented support contract.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-23
+
+### Fixed
+
+- Added `Vary: Accept-Encoding` to negotiated precompressed-sidecar responses
+  and identity fallbacks whenever an applicable sidecar exists.
+- Prevented recycled output buffers from retaining stale `flush`, `sync`,
+  `last_buf`, or `last_in_chain` flags.
+
+### Changed
+
+- Replaced the public-community-first roadmap with an implementation-focused
+  post-v0.1 plan.
+- Recorded the design direction and deferred decisions for Compression
+  Dictionary Transport.
+
 ## [0.1.0] - 2026-07-22
 
 ### Added
@@ -27,5 +43,6 @@ for its public configuration and documented support contract.
   negotiation, state transitions, and submit planning into safe Rust.
 - Added payload-free panic guards so Rust unwinding cannot cross C callbacks.
 
-[Unreleased]: https://github.com/jiya-mira/ngx-compress-rs/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jiya-mira/ngx-compress-rs/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jiya-mira/ngx-compress-rs/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jiya-mira/ngx-compress-rs/releases/tag/v0.1.0
