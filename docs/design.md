@@ -145,8 +145,8 @@ compatibility floor, `identity` is the implicit fallback.
 
 The v0.1 order is fixed. Only codecs that are enabled and pass eligibility
 participate. `identity` is always an implicit final candidate and is never
-listed. A configurable `compress_priority` is an unscheduled candidate, not a
-registered directive; see [roadmap.md](roadmap.md).
+listed. `compress_priority` is not registered in v0.1.0, but is scheduled as the
+second post-v0.1 phase; see [roadmap.md](roadmap.md).
 
 ## 5. Configuration schema
 
@@ -291,7 +291,7 @@ compress_vary       on;
 ```
 
 Dictionary directives (`dcb`/`dcz`) are deliberately out of scope here and
-remain gated by the post-v0.1 dictionary feasibility phase.
+will be specified after the post-v0.1 dictionary-provisioning design study.
 
 ### 4.7 Precompressed static (`compress_static`)
 
@@ -421,10 +421,11 @@ The release profile is `lto = "fat"`, `opt-level = 3`, `codegen-units = 1`,
 standalone cargo builds. Note `zstd`'s `fat-lto` feature is deliberately off: it
 emits LTO-bitcode C objects the NGINX linker cannot resolve from our staticlib.
 
-Threaded/async compression (e.g. `zstdmt`) is intentionally not enabled. The
-first post-v0.1 task is to define and measure a bounded, resumable work contract
-on the event loop. Threads are reconsidered only if that simpler model cannot
-meet the recorded latency and fairness thresholds.
+Threaded/async compression is not enabled in v0.1.0. It is now a numbered
+post-v0.1 task after the bounded, resumable work contract. The goal is to move
+eligible expensive work off the NGINX event loop with Rust-owned bounded input
+and event-loop completion; merely enabling a codec's internal multithreading
+does not satisfy the ownership or lifecycle contract.
 
 Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 1, `brotli` 8, `zstd` 0.13.
@@ -439,14 +440,17 @@ rather than carried as open planning items.
 The canonical post-v0.1 sequence is maintained in
 [the development plan](roadmap.md):
 
-1. measure callback-level worker latency and add a bounded, resumable safe-core
-   work contract;
-2. resolve whether `compress max` remains suitable for runtime compression,
-   needs retuning, or must become enforceably limited to controlled workloads;
-3. add `compress_proxied` using Rust-owned `Via`, authorization, expiry,
+1. remove the `max` profile without another keep/retune experiment, then measure
+   the remaining runtime profiles and add a bounded, resumable safe-core work
+   contract;
+2. add inherited `compress_priority` as the server tie-break among codings with
+   equal effective client quality, consistently for runtime and static paths;
+3. design and, if the ownership/lifecycle gate passes, implement asynchronous
+   compression with no cross-thread NGINX pointers;
+4. add `compress_proxied` using Rust-owned `Via`, authorization, expiry,
    Cache-Control, Last-Modified, and ETag facts;
-4. run a narrow `dcb`/`dcz` interoperability and value prototype before
-   designing a production dictionary lifecycle.
+5. complete the dictionary-provisioning design study, then implement RFC 9842
+   `dcb`/`dcz` as one production milestone rather than a static-only prototype.
 
 Build-signature and deployment validation continues in parallel. New external
 reports may alter support targets, but a lack of repository traffic does not
@@ -456,9 +460,10 @@ block this engineering sequence.
   ngtcp2/nghttp3/curl image. Every request uses `--http3-only`; fallback is a
   test failure. Upstream NGINX HTTP/3 remains experimental and 0-RTT is out of
   scope.
-- Per-response-class priority (dynamic vs cacheable) and configurable
-  `compress_priority` remain deferred. v0.1 uses a fixed order, and existing
-  codec enablement, profiles, and client `q` values cover most cases.
+- Per-response-class automatic priority (for example, a different implicit
+  order for dynamic versus cacheable responses) remains deferred.
+  `compress_priority` itself is scheduled as a near-term explicit server
+  tie-break and must preserve client `q` semantics.
 - A runtime cache of the module's *own* compressed output — explicitly **not
   built**. Static content is served from precompressed sidecars (the filesystem
   is the cache); "compress once, reuse" for dynamic content is delegated to
@@ -469,8 +474,9 @@ block this engineering sequence.
   module offers it; the table-stakes controls (`compress_types` allowlist,
   `compress_min_length`, per-codec `*_comp_level`) already ship and match the
   ecosystem.
-- Dictionary transport directives and lifecycle remain gated by the prototype
-  in the development plan.
+- Dictionary transport is gated by a design study of provisioning, versioning,
+  cache, and security, after which the planned deliverable is complete RFC 9842
+  support plus usable offline dictionary/manifest tooling.
 - Symmetric decode ("unboxing") remains a separate design decision. This module
   is compress-only; enabling it does not make NGINX decompress anything (the
   client transparently decodes the response). A decode capability would be a
