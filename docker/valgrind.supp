@@ -11,3 +11,19 @@
    fun:ngx_set_environment
    fun:ngx_single_process_cycle
 }
+# NGINX allocates the per-cycle connection and read/write event arrays at
+# startup with a raw ngx_alloc and never frees them before process exit. In
+# single-process mode Valgrind intermittently reports this process-lifetime
+# block as definitely lost (rather than still reachable) depending on the
+# shutdown path. This is upstream nginx core state, not request/module
+# ownership. Keep the stack narrow so other leaks in the same test remain
+# release-blocking.
+{
+   nginx_single_process_event_connections
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:ngx_alloc
+   fun:ngx_event_process_init
+   fun:ngx_single_process_cycle
+}
