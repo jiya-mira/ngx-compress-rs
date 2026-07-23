@@ -72,6 +72,27 @@ jobs:
           path: artifacts/
           if-no-files-found: error
 
+  miri-ffi:
+    name: Security and release / miri-ffi
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Build diagnostic image
+        run: docker build -f docker/Dockerfile -t ngx-compress-build:security .
+
+      # Kept a separate, non-required job: it exercises the unsafe FFI/module
+      # pointer code under Miri (nginx bindings only build with a source tree,
+      # hence Docker). Promote to a required check only after it stays green.
+      - name: Miri undefined-behaviour check (FFI pointer code)
+        run: |
+          docker run --rm -v "$PWD:/repo" ngx-compress-build:security sh -c '
+            rustup toolchain install nightly-2026-07-01 --profile minimal --component miri
+            RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/miri-tests.sh
+          '
+
   rehearsal:
     name: Security and release / rehearsal
     runs-on: ubuntu-24.04
