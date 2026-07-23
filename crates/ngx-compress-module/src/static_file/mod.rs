@@ -23,11 +23,6 @@ const DECLINED: ngx_int_t = Status::NGX_DECLINED.0;
 const OK: ngx_int_t = Status::NGX_OK.0;
 const ERROR: ngx_int_t = Status::NGX_ERROR.0;
 
-trait SidecarSubmit {
-    // SAFETY: `request` must remain live throughout the probe and submit.
-    unsafe fn try_serve(self, request: *mut ngx_http_request_t) -> Option<ngx_int_t>;
-}
-
 /// Registers the content-phase handler; call from postconfiguration.
 ///
 /// # Safety
@@ -95,13 +90,12 @@ unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
         return DECLINED;
     };
 
-    static_candidates(resolved.static_mode, &snapshot)
-        .into_iter()
-        .find_map(|candidate| {
-            // SAFETY: submit layer probes and possibly emits this complete candidate.
-            unsafe { candidate.try_serve(request) }
-        })
-        .unwrap_or(DECLINED)
+    let candidates = static_candidates(resolved.static_mode, &snapshot);
+    // Only `on` selects a representation from Accept-Encoding. `always` sends
+    // the same highest-priority sidecar to every client and therefore does not vary.
+    let vary = resolved.static_mode == StaticMode::On && resolved.vary;
+    // SAFETY: submit layer probes the complete candidate set and may emit one response.
+    unsafe { sidecar::probe_and_serve(request, candidates, vary) }
 }
 
 /// Copies all static-sidecar policy inputs out of nginx request memory.

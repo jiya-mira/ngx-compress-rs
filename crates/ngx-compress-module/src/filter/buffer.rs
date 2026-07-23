@@ -208,9 +208,63 @@ unsafe fn free_buf(
             (*buf).end = memory.add(buffer_size);
             (*buf).tag = ptr::addr_of!(ngx_http_compress_module).cast_mut().cast();
         }
-        (*buf).pos = (*buf).start;
-        (*buf).last = (*buf).start;
-        (*buf).set_temporary(1);
+        ngx_compress_ffi::buffer::prepare_output(&mut *buf);
         link
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::mem::MaybeUninit;
+
+    use ngx::ffi::ngx_buf_t;
+    use ngx_compress_core::OutputBoundary;
+
+    use super::OutputBuffer;
+
+    fn raw_buffer(storage: &mut [u8]) -> ngx_buf_t {
+        // SAFETY: ngx_buf_t is a C data holder whose all-zero state is nginx's
+        // allocation default; the live storage pointers are installed below.
+        let mut raw = unsafe { MaybeUninit::<ngx_buf_t>::zeroed().assume_init() };
+        raw.start = storage.as_mut_ptr();
+        raw.end = raw.start.wrapping_add(storage.len());
+        raw.pos = raw.start;
+        raw.last = raw.start;
+        raw
+    }
+
+    fn commit(raw: &mut ngx_buf_t, boundary: OutputBoundary) {
+        // SAFETY: raw points into the live test storage for this scope.
+        let Ok(mut output) = (unsafe { OutputBuffer::new(raw) }) else {
+            panic!("valid test buffer");
+        };
+        assert!(output.commit(1, boundary).is_ok());
+    }
+
+    #[test]
+    fn commit_sets_only_the_current_boundary() {
+        let mut storage = [0_u8; 8];
+        let mut raw = raw_buffer(&mut storage);
+
+        ngx_compress_ffi::buffer::prepare_output(&mut raw);
+        commit(&mut raw, OutputBoundary::None);
+        assert_eq!(raw.flush(), 0);
+        assert_eq!(raw.sync(), 0);
+        assert_eq!(raw.last_buf(), 0);
+        assert_eq!(raw.last_in_chain(), 0);
+
+        ngx_compress_ffi::buffer::prepare_output(&mut raw);
+        commit(&mut raw, OutputBoundary::Flush);
+        assert_eq!(raw.flush(), 1);
+        assert_eq!(raw.sync(), 0);
+        assert_eq!(raw.last_buf(), 0);
+        assert_eq!(raw.last_in_chain(), 0);
+
+        ngx_compress_ffi::buffer::prepare_output(&mut raw);
+        commit(&mut raw, OutputBoundary::Finish);
+        assert_eq!(raw.flush(), 0);
+        assert_eq!(raw.sync(), 0);
+        assert_eq!(raw.last_buf(), 1);
+        assert_eq!(raw.last_in_chain(), 0);
     }
 }
