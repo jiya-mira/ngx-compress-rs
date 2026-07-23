@@ -4,7 +4,7 @@
 on top of the official [`nginx/ngx-rust`](https://github.com/nginx/ngx-rust)
 integration layer.
 
-The project is a source-only **v0.1.0 Technical Preview**. It supports dynamic
+The project is a source-only **v0.1.1 Technical Preview**. It supports dynamic
 and static builds, but every build must use the exact NGINX source and configure
 signature of the target deployment. No universal binary module is distributed.
 
@@ -32,7 +32,7 @@ NGINX version, configure arguments, compiler/ABI, and distribution patches as
 the target binary. `--with-compat` helps with compatible builds but does not make
 one `.so` universal.
 
-The v0.1.0 support baseline is **NGINX 1.30.4, Debian Bookworm, Linux x86_64**,
+The v0.1.1 support baseline is **NGINX 1.30.4, Debian Bookworm, Linux x86_64**,
 using either dynamic/static linking and vendored/system codec libraries. Other
 versions, distributions, architectures, and signatures are unverified. HTTP/3
 inherits NGINX upstream's experimental status and does not include 0-RTT.
@@ -129,8 +129,9 @@ Report suspected vulnerabilities privately as described in
 - [Post-v0.1 development plan](docs/roadmap.md)
 - [Compression Dictionary Transport design direction](docs/dictionary-transport.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
-- [Release-readiness checklist](docs/release-readiness.md)
+- [v0.1.1 release-readiness checklist](docs/release-readiness-v0.1.1.md)
 - [Release, tag, and rollback runbook](docs/release.md)
+- [v0.1.1 release notes](docs/releases/v0.1.1.md)
 - [v0.1.0 release notes](docs/releases/v0.1.0.md)
 
 The governing rule is `NGINX/codec FFI -> validated prefetch -> safe Rust core ->

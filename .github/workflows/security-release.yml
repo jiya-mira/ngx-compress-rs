@@ -40,12 +40,12 @@ jobs:
         run: |
           mkdir -p artifacts/sbom
           cargo cyclonedx --manifest-path crates/ngx-compress-module/Cargo.toml \
-            --format json --override-filename ngx-compress-rs-0.1.0-vendored.cdx
+            --format json --override-filename ngx-compress-rs-0.1.1-vendored.cdx
           cargo cyclonedx --manifest-path crates/ngx-compress-module/Cargo.toml \
             --format json --no-default-features \
             --features 'gzip,deflate,brotli,zstd,system-libs' \
-            --override-filename ngx-compress-rs-0.1.0-system.cdx
-          find crates/ngx-compress-module -maxdepth 1 -name 'ngx-compress-rs-0.1.0-*.cdx.json' \
+            --override-filename ngx-compress-rs-0.1.1-system.cdx
+          find crates/ngx-compress-module -maxdepth 1 -name 'ngx-compress-rs-0.1.1-*.cdx.json' \
             -exec cp {} artifacts/sbom/ \;
           test "$(find artifacts/sbom -name '*.cdx.json' | wc -l)" -eq 2
           scripts/toolchain-manifest.sh artifacts/sbom/toolchain.txt
