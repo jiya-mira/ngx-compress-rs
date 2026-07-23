@@ -291,7 +291,9 @@ compress_vary       on;
 ```
 
 Dictionary directives (`dcb`/`dcz`) are deliberately out of scope here and
-will be specified after the post-v0.1 dictionary-provisioning design study.
+will be specified after the post-v0.1 design study. The current single-directive
+and lazy per-location lifecycle direction is recorded in
+[dictionary-transport.md](dictionary-transport.md).
 
 ### 4.7 Precompressed static (`compress_static`)
 
@@ -476,7 +478,10 @@ block this engineering sequence.
   ecosystem.
 - Dictionary transport is gated by a design study of provisioning, versioning,
   cache, and security, after which the planned deliverable is complete RFC 9842
-  support plus usable offline dictionary/manifest tooling.
+  support. The settled configuration direction is one inherited
+  `compress_dictionary off|lazy|<file>` directive; lazy mode automatically
+  manages independent per-origin/per-location dictionary generations. See
+  [dictionary-transport.md](dictionary-transport.md).
 - Symmetric decode ("unboxing") remains a separate design decision. This module
   is compress-only; enabling it does not make NGINX decompress anything (the
   client transparently decodes the response). A decode capability would be a

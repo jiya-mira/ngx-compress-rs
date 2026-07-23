@@ -204,15 +204,14 @@ The detailed engineering sequence and its exit gates are maintained in
 
 ### Post-v0.1 phase 5: complete Compression Dictionary Transport
 
-- first complete a design study covering dedicated dictionaries, previous-build
-  artifacts, generated manifests, multiple active versions, storage, rollout,
-  rollback, and the boundary between runtime and offline tooling;
+- first complete the remaining implementation research around the
+  [recorded dictionary-transport direction](dictionary-transport.md);
 - then implement RFC 9842 advertisement, selection, `dcb` and `dcz`, hash
   validation, cache isolation, correct `Vary`, fallback, and origin/privacy
   protections as one production milestone;
-- include offline dictionary generation/evaluation and manifest tooling so
-  protocol support is operationally usable without handwritten per-resource
-  mappings;
+- expose only `compress_dictionary off|lazy|<file>`: lazy mode compiles the
+  inherited configuration tree into per-origin/per-location collection plans
+  and manages zero, one-shot, or progressive immutable dictionary generations;
 - do not publish a static-only prototype as a separate product milestone.
 
 ## Explicit non-goals for v0.1.0

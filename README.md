@@ -127,6 +127,7 @@ Report suspected vulnerabilities privately as described in
 - [Architecture and milestones](docs/architecture.md)
 - [Detailed module design](docs/design.md)
 - [Post-v0.1 development plan](docs/roadmap.md)
+- [Compression Dictionary Transport design direction](docs/dictionary-transport.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
 - [Release-readiness checklist](docs/release-readiness.md)
 - [Release, tag, and rollback runbook](docs/release.md)

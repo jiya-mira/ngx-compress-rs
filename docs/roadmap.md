@@ -202,20 +202,12 @@ receive `br`, `zstd`, `gzip`, or `identity`.
 
 Do not begin implementation until a focused design study resolves the
 operational model. This is a design gate, not permission to publish a reduced
-static-sidecar feature. It must cover:
-
-- lessons from Cloudflare's passthrough, rule-driven, and proposed automatic
-  lifecycle layers;
-- dedicated dictionaries for dynamic HTML/API responses, including generation,
-  freshness, rollout, rollback, and benefit measurement;
-- previous-release build artifacts for versioned JS/CSS, with generated
-  manifests instead of handwritten per-file mappings;
-- the boundary between the NGINX runtime, an offline dictionary/build tool, and
-  application- or CDN-managed dictionaries;
-- multiple simultaneously active dictionary versions for returning clients;
-- storage limits, lookup by SHA-256 and `Dictionary-ID`, expiry, and reload
-  behavior;
-- why a generic public dictionary is not a default fallback.
+static-sidecar feature. The current direction is recorded in
+[the dictionary-transport design](dictionary-transport.md): one inherited
+`compress_dictionary off|lazy|<file>` directive, with `http`-level lazy
+enablement internally partitioned into independent per-origin/per-location
+dictionary managers. Each manager may skip generation, generate once, or
+maintain progressive immutable generations.
 
 Once that design is accepted, the production milestone implements RFC 9842 as a
 whole:
@@ -223,20 +215,20 @@ whole:
 - `Use-As-Dictionary`, `Available-Dictionary`, `Dictionary-ID`, and
   `compression-dictionary` link handling;
 - both `dcb` and `dcz`, including their required framing and hash validation;
+- external dictionary files and automatic lazy collection/generation through
+  the same internal registry;
 - dynamic compression and precomputed representations backed by the same
   dictionary registry;
 - correct content negotiation, `Vary`, caching, HTTPS, same-origin/CORS,
   readability, privacy, and sensitive-response protections;
 - ordinary encoding fallback for clients without a usable dictionary;
-- an offline tool that builds or evaluates dedicated dictionaries and generates
-  the manifest consumed by the module;
 - interoperability, malformed-input, cache-version, reload, disconnect, and
   H1/H2/H3 tests.
 
 An interoperability spike may be used inside development and tests, but it is
-not a separately shipped milestone. Automatic live-response discovery and
-training may remain later automation; it is not required for complete RFC 9842
-support, while usable offline dictionary provisioning is required.
+not a separately shipped milestone. Exact sampling, generation, retention, and
+complex-location policies remain implementation questions, not additional
+required user-facing configuration.
 
 ## Deferred decisions
 
@@ -254,5 +246,5 @@ support, while usable offline dictionary provisioning is required.
 - opaque retries after partial encoder failure;
 - per-MIME or per-size algorithm-selection DSLs beyond the shipped shared MIME
   allow-list, minimum length, and per-codec compression levels;
-- automatic discovery or training from live responses inside NGINX workers;
+- synchronous or unbounded discovery/training in the NGINX request path;
 - reimplementing compression algorithms.
