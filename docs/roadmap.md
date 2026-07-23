@@ -1,158 +1,168 @@
-# Roadmap
+# Post-v0.1 development plan
 
-This roadmap ranks work by user value, correctness and safety necessity,
-feasibility, and total implementation and verification complexity. It is a
-decision record, not a promise that every idea will ship.
+This document records the engineering sequence after the v0.1.0 Technical
+Preview. It is driven by known runtime risk, user-visible value, technical
+dependencies, and verification cost. Repository activity, issue traffic, and
+external requests may add evidence, but they do not determine the plan.
 
-Only released behavior documented in the README and installation guide is part
-of the support contract. GitHub milestones contain committed release scope;
-issues track accepted work; discussions are the preferred place for early
-feedback and proposals.
+Released behavior remains defined by the README and installation guide. This
+plan may change when measurements invalidate an assumption; such a change must
+record the evidence and the resulting design decision.
 
-## How priorities are assigned
+## Planning rules
 
-| Priority | Meaning |
-| --- | --- |
-| P0 | Correctness, safety, or adoption evidence needed before expanding scope |
-| P1 | High-value, feasible work targeted at the next feature release |
-| P2 | Valuable but feedback- or design-gated work with no release commitment |
-| P3 | Watch-list item; low current necessity or disproportionate complexity |
+Work is ordered by these rules:
 
-Complexity includes implementation, FFI surface, configuration compatibility,
-security review, test-matrix growth, documentation, and long-term maintenance.
+1. close a known correctness, safety, or runtime-contract gap before expanding
+   the same execution path;
+2. prefer a broadly useful NGINX behavior over optional configuration surface;
+3. measure before adding concurrency, caching, or another stateful subsystem;
+4. keep speculative protocol work behind a narrow feasibility gate;
+5. treat compatibility reports as a continuous validation input, not as a
+   prerequisite for making progress.
+
+The release matrix, sanitizer suites, reload tests, and source-build rehearsal
+remain continuous gates. Keeping an existing gate green is maintenance work,
+not a separate feature milestone.
 
 ## Current assessment
 
-| Workstream | Priority | Necessity | Feasibility | Complexity | Decision |
-| --- | --- | --- | --- | --- | --- |
-| Real deployment and build-signature evidence | P0 | High | High | Small–medium | Active in [issue #1](https://github.com/jiya-mira/ngx-compress-rs/issues/1) |
-| Event-loop work limits and `max` profile safety | P0 | High | Medium | Large | Design and measurement in [issue #2](https://github.com/jiya-mira/ngx-compress-rs/issues/2) |
-| `compress_proxied` | P1 | High | High | Medium | Committed to the [v0.2.0 milestone](https://github.com/jiya-mira/ngx-compress-rs/milestone/1) in [issue #3](https://github.com/jiya-mira/ngx-compress-rs/issues/3) |
-| Additional supported platforms/signatures | P1 | Medium–high | Medium | Large and cumulative | Evidence-gated; no support promise from a single successful report |
-| Compression Dictionary Transport (`dcb`/`dcz`) | P2 | Medium | Medium | Extra large | Public [RFC discussion](https://github.com/jiya-mira/ngx-compress-rs/discussions/5) and prototype first |
-| Configurable `compress_priority` | P2 | Medium | High | Small–medium | Implement only after concrete deployment feedback |
-| Symmetric decoding | P3 | Low–medium | Medium | Extra large and security-sensitive | Proposal only; separate design review required |
-| HTTP/1.0 eligibility control | P3 | Low | High | Small | Add only for a demonstrated compatibility need |
-| Threaded or asynchronous compression | P3 | Low | Low–medium | Extra large | Do not pursue before bounded-work evidence shows it is necessary |
-| HTTP/3 0-RTT | P3 | Low | Low–medium | Large | Track upstream maturity; outside the current support contract |
+| Order | Workstream | Value | Main risk/cost | Decision |
+| --- | --- | --- | --- | --- |
+| 1 | Bounded event-loop work and `max` profile semantics | Protects worker latency and establishes a reusable execution contract | Resumable processing must preserve flush, finish, backpressure, and NGINX chain ownership | Immediate design and measurement |
+| 2 | `compress_proxied` | Fills a common response-eligibility gap for reverse-proxy deployments | Header/date policy and inheritance must match NGINX without importing private gzip state | Next user-visible feature |
+| continuous | Build-signature and deployment validation | Reduces installation uncertainty | Every additional target multiplies the build and test matrix | Improve tooling as concrete targets become available; do not block feature work |
+| 3 | Compression Dictionary Transport feasibility | Potentially differentiating compression gains for versioned assets | Dictionary lifecycle, cache partitioning, interoperability, and security are a large new subsystem | Prototype only after orders 1 and 2 |
+| deferred | Configurable server priority | Adds operator control | Client quality values and codec toggles already cover most cases | Wait for a concrete case the current controls cannot express |
+| deferred | Symmetric decoding | Reuses much of the codec/filter foundation | Decompression bombs, output limits, filter position, and request-vs-response scope | Separate design decision after bounded-work primitives exist |
+| parked | Threaded/asynchronous compression | Could isolate expensive codec work | Cross-thread ownership and NGINX integration complexity are high | Reconsider only if bounded synchronous work cannot meet latency goals |
 
-## P0: stabilize the Technical Preview
+## 1. Bound event-loop work and resolve `max`
 
-The immediate goal is not feature count. It is to learn whether real users can
-build, configure, and operate the module safely outside the release fixture.
+This is the first task because v0.1 exposes Brotli 11 and Zstandard 19 through
+`compress max`, while the body filter runs inside an NGINX worker event loop.
+Output-buffer limits bound retained output memory, but they do not by themselves
+bound CPU time or codec iterations in one callback. The current description of
+`max` as suitable for controlled or precompressed work is therefore not a
+complete runtime contract.
 
-### Deployment and compatibility evidence
+### 1.1 Measure the existing behavior
 
-- collect exact `nginx -V` signatures, OS/architecture, module mode, codec
-  backend, protocol, and outcome through the compatibility-report issue form;
-- treat unverified reports as evidence, not as an expanded support contract;
-- require a reproducible CI job or at least two independent matching reports
-  before proposing a new supported platform/signature;
-- prioritize install friction, worker crashes, corrupt output, reload failures,
-  and static/dynamic behavioral differences over new directives.
+Add a versioned callback-level benchmark that covers:
 
-### Event-loop and profile safety
+- highly compressible and incompressible 4 KiB, 256 KiB, and 8 MiB streams;
+- `fast`, `balanced`, and `max`;
+- normal and slow downstream consumption;
+- representative concurrency rather than only single-request throughput;
+- input consumed, output produced, codec-step count, callback latency, request
+  latency, throughput, and worker RSS.
 
-The `max` profile exposes expensive Brotli and Zstandard levels. Before adding
-dictionary compression, decoding, or threaded execution, measure worst-case
-worker latency for highly compressible and incompressible large streams. The
-design decision must state:
+The existing codec matrix remains useful for ratio and aggregate throughput,
+but it cannot answer event-loop fairness questions because it drives a complete
+stream outside NGINX.
 
-- how much input and how many codec iterations one callback may process;
-- what yields or backpressure behavior occurs when that budget is exhausted;
-- whether `max` remains valid for runtime compression or is explicitly limited
-  to controlled/precompressed workloads;
-- the latency, throughput, memory, and fairness regression thresholds.
+### 1.2 Define the safe-core work contract
 
-## P1: v0.2.0 proxied-response policy
+The design must state and enforce:
 
-The next committed user-facing feature is `compress_proxied`, a module-wide
-equivalent of NGINX's `gzip_proxied` directive:
+- the maximum input bytes and codec steps processed by one body-filter
+  invocation;
+- which states mean input-starved, output-starved, budget-exhausted, or
+  complete;
+- how unconsumed input and pending flush/finish state survive resumption;
+- how free/busy chains remain owned while downstream applies backpressure;
+- which counters are observable in tests without logging request content.
 
-- syntax: `off`, `expired`, `no-cache`, `no-store`, `private`,
-  `no_last_modified`, `no_etag`, `auth`, and `any`;
-- default: `off`, matching NGINX;
-- a request is proxied when its request headers contain `Via`, matching NGINX's
-  definition rather than whether the location uses `proxy_pass`;
-- the decision applies to every runtime coding (`gzip`, `deflate`, `br`, and
-  `zstd`), not only gzip;
-- `compress_static on` follows the same eligibility decision, while
-  `compress_static always` deliberately bypasses it;
-- request and response headers are copied or reduced to Rust-owned facts at the
-  FFI boundary, and the policy runs in the safe core;
-- the implementation does not call `ngx_http_gzip_ok()` or read private gzip
-  configuration.
+Budget exhaustion is a normal resumable state, not a codec failure and not
+permission to retry already-consumed input.
 
-Acceptance includes inheritance and child overrides, all flag combinations,
-invalid dates, repeated Cache-Control fields, spoofable `Via`, runtime/static
-paths, and HTTP/1.1, HTTP/2, and HTTP/3 parity.
+### 1.3 Make an evidence-based `max` decision
 
-## P2: feedback-gated development
+After the baseline measurement, choose one of these outcomes:
 
-### Compression Dictionary Transport
+- keep `max` available for runtime compression only if the enforced budget
+  meets the agreed latency and fairness thresholds;
+- retune the preset if lower levels preserve nearly all compression benefit;
+- or limit `max` to explicitly controlled workloads and make that limitation
+  enforceable rather than advisory.
 
-RFC 9842 standardizes `dcb` and `dcz`, but server-side implementation still has
-a large security and lifecycle surface. The first deliverable is a public RFC
-and prototype, not an unconditional M4 implementation commitment. It must cover:
+Do not add worker threads merely to preserve the current preset numbers. First
+prove that bounded resumable synchronous processing is insufficient.
 
-- `Use-As-Dictionary`, `Available-Dictionary`, and `Dictionary-ID` parsing;
-- dictionary advertisement, selection, freshness, and lifecycle;
-- SHA-256 dictionary validation and codec framing;
-- HTTPS-only use, same-origin/CORS protections, and sensitive-response policy;
-- cache partitioning and `Vary: Accept-Encoding, Available-Dictionary`;
-- client interoperability and measurable benefit on versioned static assets.
+### Exit gate
 
-Implementation enters a release milestone only after the RFC identifies a
-real deployment owner or representative workload, interoperable client tests,
-and a security model that fails closed. Automatic dictionary training is not
-part of this workstream.
+This phase is complete when the budget is part of the safe Rust state machine,
+large-stream tests demonstrate resumption under backpressure, H1/H2/H3 and
+static/dynamic behavior remain equivalent, and the `max` contract is explicit
+in configuration and documentation.
 
-### Configurable server priority
+## 2. Add proxied-response eligibility
 
-v0.1 uses the fixed `zstd > br > gzip > deflate` tie-break order. A future
-`compress_priority` is feasible, but client quality values already express much
-of the preference space. It should be promoted only when users provide a case
-that cannot be handled by codec enablement, profiles, or client `q` values.
+Once the runtime execution contract is settled, add `compress_proxied` as the
+next broadly useful capability. It should mirror the `gzip_proxied` vocabulary:
+`off`, `expired`, `no-cache`, `no-store`, `private`, `no_last_modified`,
+`no_etag`, `auth`, and `any`.
 
-## P3: proposals and watch list
+The design remains:
 
-### Symmetric decoding
+- default to `off`;
+- identify a proxied request through `Via`, matching NGINX semantics;
+- apply one decision to gzip, deflate, Brotli, and Zstandard runtime output;
+- apply it to `compress_static on`, while `compress_static always` bypasses it;
+- reduce request and response headers to Rust-owned facts at the FFI boundary;
+- evaluate the policy in the unsafe-free core;
+- keep built-in gzip conflict handling as an independent fail-closed guard;
+- do not call `ngx_http_gzip_ok()` or read private gzip configuration.
 
-A sibling module capable of decoding gzip, Brotli, and Zstandard may eventually
-cover upstream responses, request bodies, or both. These are different filter
-positions and security models, so the scope must not be selected implicitly.
-Output limits, work budgets, decompression-bomb defenses, and failure semantics
-are prerequisites. This remains a proposal rather than an M5 commitment.
+Acceptance covers inheritance and child overrides, every flag and meaningful
+combination, invalid dates, repeated Cache-Control fields, spoofable `Via`,
+runtime/static paths, and HTTP/1.1, HTTP/2, and HTTP/3 parity.
 
-### Other watch-list items
+## Continuous validation lane
 
-- an HTTP/1.0 gate analogous to `gzip_http_version`;
-- optional threaded or asynchronous compression after bounded-work evidence;
-- HTTP/3 0-RTT after upstream and test-toolchain maturity.
+Compatibility work continues alongside the numbered sequence:
 
-A `gzip_disable`-style legacy user-agent regex is not currently planned.
+- keep the exact v0.1 baseline reproducible;
+- make it easy to capture the target `nginx -V`, compiler/ABI, distribution
+  revision, module mode, codec backend, and protocol results;
+- fix reproducible build friction, crashes, corrupt output, reload failures, or
+  static/dynamic differences immediately;
+- add a supported target only when it can be reproduced and maintained in the
+  automated matrix.
 
-## Community feedback and tracking
+An absence of external reports means only that no additional target is proven.
+It does not block work on the known design sequence.
 
-The public workflow is deliberately lightweight:
+## 3. Dictionary-transport feasibility gate
 
-The current prioritization is open for feedback in the
-[post-v0.1 roadmap discussion](https://github.com/jiya-mira/ngx-compress-rs/discussions/4).
+Compression Dictionary Transport (`dcb`/`dcz`) is the first candidate after the
+runtime contract and proxied policy, but the initial deliverable is deliberately
+a narrow prototype for versioned static assets, not production lifecycle code.
 
-1. Questions, early ideas, and design trade-offs begin in
-   [GitHub Discussions](https://github.com/jiya-mira/ngx-compress-rs/discussions).
-2. Reproducible bugs, compatibility reports, and accepted work use
-   [GitHub Issues](https://github.com/jiya-mira/ngx-compress-rs/issues).
-3. Only accepted release scope receives a GitHub milestone. Milestones have no
-   speculative due dates.
-4. Pull requests link the accepted issue and record verification evidence.
-5. Completed behavior enters the changelog and release notes.
+The prototype must answer:
 
-Priority and feedback labels make triage visible. Complexity and acceptance
-gates remain in each roadmap issue so a single label does not disguise risk.
-A GitHub Project will be added only when the active roadmap grows beyond what
-milestones and issue filters can explain clearly, or when multiple maintainers
-need a shared board.
+- whether an interoperable client can complete advertisement and dictionary
+  selection;
+- whether the measured byte and latency savings justify the operational cost;
+- how dictionaries are identified, validated, expired, and partitioned;
+- how `Vary: Accept-Encoding, Available-Dictionary` and caches remain correct;
+- how HTTPS, origin boundaries, CORS, and sensitive responses fail closed.
+
+Proceed to a production design only if interoperability, representative benefit,
+and the security/cache model all pass. Automatic dictionary training remains
+out of scope.
+
+## Deferred decisions
+
+- `compress_priority`: retain the fixed `zstd > br > gzip > deflate` tie-break
+  until a real configuration cannot be expressed with codec enablement,
+  profiles, or client `q` values.
+- Symmetric decoding: keep it in this workspace if selected, but first choose
+  upstream-response decoding or request-body decoding and define output/work
+  limits against decompression bombs.
+- HTTP/1.0 eligibility and legacy user-agent regex controls: add only for a
+  demonstrated compatibility requirement.
+- HTTP/3 0-RTT: wait for upstream and test-toolchain maturity.
 
 ## Explicit non-goals
 

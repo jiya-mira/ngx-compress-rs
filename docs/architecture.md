@@ -106,7 +106,7 @@ No mature, reusable, public Rust compression body-filter implementation was foun
 - HTTP/1.1, HTTP/2, and ordinary HTTP/3; NGINX HTTP/3 remains experimental and
   0-RTT is excluded.
 - `gzip`, `deflate`, `br`, `zstd`, and `identity`; dictionary transports remain
-  M4.
+  gated by the post-v0.1 feasibility phase.
 
 Built-in `gzip on` plus effective runtime compression is handled fail-closed.
 The FFI boundary discovers the public module/command metadata and copies only a
@@ -121,6 +121,10 @@ The public project and repository name is **`ngx-compress-rs`**. It balances NGI
 Regardless of repository name, keep runtime names language-neutral: use an NGINX module symbol such as `ngx_http_compress_module` and a consistent `compress_*` directive namespace. This avoids forcing configuration changes if the implementation language or repository branding changes later.
 
 ## Milestones
+
+M0-M3 are the delivered v0.1.0 foundation. Post-v0.1 work is ordered by the
+technical dependencies below; external issue or discussion activity is evidence,
+not the planning authority.
 
 ### M0: Protocol core
 
@@ -159,7 +163,16 @@ has it and the gain does not justify the config surface. A runtime cache of the
 module's own compressed output is a non-goal (precompressed sidecars + upstream
 `proxy_cache` cover it).
 
-### v0.2.0: Proxied-response policy
+### Post-v0.1 phase 1: bounded event-loop work
+
+- measure callback latency, codec iterations, throughput, and worker RSS for
+  representative stream sizes, profiles, concurrency, and backpressure;
+- add a resumable safe-core work budget without losing input, flush/finish
+  state, or NGINX chain ownership;
+- decide from evidence whether `compress max` remains a runtime profile, is
+  retuned, or is enforceably limited to controlled workloads.
+
+### Post-v0.1 phase 2: proxied-response policy
 
 - add `compress_proxied` with the complete `gzip_proxied` flag vocabulary and
   NGINX-compatible `Via` semantics;
@@ -170,10 +183,16 @@ module's own compressed output is a non-goal (precompressed sidecars + upstream
 - verify inheritance, cache-header combinations, static/runtime parity, and
   HTTP/1.1, HTTP/2, and HTTP/3 behavior.
 
-The detailed post-v0.1 sequence and status labels are maintained in
-[roadmap.md](roadmap.md).
+The detailed engineering sequence and its exit gates are maintained in
+[the post-v0.1 development plan](roadmap.md).
 
-### M4: Compression Dictionary Transport
+### Post-v0.1 phase 3: Compression Dictionary Transport feasibility
+
+- prototype dictionary negotiation for versioned static assets;
+- prove client interoperability and representative benefit;
+- define dictionary validation, origin protections, and cache partitioning.
+
+Only after that gate passes does production dictionary work begin:
 
 - dictionary advertisement and lifecycle
 - `dcb` and `dcz`

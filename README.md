@@ -126,7 +126,7 @@ Report suspected vulnerabilities privately as described in
 
 - [Architecture and milestones](docs/architecture.md)
 - [Detailed module design](docs/design.md)
-- [Post-v0.1 roadmap](docs/roadmap.md)
+- [Post-v0.1 development plan](docs/roadmap.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
 - [Release-readiness checklist](docs/release-readiness.md)
 - [Release, tag, and rollback runbook](docs/release.md)

@@ -65,7 +65,7 @@ crates/
   ngx-compress-module   cdylib; forwards features to codecs, wires everything
 
 later:
-  ngx-compress-dict     dcb/dcz dictionary core (M4) — its own crate because
+  ngx-compress-dict     dcb/dcz dictionary core (post-v0.1, gated) — its own crate because
                         dictionary lifecycle, cache, and security earn isolation
 ```
 
@@ -87,7 +87,8 @@ later:
 
 ### When a codec earns its own crate
 
-1. Heavy dependencies or independent lifecycle — e.g. `dcb`/`dcz` in M4.
+1. Heavy dependencies or independent lifecycle — e.g. the gated `dcb`/`dcz`
+   dictionary phase.
 2. Independent versioning or third-party ecosystem — the `StreamingCodec` trait
    is the stable extension seam, so a new algorithm can be added in-tree as a
    feature, or out-of-tree as a separate crate implementing the trait and
@@ -289,8 +290,8 @@ compress_min_length 256;
 compress_vary       on;
 ```
 
-Dictionary directives (`dcb`/`dcz`) are deliberately out of scope here and are
-specified with the M4 dictionary milestone.
+Dictionary directives (`dcb`/`dcz`) are deliberately out of scope here and
+remain gated by the post-v0.1 dictionary feasibility phase.
 
 ### 4.7 Precompressed static (`compress_static`)
 
@@ -420,46 +421,44 @@ The release profile is `lto = "fat"`, `opt-level = 3`, `codegen-units = 1`,
 standalone cargo builds. Note `zstd`'s `fat-lto` feature is deliberately off: it
 emits LTO-bitcode C objects the NGINX linker cannot resolve from our staticlib.
 
-Threaded/async compression (e.g. `zstdmt`) is intentionally not enabled: it
-conflicts with the first-release non-goal of thread-pool compression and needs a
-bounded work budget on the event loop. That remains a later milestone.
+Threaded/async compression (e.g. `zstdmt`) is intentionally not enabled. The
+first post-v0.1 task is to define and measure a bounded, resumable work contract
+on the event loop. Threads are reconsidered only if that simpler model cannot
+meet the recorded latency and fairness thresholds.
 
 Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
 1, `brotli` 8, `zstd` 0.13.
 
-## 8. Deferred / open items
+## 8. Post-v0.1 design sequence and deferred work
 
-- Proxied-response eligibility — committed for v0.2.0 as
-  `compress_proxied`; see [roadmap.md](roadmap.md). The decision will use
-  Rust-owned `Via`, authorization, expiry, cache-control, Last-Modified, and
-  ETag facts and will cover both runtime and eligible static-sidecar paths.
+The completed M0-M3 foundation includes HTTP/3 coverage, static/dynamic filter
+ordering, sidecar serving, named profiles, worker-local codec reuse, and the
+ratio/throughput calibration harness. These are maintained by the release gates
+rather than carried as open planning items.
+
+The canonical post-v0.1 sequence is maintained in
+[the development plan](roadmap.md):
+
+1. measure callback-level worker latency and add a bounded, resumable safe-core
+   work contract;
+2. resolve whether `compress max` remains suitable for runtime compression,
+   needs retuning, or must become enforceably limited to controlled workloads;
+3. add `compress_proxied` using Rust-owned `Via`, authorization, expiry,
+   Cache-Control, Last-Modified, and ETag facts;
+4. run a narrow `dcb`/`dcz` interoperability and value prototype before
+   designing a production dictionary lifecycle.
+
+Build-signature and deployment validation continues in parallel. New external
+reports may alter support targets, but a lack of repository traffic does not
+block this engineering sequence.
 
 - HTTP/3 is included in v0.1.0 through a dedicated pinned NGINX/OpenSSL/
   ngtcp2/nghttp3/curl image. Every request uses `--http3-only`; fallback is a
   test failure. Upstream NGINX HTTP/3 remains experimental and 0-RTT is out of
   scope.
-- Static SSI/subrequest ordering is resolved by reordering NGINX's generated
-  `HTTP_FILTER_MODULES` after registration. Dynamic order remains declared with
-  `ngx_module_order`. Generated `objs/ngx_modules.c`, SSI, and addition output
-  are release-blocking checks for both modes.
-- Static precompressed serving (`.br` / `.gz` / `.zst` sidecar) — M3, done. A
-  content-phase handler (`compress_static on|off|always`, §4.7) that serves a
-  precompressed sidecar file when one exists and the client accepts it, like
-  `gzip_static`. It is a content handler, not the M1/M2 header/body filter,
-  because it replaces the file being served rather than transforming a stream.
-  Verified in both dynamic and static builds (it correctly precedes nginx's
-  static handler in both).
-- Named profiles (`compress fast|balanced|max`) — M3, done. A turnkey preset
-  over the per-codec knobs (§4.2.1); explicit directives override, preset numbers
-  are benchmark-calibrated.
-- Worker-local codec-context reuse — M3. Reset and reuse a per-worker codec
-  instead of allocating a fresh encoder per request (the `StreamingCodec::reset`
-  seam already exists). Worker-local only, no cross-worker/cross-request shared
-  mutable state, no request-path locks.
-- Benchmark-driven profiles — M3. A reproducible ratio × throughput × CPU
-  harness that calibrates the profile tiers' default levels.
 - Per-response-class priority (dynamic vs cacheable) and configurable
-  `compress_priority` are unscheduled candidates. v0.1 uses a fixed order.
+  `compress_priority` remain deferred. v0.1 uses a fixed order, and existing
+  codec enablement, profiles, and client `q` values cover most cases.
 - A runtime cache of the module's *own* compressed output — explicitly **not
   built**. Static content is served from precompressed sidecars (the filesystem
   is the cache); "compress once, reuse" for dynamic content is delegated to
@@ -470,8 +469,9 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
   module offers it; the table-stakes controls (`compress_types` allowlist,
   `compress_min_length`, per-codec `*_comp_level`) already ship and match the
   ecosystem.
-- Dictionary transport directives and lifecycle — M4.
-- Symmetric decode ("unboxing") — proposed **M5**, to be discussed. This module
+- Dictionary transport directives and lifecycle remain gated by the prototype
+  in the development plan.
+- Symmetric decode ("unboxing") remains a separate design decision. This module
   is compress-only; enabling it does not make NGINX decompress anything (the
   client transparently decodes the response). A decode capability would be a
   gunzip-equivalent that also covers `br`/`zstd` (the built-in
@@ -485,4 +485,5 @@ Pinned dependency majors are current as of this milestone: `ngx` 0.5, `flate2`
   trait mirroring `StreamingCodec`. Requires its own design pass because decode
   has a distinct security surface — bounded output/work budgets are mandatory
   (decompression bombs) — and the filter position/scope differ by target
-  (upstream response vs request body). Not started.
+  (upstream response vs request body). It cannot start before the bounded-work
+  primitives exist and the target direction is selected explicitly.
