@@ -60,8 +60,9 @@ jobs:
             DIAGNOSTIC_DIR=/repo/artifacts/security \
               RUSTUP_TOOLCHAIN=nightly-2026-07-01 sh /repo/docker/sanitizer-tests.sh
           '
-          docker run --rm -v "$PWD:/repo" ngx-compress-build:security \
-            sh /repo/docker/valgrind-tests.sh
+          docker run --rm -v "$PWD:/repo" \
+            -e DIAGNOSTIC_DIR=/repo/artifacts/security \
+            ngx-compress-build:security sh /repo/docker/valgrind-tests.sh
 
       - name: Upload SBOM and toolchain inventory
         if: always()

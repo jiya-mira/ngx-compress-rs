@@ -61,7 +61,21 @@ curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' -o "$RUN/body.gz" \
     "http://127.0.0.1:$PORT/body.txt"
 gzip -dc < "$RUN/body.gz" | cmp -s - "$WWW/body.txt"
 kill -QUIT "$ngx_pid"
-wait "$ngx_pid"
+if wait "$ngx_pid"; then
+    valgrind_status=0
+else
+    valgrind_status=$?
+fi
+
+if [ -n "${DIAGNOSTIC_DIR:-}" ]; then
+    mkdir -p "$DIAGNOSTIC_DIR"
+    cp "$RUN/valgrind.log" "$DIAGNOSTIC_DIR/valgrind.log"
+fi
+
+if [ "$valgrind_status" -ne 0 ]; then
+    cat "$RUN/valgrind.log"
+    exit "$valgrind_status"
+fi
 
 if grep -E 'Invalid read|Invalid write|definitely lost: [1-9]|ERROR SUMMARY: [1-9]' \
     "$RUN/valgrind.log" >/dev/null 2>&1; then
