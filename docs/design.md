@@ -150,6 +150,12 @@ second post-v0.1 phase; see [roadmap.md](roadmap.md).
 
 ## 5. Configuration schema
 
+> The normative operator reference — every directive's syntax, default, context,
+> and range — is [directives.md](directives.md). This section records the design
+> rationale (naming, upstream analogs, calibration, precedence) behind those
+> values; the tables below carry that rationale rather than serving as the
+> place operators must read.
+
 Directive namespace is `compress_*`. All directives are valid in `http`,
 `server`, and `location` contexts and inherit with standard NGINX
 `merge_loc_conf` cascade (child overrides parent).
