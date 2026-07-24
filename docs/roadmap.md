@@ -35,7 +35,7 @@ not a separate feature milestone.
 | 3 | Asynchronous compression execution | Keeps expensive codec work off the NGINX worker event loop | Cross-thread ownership, completion, cancellation, reload, and request ordering are difficult | Promoted from parked work; design after the resumable work contract, then implement if the lifecycle can remain fail-closed |
 | 4 | `compress_proxied` | Fills a common response-eligibility gap for reverse-proxy deployments | Header/date policy and inheritance must match NGINX without importing private gzip state | Next response-policy feature |
 | continuous | Build-signature and deployment validation | Reduces installation uncertainty | Every additional target multiplies the build and test matrix | Improve tooling as concrete targets become available; do not block feature work |
-| 5 | Complete Compression Dictionary Transport | Adds standardized `dcb`/`dcz` with gains comparable in importance to adding a codec family | Dictionary provisioning, lifecycle, cache partitioning, interoperability, and security form a large subsystem | Complete the design study first, then implement RFC 9842 as one production milestone rather than a static-only prototype |
+| 5 | Complete Compression Dictionary Transport | Adds standardized `dcb`/`dcz` with gains comparable in importance to adding a codec family | Dictionary provisioning, lifecycle, cache partitioning, interoperability, and security form a large subsystem | Complete the design study first, then implement the RFC 9842 protocol completely (both codings, negotiation, fallback) as one milestone, with dictionary sourcing bounded to static and external origins |
 | deferred | Symmetric decoding | Reuses much of the codec/filter foundation | Decompression bombs, output limits, filter position, and request-vs-response scope | Separate design decision after bounded-work primitives exist |
 
 ## 1. Remove `max` and bound event-loop work
@@ -251,13 +251,17 @@ work deserves a production design: unsupported clients naturally continue to
 receive `br`, `zstd`, `gzip`, or `identity`.
 
 Do not begin implementation until a focused design study resolves the
-operational model. This is a design gate, not permission to publish a reduced
-static-sidecar feature. The current direction is recorded in
+operational model. This is a design gate, not permission to publish a protocol
+subset (e.g. `dcb` sidecars without `dcz`, negotiation, or fallback); bounding
+dictionary *sourcing* to static and external origins is a sourcing policy, not a
+protocol reduction. The current direction is recorded in
 [the dictionary-transport design](dictionary-transport.md): one inherited
 `compress_dictionary off|lazy|<file>` directive, with `http`-level lazy
 enablement internally partitioned into independent per-origin/per-location
-dictionary managers. Each manager may skip generation, generate once, or
-maintain progressive immutable generations.
+dictionary managers. Each manager may leave a location without a dictionary,
+generate one dictionary from the location's static corpus (frozen until a
+redeploy), or use a configured external dictionary; it does not sample or train
+dictionaries from dynamic responses.
 
 Once that design is accepted, the production milestone implements RFC 9842 as a
 whole:
@@ -265,8 +269,8 @@ whole:
 - `Use-As-Dictionary`, `Available-Dictionary`, `Dictionary-ID`, and
   `compression-dictionary` link handling;
 - both `dcb` and `dcz`, including their required framing and hash validation;
-- external dictionary files and automatic lazy collection/generation through
-  the same internal registry;
+- external dictionary files and lazily-built static-resource dictionaries
+  through the same internal registry (no dynamic-response sampling);
 - dynamic compression and precomputed representations backed by the same
   dictionary registry;
 - correct content negotiation, `Vary`, caching, HTTPS, same-origin/CORS,
@@ -276,7 +280,7 @@ whole:
   H1/H2/H3 tests.
 
 An interoperability spike may be used inside development and tests, but it is
-not a separately shipped milestone. Exact sampling, generation, retention, and
+not a separately shipped milestone. Exact generation, retention, and
 complex-location policies remain implementation questions, not additional
 required user-facing configuration.
 
