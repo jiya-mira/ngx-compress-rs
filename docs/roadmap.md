@@ -85,6 +85,53 @@ The design must state and enforce:
 Budget exhaustion is a normal resumable state, not a codec failure and not
 permission to retry already-consumed input.
 
+The same per-request counters (chosen coding, effective level, input and output
+bytes, and compression time) also back an optional, default-off analysis mode
+that surfaces them as a single `Server-Timing` entry whose `desc` holds the
+codec, level, and a single rounded compression ratio — for example
+`comp;dur=<ms>;desc="<algo>/<level> <ratio>x"` (say `zstd/6 21x`). The design
+must fix:
+
+- **Scope.** `dur` is strictly this module's own compression work — the codec
+  time across the response's body-filter invocations — and never upstream/proxy
+  latency, total request time, or eligibility-policy evaluation. This boundary
+  matters once `compress_proxied` (phase 4) lands: the upstream wait of a proxied
+  response must never be folded into this metric.
+- **Unit and clock.** Per the `Server-Timing` specification `dur` is
+  milliseconds, so sub-millisecond compression is reported as fractional
+  milliseconds (e.g. `dur=0.08`) at a fixed precision. The value must come from a
+  high-resolution monotonic clock, not NGINX's millisecond-granular
+  `ngx_current_msec` cache, which would round most responses to `0`. For very
+  small bodies `dur` approaches measurement noise, so the exact byte and step
+  counters remain the precise signal and `dur` is only indicative.
+- **Name.** A fixed, neutral token that does not identify the server or module
+  (no `nginx`/`ngx`/module-name); not operator-configurable, since the mode is
+  off by default and enabled only for analysis.
+- **Non-interference.** It reuses these counters rather than adding a second
+  measurement path, appends to rather than overwrites any existing
+  `Server-Timing` header so it never disturbs another producer's keys, and stays
+  off by default behind an explicit directive.
+- **Privacy.** The client already sees the compressed size on the wire, so the
+  only new datum is the original size, which it cannot otherwise derive. The
+  header therefore carries a single *rounded* ratio rather than exact
+  input/output bytes: rounding blunts the byte-level precision a compression
+  oracle (BREACH-style) wants and coarsens the original size an observer could
+  back out. Exact byte and step counts stay server-side in the phase-1 counters
+  (logs and tests), never the client-visible header. Even so, the mode must not
+  be enabled for responses that mix secret and attacker-influenced content; it is
+  opt-in and documented as such regardless.
+
+For the planned `dcb`/`dcz` dictionary codings (phase 5) the ratio stays a cheap
+response-body `in/out`: the dictionary is side input, so nothing extra is
+computed. Such a value is dictionary-aided and not comparable to a plain-codec
+ratio — the coding name in `desc` is what disambiguates it — and the module
+deliberately does not separate out the dictionary's contribution or amortize
+dictionary transfer, which are cross-request analysis concerns rather than
+per-response header facts.
+
+It is an observability output, not a new request-path execution mode, and does
+not gate this phase's exit.
+
 ### Exit gate
 
 This phase is complete when `max` is absent from the active configuration
