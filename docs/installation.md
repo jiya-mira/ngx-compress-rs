@@ -56,7 +56,10 @@ cargo --version
 
 ## Build a dynamic module
 
-Set paths for the checked-out project and the exact NGINX source tree:
+Set paths for the checked-out project and the exact NGINX source tree.
+`MODULE_DIR` is **not** the repo root: it is the in-repo module directory
+`crates/ngx-compress-module`, the folder that contains the NGINX module `config`
+file, which `./configure` reads through `--add-dynamic-module` / `--add-module`.
 
 ```sh
 MODULE_DIR=/absolute/path/to/ngx-compress-rs/crates/ngx-compress-module
@@ -71,8 +74,10 @@ Re-run the target binary's configure arguments, then append the module options:
   <the target nginx configure arguments> \
   --with-compat \
   --add-dynamic-module="$MODULE_DIR"
-make -j"$(getconf _NPROCESSORS_ONLN)"
+make
 ```
+
+To parallelize the build, append a job count, e.g. `make -j"$(nproc)"`.
 
 The resulting module is normally:
 
@@ -89,12 +94,55 @@ NGX_COMPRESS_BACKEND=system ./configure \
   <the target nginx configure arguments> \
   --with-compat \
   --add-dynamic-module="$MODULE_DIR"
-make -j"$(getconf _NPROCESSORS_ONLN)"
+make
 ```
 
 Use the vendored backend unless the deployment requires distribution-managed
 shared libraries. A system-backend artifact also depends on compatible runtime
 versions of those shared libraries.
+
+### Build flow (what runs when)
+
+The build is a single pass, not two:
+
+- `./configure` generates the `Makefile` and wires in the Rust build; it does not
+  compile anything itself.
+- `make` invokes `cargo rustc` **once** to build the module staticlib and links
+  it into `objs/ngx_http_compress_module.so` (or into `objs/nginx` for a static
+  build).
+- NGINX cannot track the Rust sources, so **every** `make` re-echoes the full
+  `cargo rustc …` command line — including the `make install` step, which
+  re-checks the build target. This looks like a second compile but is not: when
+  the crate is already up to date cargo prints `Finished … in 0.0Xs` and does no
+  work (a full first build takes tens of seconds; the re-check is a fingerprint
+  cache hit). `make install`, or copying the `.so` yourself, only installs the
+  built artifact.
+
+Do **not** run a host-side `cargo build` first expecting to speed this up: the
+NGINX build uses its own `--target-dir` under `objs/`, so a separate `cargo build`
+compiles into a different directory and its result is not reused here — which can
+look like the crate compiling twice.
+
+### Advanced: build flags (`RUSTFLAGS` / target-cpu)
+
+To pass extra flags to the Rust compiler, set `RUSTFLAGS` in the environment for
+both `./configure` and `make` (or export it once for the shell session):
+
+```sh
+RUSTFLAGS="-C target-cpu=native" ./configure \
+  <the target nginx configure arguments> \
+  --with-compat \
+  --add-dynamic-module="$MODULE_DIR"
+RUSTFLAGS="-C target-cpu=native" make
+```
+
+The build system also accepts `NGX_RUSTC_OPT` for options appended directly to
+the `cargo rustc` invocation, if you prefer to keep them out of the environment.
+
+`-C target-cpu=native` optimizes for the CPU of the **build** host and ties the
+binary to that instruction set. Omit it (or pass a specific baseline such as
+`-C target-cpu=x86-64-v2`) when the build host and the deployment host may differ,
+or the module can fail with an illegal-instruction crash on older hardware.
 
 ## Build statically
 
@@ -104,7 +152,7 @@ Use the target NGINX configure arguments and append `--add-module`:
 NGX_COMPRESS_BACKEND=vendored ./configure \
   <the target nginx configure arguments> \
   --add-module="$MODULE_DIR"
-make -j"$(getconf _NPROCESSORS_ONLN)"
+make
 ```
 
 Use `NGX_COMPRESS_BACKEND=system` for the system codec backend. The resulting
@@ -189,8 +237,10 @@ location /assets/ {
 }
 ```
 
-See [design.md](design.md#4-content-negotiation-and-server-priority) for all
-directives, defaults, validation ranges, and precedence rules.
+See [directives.md](directives.md) for every directive's syntax, default,
+context, and validation range, and
+[design.md](design.md#4-content-negotiation-and-server-priority) for the
+precedence rationale.
 
 ## Verify the installed module
 
@@ -223,7 +273,7 @@ HTTP/2, and HTTP/3 modules, then configure a TLS 1.3 QUIC listener:
   --with-http_v2_module \
   --with-http_v3_module \
   --add-module="$MODULE_DIR"
-make -j"$(getconf _NPROCESSORS_ONLN)"
+make
 ```
 
 ```nginx

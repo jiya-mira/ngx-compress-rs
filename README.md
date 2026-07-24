@@ -4,9 +4,11 @@
 on top of the official [`nginx/ngx-rust`](https://github.com/nginx/ngx-rust)
 integration layer.
 
-The project is a source-only **v0.1.1 Technical Preview**. It supports dynamic
-and static builds, but every build must use the exact NGINX source and configure
-signature of the target deployment. No universal binary module is distributed.
+The project is a source-only **v0.1.1 Technical Preview**: you build it from
+source, and no universal binary module is distributed. Trying it out takes only
+the [Quick start](#quick-start) below. Deploying it into an NGINX you already run
+additionally requires building against that binary's exact version and configure
+signature — see [Deploy into your NGINX](#deploy-into-your-nginx).
 
 ## Features
 
@@ -24,6 +26,92 @@ signature of the target deployment. No universal binary module is distributed.
 
 Compression Dictionary Transport (`dcb` and `dcz`) is intentionally deferred to
 a later milestone.
+
+## Quick start
+
+Try it in a few minutes. This builds a throwaway NGINX with the module compiled
+in — nothing is installed system-wide, and it needs no matching against an
+existing NGINX. On Debian/Ubuntu (also install [Rust](https://rustup.rs) 1.85+):
+
+```sh
+# 1. Build prerequisites
+sudo apt-get install -y \
+  git curl gcc make cmake pkg-config clang libclang-dev \
+  libpcre2-dev zlib1g-dev libssl-dev
+
+# 2. Get the module and a vanilla NGINX source, side by side
+git clone https://github.com/jiya-mira/ngx-compress-rs
+curl -fsSL https://nginx.org/download/nginx-1.30.4.tar.gz | tar -xz
+cd nginx-1.30.4
+
+# 3. Build NGINX with the module compiled in
+./configure --add-module=../ngx-compress-rs/crates/ngx-compress-module
+make
+```
+
+Then enable it with one directive in a `server` (or `http`) block and start
+`objs/nginx`:
+
+```nginx
+compress balanced;   # enable gzip / brotli / zstd, negotiated automatically
+```
+
+To run it inside **your** NGINX instead of a throwaway build, see
+[Deploy into your NGINX](#deploy-into-your-nginx).
+
+## Configuration
+
+`compress balanced;` is the whole turnkey setup. Manual codec selection is also
+supported:
+
+```nginx
+http {
+    compress on;
+    compress_zstd on;
+    compress_brotli on;
+    compress_gzip on;
+    compress_min_length 256;
+    compress_types text/plain text/css application/json application/javascript;
+}
+```
+
+### Directives
+
+All directives are valid in the `http`, `server`, and `location` contexts.
+
+| Directive | Default | Description |
+| --- | --- | --- |
+| `compress off\|on\|fast\|balanced\|max` | `off` | Master switch and profile selector. `fast`/`balanced`/`max` are presets; `on` is custom mode. |
+| `compress_gzip on\|off` | `off` | Enable the gzip codec. |
+| `compress_deflate on\|off` | `off` | Enable the raw deflate codec. |
+| `compress_brotli on\|off` | `off` | Enable the Brotli (`br`) codec. |
+| `compress_zstd on\|off` | `off` | Enable the Zstandard (`zstd`) codec. |
+| `compress_gzip_comp_level <1-9>` | `6` | gzip compression level. |
+| `compress_deflate_comp_level <1-9>` | `6` | deflate compression level. |
+| `compress_brotli_comp_level <0-11>` | `6` | Brotli quality level. |
+| `compress_brotli_window <1k-16m>` | `512k` | Brotli sliding-window size. |
+| `compress_zstd_comp_level <1-22>` | `3` | Zstandard compression level (negative fast levels allowed). |
+| `compress_types <mime>...` | `text/html`, `text/*`, `application/json`, … | MIME allowlist; `*` matches all. |
+| `compress_min_length <n>` | `20` | Minimum response size (bytes) to compress at runtime. |
+| `compress_vary on\|off` | `on` | Add `Vary: Accept-Encoding`. |
+| `compress_buffers <n> <size>` | `16 8k` | Per-request output buffer pool. |
+| `compress_static off\|on\|always` | `off` | Serve precompressed `.zst`/`.br`/`.gz` sidecars. |
+
+Precedence is **explicit directive > profile preset > built-in default**,
+independent of order (`compress max; compress_zstd off;` runs `max` without zstd).
+
+Full syntax, contexts, ranges, and behaviour for every directive are in
+[docs/directives.md](docs/directives.md).
+
+## Deploy into your NGINX
+
+The Quick start builds a self-contained NGINX so you can try the module without
+touching your system. For a real deployment you instead build it as a **dynamic
+module** against the exact NGINX you already run, then load the `.so` — no need
+to replace your NGINX binary. That path (recording your `nginx -V` signature,
+`--with-compat --add-dynamic-module`, `load_module`, the vendored vs system codec
+backends, static linking, and HTTP/3) is covered step by step in
+[docs/installation.md](docs/installation.md). Read the ABI note below first.
 
 ## Compatibility
 
@@ -43,82 +131,13 @@ for that location: runtime compression and sidecar handling are both disabled.
 The built-in gzip filter remains authoritative. `compress off` with only
 `compress_static on` is not a conflict.
 
-## Installation
-
-Build and install the module from source by following
-[docs/installation.md](docs/installation.md). The short form is:
-
-1. Obtain the exact NGINX source and configure arguments for the target binary.
-2. For a dynamic build, configure NGINX with `--with-compat` and
-   `--add-dynamic-module=/path/to/ngx-compress-rs/crates/ngx-compress-module`.
-   For a static build, use `--add-module` with the same exact signature.
-3. Build and install the resulting NGINX/module artifact. Dynamic builds add a
-   top-level `load_module`; static builds do not.
-4. Run `nginx -t` before reloading NGINX.
-
-## Configuration
-
-The simplest recommended configuration is:
-
-```nginx
-load_module modules/ngx_http_compress_module.so;
-
-http {
-    compress balanced;
-}
-```
-
-Manual codec selection is also supported:
-
-```nginx
-http {
-    compress on;
-    compress_zstd on;
-    compress_brotli on;
-    compress_gzip on;
-    compress_min_length 256;
-    compress_types text/plain text/css application/json application/javascript;
-}
-```
-
-See [docs/design.md](docs/design.md#4-content-negotiation-and-server-priority)
-for the complete directive schema and precedence rules.
-
-## Development and verification
-
-The host-side commands intentionally exercise only the NGINX-independent crates:
-
-```sh
-cargo fmt --all --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
-```
-
-Build the pinned integration image and run the NGINX-dependent suites with:
-
-```sh
-docker build -t ngx-compress-build:latest -f docker/Dockerfile .
-docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
-  sh /repo/docker/build-and-test.sh
-docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
-  sh /repo/docker/edge-tests.sh
-docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
-  sh /repo/docker/verify-backends.sh
-
-docker build -t ngx-compress-http3:latest -f docker/http3/Dockerfile .
-docker run --rm -v "$PWD:/repo" ngx-compress-http3:latest \
-  sh /repo/docker/http3/test.sh
-```
-
-The root workspace uses `default-members` because the FFI and module crates need
-an NGINX source/configure tree. Do not replace the host-side commands above with
-`cargo test --workspace` unless that environment has been prepared.
-
 ## Contributing
 
 Bug reports, focused feature proposals, documentation improvements, tests, and
-pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
-submitting a contribution and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
+development setup — host-side checks and the pinned Docker test suites — and the
+engineering expectations; read it before submitting a contribution and follow
+the [Code of Conduct](CODE_OF_CONDUCT.md).
 Report suspected vulnerabilities privately as described in
 [SECURITY.md](SECURITY.md).
 

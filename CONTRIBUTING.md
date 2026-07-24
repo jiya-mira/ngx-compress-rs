@@ -42,7 +42,15 @@ docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
   sh /repo/docker/verify-backends.sh
 docker run --rm -v "$PWD:/repo" ngx-compress-build:latest \
   sh /repo/docker/edge-tests.sh
+
+docker build -t ngx-compress-http3:latest -f docker/http3/Dockerfile .
+docker run --rm -v "$PWD:/repo" ngx-compress-http3:latest \
+  sh /repo/docker/http3/test.sh
 ```
+
+The root workspace uses `default-members` because the FFI and module crates need
+an NGINX source/configure tree, so do not replace the host-side commands above
+with `cargo test --workspace` unless that environment has been prepared.
 
 HTTP/3, sanitizer, lifecycle, and release checks run in CI. Run their local
 harnesses when a change directly affects those paths.
