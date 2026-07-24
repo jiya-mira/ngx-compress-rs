@@ -35,7 +35,7 @@ not a separate feature milestone.
 | 3 | Asynchronous compression execution | Keeps expensive codec work off the NGINX worker event loop | Cross-thread ownership, completion, cancellation, reload, and request ordering are difficult | Promoted from parked work; design after the resumable work contract, then implement if the lifecycle can remain fail-closed |
 | 4 | `compress_proxied` | Fills a common response-eligibility gap for reverse-proxy deployments | Header/date policy and inheritance must match NGINX without importing private gzip state | Next response-policy feature |
 | continuous | Build-signature and deployment validation | Reduces installation uncertainty | Every additional target multiplies the build and test matrix | Improve tooling as concrete targets become available; do not block feature work |
-| 5 | Complete Compression Dictionary Transport | Adds standardized `dcb`/`dcz` with gains comparable in importance to adding a codec family | Dictionary provisioning, lifecycle, cache partitioning, interoperability, and security form a large subsystem | Complete the design study first, then implement RFC 9842 as one production milestone rather than a static-only prototype |
+| 5 | Complete Compression Dictionary Transport | Adds standardized `dcb`/`dcz` with gains comparable in importance to adding a codec family | Dictionary provisioning, lifecycle, cache partitioning, interoperability, and security form a large subsystem | Complete the design study first, then implement the RFC 9842 protocol completely (both codings, negotiation, fallback) as one milestone, with dictionary sourcing bounded to static and external origins |
 | deferred | Symmetric decoding | Reuses much of the codec/filter foundation | Decompression bombs, output limits, filter position, and request-vs-response scope | Separate design decision after bounded-work primitives exist |
 
 ## 1. Remove `max` and bound event-loop work
@@ -84,6 +84,53 @@ The design must state and enforce:
 
 Budget exhaustion is a normal resumable state, not a codec failure and not
 permission to retry already-consumed input.
+
+The same per-request counters (chosen coding, effective level, input and output
+bytes, and compression time) also back an optional, default-off analysis mode
+that surfaces them as a single `Server-Timing` entry whose `desc` holds the
+codec, level, and a single rounded compression ratio — for example
+`comp;dur=<ms>;desc="<algo>/<level> <ratio>x"` (say `zstd/6 21x`). The design
+must fix:
+
+- **Scope.** `dur` is strictly this module's own compression work — the codec
+  time across the response's body-filter invocations — and never upstream/proxy
+  latency, total request time, or eligibility-policy evaluation. This boundary
+  matters once `compress_proxied` (phase 4) lands: the upstream wait of a proxied
+  response must never be folded into this metric.
+- **Unit and clock.** Per the `Server-Timing` specification `dur` is
+  milliseconds, so sub-millisecond compression is reported as fractional
+  milliseconds (e.g. `dur=0.08`) at a fixed precision. The value must come from a
+  high-resolution monotonic clock, not NGINX's millisecond-granular
+  `ngx_current_msec` cache, which would round most responses to `0`. For very
+  small bodies `dur` approaches measurement noise, so the exact byte and step
+  counters remain the precise signal and `dur` is only indicative.
+- **Name.** A fixed, neutral token that does not identify the server or module
+  (no `nginx`/`ngx`/module-name); not operator-configurable, since the mode is
+  off by default and enabled only for analysis.
+- **Non-interference.** It reuses these counters rather than adding a second
+  measurement path, appends to rather than overwrites any existing
+  `Server-Timing` header so it never disturbs another producer's keys, and stays
+  off by default behind an explicit directive.
+- **Privacy.** The client already sees the compressed size on the wire, so the
+  only new datum is the original size, which it cannot otherwise derive. The
+  header therefore carries a single *rounded* ratio rather than exact
+  input/output bytes: rounding blunts the byte-level precision a compression
+  oracle (BREACH-style) wants and coarsens the original size an observer could
+  back out. Exact byte and step counts stay server-side in the phase-1 counters
+  (logs and tests), never the client-visible header. Even so, the mode must not
+  be enabled for responses that mix secret and attacker-influenced content; it is
+  opt-in and documented as such regardless.
+
+For the planned `dcb`/`dcz` dictionary codings (phase 5) the ratio stays a cheap
+response-body `in/out`: the dictionary is side input, so nothing extra is
+computed. Such a value is dictionary-aided and not comparable to a plain-codec
+ratio — the coding name in `desc` is what disambiguates it — and the module
+deliberately does not separate out the dictionary's contribution or amortize
+dictionary transfer, which are cross-request analysis concerns rather than
+per-response header facts.
+
+It is an observability output, not a new request-path execution mode, and does
+not gate this phase's exit.
 
 ### Exit gate
 
@@ -204,13 +251,17 @@ work deserves a production design: unsupported clients naturally continue to
 receive `br`, `zstd`, `gzip`, or `identity`.
 
 Do not begin implementation until a focused design study resolves the
-operational model. This is a design gate, not permission to publish a reduced
-static-sidecar feature. The current direction is recorded in
+operational model. This is a design gate, not permission to publish a protocol
+subset (e.g. `dcb` sidecars without `dcz`, negotiation, or fallback); bounding
+dictionary *sourcing* to static and external origins is a sourcing policy, not a
+protocol reduction. The current direction is recorded in
 [the dictionary-transport design](dictionary-transport.md): one inherited
 `compress_dictionary off|lazy|<file>` directive, with `http`-level lazy
 enablement internally partitioned into independent per-origin/per-location
-dictionary managers. Each manager may skip generation, generate once, or
-maintain progressive immutable generations.
+dictionary managers. Each manager may leave a location without a dictionary,
+generate one dictionary from the location's static corpus (frozen until a
+redeploy), or use a configured external dictionary; it does not sample or train
+dictionaries from dynamic responses.
 
 Once that design is accepted, the production milestone implements RFC 9842 as a
 whole:
@@ -218,8 +269,8 @@ whole:
 - `Use-As-Dictionary`, `Available-Dictionary`, `Dictionary-ID`, and
   `compression-dictionary` link handling;
 - both `dcb` and `dcz`, including their required framing and hash validation;
-- external dictionary files and automatic lazy collection/generation through
-  the same internal registry;
+- external dictionary files and lazily-built static-resource dictionaries
+  through the same internal registry (no dynamic-response sampling);
 - dynamic compression and precomputed representations backed by the same
   dictionary registry;
 - correct content negotiation, `Vary`, caching, HTTPS, same-origin/CORS,
@@ -229,7 +280,7 @@ whole:
   H1/H2/H3 tests.
 
 An interoperability spike may be used inside development and tests, but it is
-not a separately shipped milestone. Exact sampling, generation, retention, and
+not a separately shipped milestone. Exact generation, retention, and
 complex-location policies remain implementation questions, not additional
 required user-facing configuration.
 
