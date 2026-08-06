@@ -16,6 +16,7 @@ RUN_DIR=/tmp/ngx-run
 WWW=/tmp/www
 PORT=8080
 BACKEND=8091
+MEMORY_PAYLOAD='MEMORY BUFFER PAYLOAD 0123456789 abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ repeated repeated repeated repeated repeated repeated'
 
 log() { printf '\n=== %s ===\n' "$1"; }
 
@@ -75,6 +76,7 @@ setup_www() {
     printf 'HEAD\n<!--#include virtual="/inc.txt" -->\nTAIL\n' > "$WWW/page.shtml"
     printf 'ADDITION BEFORE\n' > "$WWW/before.txt"
     printf 'ADDITION AFTER\n' > "$WWW/after.txt"
+    printf '%s' "$MEMORY_PAYLOAD" > "$WWW/memory.txt"
     cp "$WWW/index.txt" /tmp/upstream.txt
 
     # Precompressed-sidecar fixtures. The sidecars decode to payloads DISTINCT
@@ -141,6 +143,7 @@ pid $RUN_DIR/nginx.pid;
 events { worker_connections 64; }
 http {
     default_type text/plain;
+    sendfile on;
     access_log off;
     server {
         listen $PORT;
@@ -154,6 +157,15 @@ http {
             compress_min_length 20;
             compress_buffers 16 8k;
             compress_types text/plain application/json text/html;
+        }
+        location = /memory {
+            compress on;
+            compress_gzip on;
+            compress_deflate on;
+            compress_brotli on;
+            compress_zstd on;
+            compress_min_length 20;
+            return 200 '$MEMORY_PAYLOAD';
         }
         location = /page.shtml {
             default_type text/html;
@@ -169,6 +181,8 @@ http {
             add_after_body /after.txt;
             compress on;
             compress_gzip on;
+            compress_brotli on;
+            compress_zstd on;
             compress_min_length 20;
             alias $WWW/index.txt;
         }
@@ -233,6 +247,58 @@ check_identity() {
     cmp -s "$RUN_DIR/c.bin" "$WWW/index.txt" \
         || { echo "FAIL [$1 identity]: body altered"; return 1; }
     echo "PASS [$1 identity]: served uncompressed intact"
+}
+
+check_buffer_source() {
+    # $1 = mode label, $2 = source kind, $3 = URI, $4 = expected bytes,
+    # $5 = coding. Every case decodes bytes and compares them with the identity
+    # representation, rather than accepting Content-Encoding as sufficient.
+    curl -sf --noproxy '*' -H "Accept-Encoding: $5" \
+        -D "$RUN_DIR/source.h" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT$3" \
+        || { echo "FAIL [$1 $2 $5]: request failed"; return 1; }
+    grep -qi "^content-encoding: *$5" "$RUN_DIR/source.h" \
+        || { echo "FAIL [$1 $2 $5]: Content-Encoding missing"; cat "$RUN_DIR/source.h"; return 1; }
+    decode "$5"
+    cmp -s "$RUN_DIR/d.txt" "$4" \
+        || { echo "FAIL [$1 $2 $5]: decoded body != identity bytes"; return 1; }
+    echo "PASS [$1 $2 $5]: decoded bytes match"
+}
+
+check_buffer_sources() {
+    # Static-file output is an in-file buffer when sendfile is enabled. The
+    # return directive supplies a memory buffer. Addition combines the main
+    # file with before/after subrequest chains and exercises mixed input.
+    curl -sf --noproxy '*' -o "$RUN_DIR/addition.ref" \
+        "http://127.0.0.1:$PORT/addition"
+
+    for coding in gzip br zstd; do
+        check_buffer_source "$1" file /index.txt "$WWW/index.txt" "$coding" || return 1
+        check_buffer_source "$1" memory /memory "$WWW/memory.txt" "$coding" || return 1
+        check_buffer_source "$1" mixed-chain /addition "$RUN_DIR/addition.ref" "$coding" || return 1
+    done
+}
+
+check_representation_headers() {
+    # A transformed representation has no stable byte range or original
+    # content length. Its static-file ETag must be weakened, and cache variance
+    # must name Accept-Encoding.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' \
+        -D "$RUN_DIR/representation.h" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/index.txt" \
+        || { echo "FAIL [$1 headers]: request failed"; return 1; }
+    if grep -qi '^content-length:\|^accept-ranges:' "$RUN_DIR/representation.h"; then
+        echo "FAIL [$1 headers]: stale length or range metadata retained"
+        cat "$RUN_DIR/representation.h"
+        return 1
+    fi
+    grep -qi '^etag: *W/"' "$RUN_DIR/representation.h" \
+        || { echo "FAIL [$1 headers]: ETag missing or not weak"; cat "$RUN_DIR/representation.h"; return 1; }
+    grep -qi '^vary:.*Accept-Encoding' "$RUN_DIR/representation.h" \
+        || { echo "FAIL [$1 headers]: Vary lacks Accept-Encoding"; cat "$RUN_DIR/representation.h"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - "$WWW/index.txt" \
+        || { echo "FAIL [$1 headers]: transformed bytes damaged"; return 1; }
+    echo "PASS [$1 headers]: transformed representation metadata is coherent"
 }
 
 check_ssi() {
@@ -411,6 +477,8 @@ smoke() {
         check "$2" "$coding" || rc=1
     done
     check_identity "$2" || rc=1
+    check_buffer_sources "$2" || rc=1
+    check_representation_headers "$2" || rc=1
     check_static "$2" || rc=1
 
     # Worker-local codec reuse: with master_process off there is a single worker,

@@ -19,6 +19,7 @@ if [ $HTTP = YES ]; then
     ngx_module_name=ngx_http_compress_module
     ngx_module_incs=
     ngx_module_deps=
+    ngx_module_srcs="$ngx_addon_dir/../ngx-compress-ffi/c/request.c"
     # Same ordering google/ngx_brotli uses: list our module first, then the full
     # downstream filter chain it must precede in the array (so it installs before
     # them and therefore runs after them — after postpone/ssi splice subrequests).

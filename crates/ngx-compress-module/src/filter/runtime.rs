@@ -147,10 +147,10 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         return pass();
     }
     // SAFETY: require in-memory input (materialize file buffers first, like the
-    // gzip module), clear the invalid length, and install request state.
+    // gzip module), clear representation-specific metadata, and install request
+    // state before the downstream header filters observe the response.
     unsafe {
-        (*request).set_main_filter_need_in_memory(1);
-        clear_content_length(request);
+        ngx_compress_ffi::request::prepare_encoded_response(request);
         if plan.stats_mode == crate::StatsMode::ServerTiming {
             (*request).set_expect_trailers(1);
         }
@@ -270,17 +270,5 @@ unsafe fn prefetch_header(request: *mut ngx_http_request_t) -> Option<Snapshot> 
             },
             accept_encoding: Module::accept_encoding(request),
         })
-    }
-}
-
-unsafe fn clear_content_length(request: *mut ngx_http_request_t) {
-    // SAFETY: removes the length so nginx re-frames the compressed body.
-    unsafe {
-        (*request).headers_out.content_length_n = -1;
-        let length = (*request).headers_out.content_length;
-        if !length.is_null() {
-            (*length).hash = 0;
-            (*request).headers_out.content_length = ptr::null_mut();
-        }
     }
 }
