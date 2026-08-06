@@ -73,6 +73,7 @@ struct NgxOutput<'a> {
     free: &'a mut *mut ngx_chain_t,
     buffer_size: usize,
     produced: usize,
+    track_produced: bool,
 }
 
 impl OutputProvider for NgxOutput<'_> {
@@ -96,7 +97,9 @@ impl OutputProvider for NgxOutput<'_> {
                 OutputAction::Recycle => recycle(self.free, link),
                 OutputAction::Emit { produced, boundary } => {
                     output.commit(produced, boundary)?;
-                    self.produced = self.produced.saturating_add(produced);
+                    if self.track_produced {
+                        self.produced = self.produced.saturating_add(produced);
+                    }
                     append(self.out, link);
                 }
             }
@@ -136,6 +139,7 @@ impl CompressChain for RequestCtx {
                     free: &mut self.free,
                     buffer_size: self.buffer_size,
                     produced: 0,
+                    track_produced: started.is_some(),
                 };
                 let outcome = drive_input(
                     &mut *self.codec,
