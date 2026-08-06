@@ -127,6 +127,11 @@ trait StaticModule {
     unsafe fn register_static(cf: *mut ngx::ffi::ngx_conf_t) -> Result<(), ()>;
 }
 
+trait StatsRegistration {
+    // SAFETY: `cf` must be the live NGINX preconfiguration pointer.
+    unsafe fn register_variables(cf: *mut ngx::ffi::ngx_conf_t) -> Result<(), ()>;
+}
+
 trait BuiltinGzip {
     // SAFETY: `request` must reference a live request using `config`.
     unsafe fn disabled_for_request(

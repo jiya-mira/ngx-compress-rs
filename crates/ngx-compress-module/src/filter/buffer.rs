@@ -1,6 +1,7 @@
 //! Callback-scoped NGINX buffer views and output-chain management.
 
 use core::{ptr, slice};
+use std::time::Instant;
 
 use ngx::ffi::{ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t, ngx_http_request_t, ngx_palloc};
 use ngx_compress_core::{
@@ -71,6 +72,7 @@ struct NgxOutput<'a> {
     out: &'a mut *mut ngx_chain_t,
     free: &'a mut *mut ngx_chain_t,
     buffer_size: usize,
+    produced: usize,
 }
 
 impl OutputProvider for NgxOutput<'_> {
@@ -94,6 +96,7 @@ impl OutputProvider for NgxOutput<'_> {
                 OutputAction::Recycle => recycle(self.free, link),
                 OutputAction::Emit { produced, boundary } => {
                     output.commit(produced, boundary)?;
+                    self.produced = self.produced.saturating_add(produced);
                     append(self.out, link);
                 }
             }
@@ -126,13 +129,15 @@ impl CompressChain for RequestCtx {
                 InputBuffer::new(buf).map_err(|()| CompressionFailure::InvalidFfiState)?
             };
             let outcome = {
+                let started = self.stats.as_ref().map(|_| Instant::now());
                 let mut output = NgxOutput {
                     request,
                     out: &mut self.out,
                     free: &mut self.free,
                     buffer_size: self.buffer_size,
+                    produced: 0,
                 };
-                drive_input(
+                let outcome = drive_input(
                     &mut *self.codec,
                     input.operation(),
                     input.bytes(),
@@ -149,7 +154,11 @@ impl CompressChain for RequestCtx {
                     DriveError::Output(OutputFailure::InvalidFfiState) => {
                         CompressionFailure::InvalidFfiState
                     }
-                })?
+                })?;
+                if let (Some(stats), Some(started)) = (&mut self.stats, started) {
+                    stats.record(outcome.consumed, output.produced, started.elapsed());
+                }
+                outcome
             };
             self.done = outcome.finished;
 

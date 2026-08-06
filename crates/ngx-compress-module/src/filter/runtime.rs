@@ -151,7 +151,18 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     unsafe {
         (*request).set_main_filter_need_in_memory(1);
         clear_content_length(request);
-        if RequestCtx::install(request, plan.codec, plan.key, plan.buffer_size).is_none() {
+        if plan.stats_mode == crate::StatsMode::ServerTiming {
+            (*request).set_expect_trailers(1);
+        }
+        if RequestCtx::install(
+            request,
+            plan.codec,
+            plan.key,
+            plan.buffer_size,
+            plan.stats_mode,
+        )
+        .is_none()
+        {
             observability::request(
                 request,
                 Callback::HeaderFilter,
@@ -200,6 +211,20 @@ unsafe fn body_filter_with_ctx(
         // SAFETY: request remains live in this body callback.
         unsafe { observability::request(request, Callback::BodyFilter, class) };
         return Status::NGX_ERROR.0;
+    }
+
+    if ctx.done && ctx.server_timing && !ctx.trailer_sent {
+        // SAFETY: request and its output trailer list remain live for this callback.
+        if unsafe { super::variables::add_server_timing(request, ctx) }.is_err() {
+            unsafe {
+                observability::request(
+                    request,
+                    Callback::BodyFilter,
+                    FailureClass::OutputAllocation,
+                );
+            }
+        }
+        ctx.trailer_sent = true;
     }
 
     // Nothing produced yet and nothing pending: the codec buffered this input.

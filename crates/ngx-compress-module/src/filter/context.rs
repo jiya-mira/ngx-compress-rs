@@ -4,10 +4,10 @@ use core::ffi::c_void;
 
 use ngx::ffi::{ngx_http_request_t, ngx_pool_cleanup_add};
 use ngx::http::{HttpModule, Request};
-use ngx_compress_core::StreamingCodec;
+use ngx_compress_core::{CompressionStats, StreamingCodec};
 
 use super::{CodecKey, CodecPool, RequestContext, RequestCtx};
-use crate::Module;
+use crate::{Module, StatsMode};
 
 unsafe extern "C" fn cleanup(data: *mut c_void) {
     ngx_compress_ffi::guard::callback(
@@ -33,6 +33,7 @@ impl RequestContext for RequestCtx {
         codec: Box<dyn StreamingCodec>,
         key: CodecKey,
         buffer_size: usize,
+        stats_mode: StatsMode,
     ) -> Option<()> {
         // SAFETY: allocates a cleanup handler tied to the request pool.
         unsafe {
@@ -48,6 +49,10 @@ impl RequestContext for RequestCtx {
                 free: core::ptr::null_mut(),
                 buffer_size,
                 done: false,
+                stats: (stats_mode != StatsMode::Off)
+                    .then(|| CompressionStats::new(key.coding, key.level)),
+                server_timing: stats_mode == StatsMode::ServerTiming,
+                trailer_sent: false,
             }));
             (*cleanup_handler).handler = Some(cleanup);
             (*cleanup_handler).data = boxed.cast();

@@ -8,14 +8,16 @@ mod input;
 mod integration;
 mod runtime;
 mod select;
+mod variables;
 mod worker;
 
 use ngx::ffi::{ngx_buf_t, ngx_chain_t, ngx_http_request_t, ngx_int_t};
 use ngx_compress_core::{
-    AcceptEncoding, CodecError, ContentCoding, Operation, ResponseFacts, StreamingCodec,
+    AcceptEncoding, CodecError, CompressionStats, ContentCoding, Operation, ResponseFacts,
+    StreamingCodec,
 };
 
-use crate::Resolved;
+use crate::{Resolved, StatsMode};
 
 struct RequestCtx {
     codec: Box<dyn StreamingCodec>,
@@ -25,6 +27,9 @@ struct RequestCtx {
     free: *mut ngx_chain_t,
     buffer_size: usize,
     done: bool,
+    stats: Option<CompressionStats>,
+    server_timing: bool,
+    trailer_sent: bool,
 }
 
 struct Snapshot {
@@ -38,6 +43,7 @@ struct Plan {
     coding: ContentCoding,
     vary: bool,
     buffer_size: usize,
+    stats_mode: StatsMode,
     reset_recovered: bool,
 }
 
@@ -105,6 +111,7 @@ trait RequestContext {
         codec: Box<dyn StreamingCodec>,
         key: CodecKey,
         buffer_size: usize,
+        stats_mode: StatsMode,
     ) -> Option<()>;
     // SAFETY: `request` must own a live, uniquely callback-borrowed context.
     unsafe fn with<R>(

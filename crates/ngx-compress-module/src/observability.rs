@@ -5,6 +5,7 @@ use ngx::{ngx_conf_log_error, ngx_log_error};
 
 #[derive(Clone, Copy)]
 pub enum Callback {
+    Preconfiguration,
     Postconfiguration,
     SetDirective,
     SetBuffers,
@@ -17,6 +18,7 @@ pub enum Callback {
 impl Callback {
     const fn name(self) -> &'static str {
         match self {
+            Self::Preconfiguration => "preconfiguration",
             Self::Postconfiguration => "postconfiguration",
             Self::SetDirective => "set_directive",
             Self::SetBuffers => "set_buffers",

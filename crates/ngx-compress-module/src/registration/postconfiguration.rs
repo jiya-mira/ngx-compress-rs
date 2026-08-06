@@ -7,7 +7,7 @@ use ngx::ffi::{ngx_conf_t, ngx_int_t, ngx_module_t};
 use ngx::http::HttpModule;
 
 use crate::observability::{self, Callback, FailureClass};
-use crate::{BuiltinGzipRegistration, FilterModule, Module, StaticModule};
+use crate::{BuiltinGzipRegistration, FilterModule, Module, StaticModule, StatsRegistration};
 
 use super::ngx_http_compress_module;
 
@@ -15,6 +15,26 @@ impl HttpModule for Module {
     fn module() -> &'static ngx_module_t {
         // SAFETY: the module static is initialized at load time and never moved.
         unsafe { &*ptr::addr_of!(ngx_http_compress_module) }
+    }
+
+    unsafe extern "C" fn preconfiguration(cf: *mut ngx_conf_t) -> ngx_int_t {
+        ngx_compress_ffi::guard::callback(
+            Status::NGX_ERROR.0,
+            || {
+                // SAFETY: NGINX supplied the live configuration pointer.
+                unsafe {
+                    observability::config(cf, Callback::Preconfiguration, FailureClass::RustPanic);
+                }
+            },
+            || {
+                // SAFETY: NGINX invokes this once with a live configuration pointer.
+                if unsafe { Module::register_variables(cf) }.is_ok() {
+                    Status::NGX_OK.0
+                } else {
+                    Status::NGX_ERROR.0
+                }
+            },
+        )
     }
 
     unsafe extern "C" fn postconfiguration(cf: *mut ngx_conf_t) -> ngx_int_t {

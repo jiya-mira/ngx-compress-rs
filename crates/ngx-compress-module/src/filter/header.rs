@@ -32,6 +32,7 @@ impl HeaderDecision for Plan {
             coding,
             vary: resolved.vary,
             buffer_size: resolved.buffer_size,
+            stats_mode: resolved.stats_mode,
             reset_recovered: selected.reset_recovered,
         }))
     }
