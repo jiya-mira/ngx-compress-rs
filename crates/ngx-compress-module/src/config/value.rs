@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use ngx_compress_core::{MimeTypes, StaticMode};
 
-use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile};
+use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile, StatsMode};
 
 impl ApplyConfig for CompressConfig {
     /// Applies one validated, Rust-owned update from the configuration boundary.
@@ -33,6 +33,7 @@ impl CompressConfig {
             "compress_brotli" => set_flag(&mut self.brotli, value),
             "compress_zstd" => set_flag(&mut self.zstd, value),
             "compress_vary" => set_flag(&mut self.vary, value),
+            "compress_stats" => set_stats_mode(&mut self.stats_mode, value),
             "compress_gzip_comp_level" => set_u32(&mut self.gzip_level, value, 1, 9),
             "compress_deflate_comp_level" => set_u32(&mut self.deflate_level, value, 1, 9),
             "compress_brotli_comp_level" => set_u32(&mut self.brotli_level, value, 0, 11),
@@ -59,6 +60,20 @@ impl CompressConfig {
             false
         }
     }
+}
+
+fn set_stats_mode(slot: &mut Option<StatsMode>, value: &str) -> bool {
+    let mode = if value.eq_ignore_ascii_case("off") {
+        StatsMode::Off
+    } else if value.eq_ignore_ascii_case("variables") {
+        StatsMode::Variables
+    } else if value.eq_ignore_ascii_case("server_timing") {
+        StatsMode::ServerTiming
+    } else {
+        return false;
+    };
+    *slot = Some(mode);
+    true
 }
 
 impl Profile {

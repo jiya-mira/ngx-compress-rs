@@ -24,6 +24,14 @@ enum Profile {
     Max,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum StatsMode {
+    #[default]
+    Off,
+    Variables,
+    ServerTiming,
+}
+
 /// Rust-owned location configuration. `None` means inherit from the parent.
 #[derive(Debug, Default)]
 struct CompressConfig {
@@ -42,6 +50,7 @@ struct CompressConfig {
     min_length: Option<usize>,
     vary: Option<bool>,
     buffers: Option<(usize, usize)>,
+    stats_mode: Option<StatsMode>,
     types: Option<Arc<MimeTypes>>,
     gzip_conflict_expected: bool,
     gzip_runtime_warned: AtomicBool,
@@ -60,6 +69,7 @@ struct Resolved<'a> {
     min_length: usize,
     vary: bool,
     buffer_size: usize,
+    stats_mode: StatsMode,
     static_mode: StaticMode,
     types: Option<&'a MimeTypes>,
     gzip: Option<u32>,

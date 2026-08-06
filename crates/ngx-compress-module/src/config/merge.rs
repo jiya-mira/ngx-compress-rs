@@ -21,6 +21,7 @@ impl Merge for CompressConfig {
         merge_opt(&mut self.min_length, prev.min_length);
         merge_opt(&mut self.vary, prev.vary);
         merge_opt(&mut self.buffers, prev.buffers);
+        merge_opt(&mut self.stats_mode, prev.stats_mode);
         if self.types.is_none() {
             self.types.clone_from(&prev.types);
         }

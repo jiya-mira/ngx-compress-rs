@@ -76,6 +76,7 @@ impl ResolveConfig for CompressConfig {
                 .or(preset.map(|p| p.min_length))
                 .unwrap_or(DEFAULT_MIN_LENGTH),
             vary: self.vary.unwrap_or(true),
+            stats_mode: self.stats_mode.unwrap_or_default(),
             buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
             static_mode: self.static_mode.unwrap_or(StaticMode::Off),
             types: self.types.as_deref(),
