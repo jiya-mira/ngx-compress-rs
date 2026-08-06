@@ -12,7 +12,7 @@ mod stream;
 pub use codec::{CodecError, StepError, StreamingCodec, checked_step};
 pub use eligibility::{CompressionPolicy, ResponseFacts, eligible};
 pub use mime::{MimeTypes, compressible};
-pub use negotiation::{AcceptEncoding, ContentCoding};
+pub use negotiation::{AcceptEncoding, ContentCoding, Negotiation};
 pub use progress::{Operation, ProgressError, StepResult, StepState, validate_progress};
 pub use static_policy::{StaticCandidate, StaticMode, StaticRequestFacts, static_candidates};
 pub use stats::{CompressionStats, StatsField};

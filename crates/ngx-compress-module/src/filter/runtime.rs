@@ -11,9 +11,11 @@ use crate::registration::ngx_http_compress_module;
 use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig};
 
 use super::{
-    CompressChain, CompressionFailure, HeaderDecision, Plan, RequestContext, RequestCtx,
-    RuntimeCallbacks, Snapshot,
+    CodecSelectionFailure, CompressChain, CompressionFailure, HeaderDecision, Plan, RequestContext,
+    RequestCtx, RuntimeCallbacks, Snapshot,
 };
+
+const NOT_ACCEPTABLE: ngx_int_t = 406;
 
 impl RuntimeCallbacks for Module {
     // Installed into the header filter chain by the parent filter module.
@@ -87,7 +89,16 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     let plan = match Plan::decide(&resolved, &snapshot) {
         Ok(Some(plan)) => plan,
         Ok(None) => return pass(),
-        Err(_) => {
+        Err(CodecSelectionFailure::NotAcceptable) => {
+            if resolved.vary {
+                // The status depends on Accept-Encoding even though no content
+                // coding can be selected; preserve cache correctness on 406.
+                let req = unsafe { Request::from_ngx_http_request(request) };
+                let _ = req.add_header_out("Vary", "Accept-Encoding");
+            }
+            return NOT_ACCEPTABLE;
+        }
+        Err(CodecSelectionFailure::Initialization) => {
             // SAFETY: request remains live and no response headers were changed.
             unsafe {
                 observability::request(

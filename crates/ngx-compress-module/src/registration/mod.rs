@@ -82,6 +82,11 @@ static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 17] = [
         NGX_CONF_1MORE as ngx_uint_t,
         Module::set_types,
     ),
+    multi(
+        ngx_string!("compress_priority"),
+        NGX_CONF_1MORE as ngx_uint_t,
+        Module::set_priority,
+    ),
     ngx_command_t::empty(),
 ];
 

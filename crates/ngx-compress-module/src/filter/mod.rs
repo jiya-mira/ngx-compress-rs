@@ -93,6 +93,7 @@ enum CompressionFailure {
 #[derive(Clone, Copy)]
 enum CodecSelectionFailure {
     Initialization,
+    NotAcceptable,
 }
 
 trait RuntimeCallbacks {

@@ -25,6 +25,9 @@ impl Merge for CompressConfig {
         if self.types.is_none() {
             self.types.clone_from(&prev.types);
         }
+        if self.priority.is_none() {
+            self.priority.clone_from(&prev.priority);
+        }
         Ok(())
     }
 }

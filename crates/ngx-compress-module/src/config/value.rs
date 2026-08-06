@@ -19,6 +19,7 @@ impl ApplyConfig for CompressConfig {
                 self.types = Some(Arc::new(MimeTypes::new(values)));
                 true
             }
+            ConfigUpdate::Priority(values) => self.set_priority(values),
         }
     }
 }
@@ -59,6 +60,32 @@ impl CompressConfig {
         } else {
             false
         }
+    }
+
+    fn set_priority(&mut self, values: Vec<String>) -> bool {
+        let mut parsed = Vec::with_capacity(values.len());
+        for value in values {
+            let coding = if value.eq_ignore_ascii_case("gzip") {
+                ngx_compress_core::ContentCoding::Gzip
+            } else if value.eq_ignore_ascii_case("deflate") {
+                ngx_compress_core::ContentCoding::Deflate
+            } else if value.eq_ignore_ascii_case("br") {
+                ngx_compress_core::ContentCoding::Brotli
+            } else if value.eq_ignore_ascii_case("zstd") {
+                ngx_compress_core::ContentCoding::Zstd
+            } else {
+                return false;
+            };
+            if parsed.contains(&coding) {
+                return false;
+            }
+            parsed.push(coding);
+        }
+        if parsed.is_empty() || parsed.len() > 4 {
+            return false;
+        }
+        self.priority = Some(parsed.into());
+        true
     }
 }
 
@@ -143,5 +170,36 @@ fn set_usize(slot: &mut Option<usize>, value: &str) -> bool {
             true
         }
         Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ngx_compress_core::ContentCoding;
+
+    use crate::{ApplyConfig, CompressConfig, ConfigUpdate};
+
+    #[test]
+    fn priority_accepts_partial_unique_runtime_codings() {
+        let mut config = CompressConfig::default();
+
+        assert!(config.apply(ConfigUpdate::Priority(vec!["gzip".into(), "zstd".into(),])));
+        assert_eq!(
+            config.priority.as_deref(),
+            Some([ContentCoding::Gzip, ContentCoding::Zstd].as_slice())
+        );
+    }
+
+    #[test]
+    fn priority_rejects_duplicates_identity_and_unknown_codings() {
+        for values in [
+            vec!["gzip".into(), "GZIP".into()],
+            vec!["identity".into()],
+            vec!["dcz".into()],
+        ] {
+            let mut config = CompressConfig::default();
+            assert!(!config.apply(ConfigUpdate::Priority(values)));
+            assert!(config.priority.is_none());
+        }
     }
 }

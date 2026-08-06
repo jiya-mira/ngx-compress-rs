@@ -1,6 +1,6 @@
 //! Defaults-applied request-path configuration snapshots.
 
-use ngx_compress_core::StaticMode;
+use ngx_compress_core::{ContentCoding, StaticMode};
 
 use crate::{CompressConfig, Profile, ResolveConfig, Resolved};
 
@@ -113,10 +113,106 @@ impl ResolveConfig for CompressConfig {
                         .or(preset.map(|p| p.zstd_level))
                         .unwrap_or(DEFAULT_ZSTD_LEVEL)
                 }),
+            priority: resolve_priority(self.profile, self.priority.as_deref()),
         }
     }
 }
 
+const FAST_PRIORITY: [ContentCoding; 4] = [
+    ContentCoding::Zstd,
+    ContentCoding::Gzip,
+    ContentCoding::Brotli,
+    ContentCoding::Deflate,
+];
+const BALANCED_PRIORITY: [ContentCoding; 4] = [
+    ContentCoding::Zstd,
+    ContentCoding::Brotli,
+    ContentCoding::Gzip,
+    ContentCoding::Deflate,
+];
+
+fn resolve_priority(
+    profile: Option<Profile>,
+    explicit: Option<&[ContentCoding]>,
+) -> [ContentCoding; 5] {
+    let defaults = if profile == Some(Profile::Fast) {
+        FAST_PRIORITY
+    } else {
+        BALANCED_PRIORITY
+    };
+    let mut resolved = [ContentCoding::Identity; 5];
+    let mut len = 0;
+    for coding in explicit.into_iter().flatten().copied().chain(defaults) {
+        if coding != ContentCoding::Identity && !resolved[..len].contains(&coding) {
+            resolved[len] = coding;
+            len += 1;
+        }
+    }
+    resolved
+}
+
 fn on_level(on: Option<bool>, level: Option<u32>, default: u32) -> Option<u32> {
     on.unwrap_or(false).then(|| level.unwrap_or(default))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use ngx_compress_core::ContentCoding;
+
+    use crate::{CompressConfig, Profile, ResolveConfig};
+
+    #[test]
+    fn profiles_supply_documented_default_priority() {
+        let fast = CompressConfig {
+            profile: Some(Profile::Fast),
+            ..CompressConfig::default()
+        };
+        let balanced = CompressConfig {
+            profile: Some(Profile::Balanced),
+            ..CompressConfig::default()
+        };
+
+        assert_eq!(
+            fast.resolve().priority,
+            [
+                ContentCoding::Zstd,
+                ContentCoding::Gzip,
+                ContentCoding::Brotli,
+                ContentCoding::Deflate,
+                ContentCoding::Identity,
+            ]
+        );
+        assert_eq!(
+            balanced.resolve().priority,
+            [
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Deflate,
+                ContentCoding::Identity,
+            ]
+        );
+    }
+
+    #[test]
+    fn explicit_priority_is_a_prefix_completed_by_profile() {
+        let config = CompressConfig {
+            profile: Some(Profile::Fast),
+            priority: Some(Arc::from([ContentCoding::Brotli, ContentCoding::Deflate])),
+            ..CompressConfig::default()
+        };
+
+        assert_eq!(
+            config.resolve().priority,
+            [
+                ContentCoding::Brotli,
+                ContentCoding::Deflate,
+                ContentCoding::Zstd,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ]
+        );
+    }
 }

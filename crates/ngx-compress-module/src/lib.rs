@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use ngx_compress_core::{MimeTypes, StaticMode};
+use ngx_compress_core::{ContentCoding, MimeTypes, StaticMode};
 use ngx_compress_ffi::module_conf::{BuiltinGzipState, HttpLocFlag};
 
 mod config;
@@ -52,6 +52,7 @@ struct CompressConfig {
     buffers: Option<(usize, usize)>,
     stats_mode: Option<StatsMode>,
     types: Option<Arc<MimeTypes>>,
+    priority: Option<Arc<[ContentCoding]>>,
     gzip_conflict_expected: bool,
     gzip_runtime_warned: AtomicBool,
 }
@@ -76,6 +77,7 @@ struct Resolved<'a> {
     deflate: Option<u32>,
     brotli: Option<(u32, u32)>,
     zstd: Option<i32>,
+    priority: [ContentCoding; 5],
 }
 
 /// Validated, Rust-owned configuration update produced at the FFI boundary.
@@ -83,6 +85,7 @@ enum ConfigUpdate {
     Named { name: String, value: String },
     Buffers { count: usize, size: usize },
     Types(Vec<String>),
+    Priority(Vec<String>),
 }
 
 struct Module;
@@ -159,6 +162,12 @@ trait DirectiveCallbacks {
     ) -> *mut core::ffi::c_char;
 
     extern "C" fn set_types(
+        cf: *mut ngx::ffi::ngx_conf_t,
+        command: *mut ngx::ffi::ngx_command_t,
+        conf: *mut core::ffi::c_void,
+    ) -> *mut core::ffi::c_char;
+
+    extern "C" fn set_priority(
         cf: *mut ngx::ffi::ngx_conf_t,
         command: *mut ngx::ffi::ngx_command_t,
         conf: *mut core::ffi::c_void,

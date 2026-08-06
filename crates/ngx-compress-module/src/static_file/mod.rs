@@ -89,13 +89,27 @@ unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
     let Some(snapshot) = (unsafe { prefetch_request(request) }) else {
         return DECLINED;
     };
+    if !snapshot.method_supported || snapshot.uri.is_empty() || snapshot.uri.last() == Some(&b'/') {
+        return DECLINED;
+    }
 
-    let candidates = static_candidates(resolved.static_mode, &snapshot);
+    let identity_acceptable = snapshot
+        .accept_encoding
+        .quality(ngx_compress_core::ContentCoding::Identity)
+        > 0;
+    let candidates = static_candidates(resolved.static_mode, &snapshot, &resolved.priority);
     // Only `on` selects a representation from Accept-Encoding. `always` sends
     // the same highest-priority sidecar to every client and therefore does not vary.
     let vary = resolved.static_mode == StaticMode::On && resolved.vary;
     // SAFETY: submit layer probes the complete candidate set and may emit one response.
-    unsafe { sidecar::probe_and_serve(request, candidates, vary) }
+    unsafe {
+        sidecar::probe_and_serve(
+            request,
+            candidates,
+            vary,
+            resolved.static_mode == StaticMode::Always || identity_acceptable,
+        )
+    }
 }
 
 /// Copies all static-sidecar policy inputs out of nginx request memory.

@@ -74,6 +74,28 @@ These apply to all enabled runtime codecs.
 | `compress_min_length` | `length` | 20 | Minimum response size (bytes) eligible for runtime compression; applied only when Content-Length is known. 256+ is recommended. |
 | `compress_vary` | `on \| off` | `on` | Add `Vary: Accept-Encoding`. On by default so shared caches record that the module serves different encodings. |
 | `compress_buffers` | `number size` | `16 8k` | Per-request output buffer pool (buffer count and size). |
+| `compress_priority` | `coding ...` | profile-dependent | Server tie-break order for equally preferred acceptable codings. |
+
+`compress_priority` accepts each of `zstd`, `br`, `gzip`, and `deflate` at most
+once. The configured list is a priority prefix; omitted codings are appended in
+the active profile's default order. `identity` is always an implicit final
+candidate and cannot be configured. A child value replaces the inherited value
+as a whole.
+
+Default equal-quality order:
+
+| Profile | Order |
+| --- | --- |
+| `fast` | `zstd` > `gzip` > `br` > `deflate` > `identity` |
+| `on`, `balanced`, `max` | `zstd` > `br` > `gzip` > `deflate` > `identity` |
+
+Client quality values are authoritative. The module first removes unavailable
+and `q=0` representations, then selects the highest remaining quality, and only
+uses `compress_priority` to break an equal-quality tie. If `identity` has a
+higher quality than every enabled coding, the response is left uncompressed. An
+eligible module response with no acceptable coding and unacceptable identity is
+rejected with `406 Not Acceptable`. A missing or empty `Accept-Encoding` is
+handled conservatively as identity.
 
 Per-codec `types`, `min_length`, and buffer overrides are not registered in
 v0.1; the per-codec controls are enablement, level, and the Brotli window.
@@ -94,10 +116,13 @@ compressing at runtime. It is independent of the runtime `compress` switch.
 | --- | --- |
 | `off` | Never serve sidecars (default). |
 | `on` | Serve a sidecar only when the client accepts that coding. |
-| `always` | Serve the highest-priority existing sidecar even without a matching `Accept-Encoding` (e.g. behind a decompressing proxy). |
+| `always` | Serve the highest-priority existing sidecar even without a matching `Accept-Encoding` (e.g. behind a decompressing proxy). This explicitly bypasses negotiation and emits a configuration warning. |
 
-Sidecars are probed in server-priority order (`.zst` > `.br` > `.gz`) among the
-codings the client accepts, serving the first that exists with the matching
+With `on`, sidecars are ranked by client quality and then `compress_priority`,
+serving the first existing representation that is at least as preferred as
+identity. With `always`, sidecars are probed only in server-priority order and
+the client's header is ignored; use it only behind an intermediary known to
+decode the response. Sidecars are served with the matching
 `Content-Encoding`, `Last-Modified`, and `ETag`. deflate has no conventional
 sidecar extension and is not probed. When both runtime `compress` and
 `compress_static` are on, serving a sidecar sets `Content-Encoding` before the

@@ -115,3 +115,89 @@ Accept-Encoding: gzip
 --- response_headers
 ! Content-Encoding
 --- error_code: 200
+
+=== TEST 8: compress_priority breaks an equal-quality tie
+--- config
+location = /t {
+    compress on;
+    compress_gzip on;
+    compress_brotli on;
+    compress_priority gzip br;
+    compress_min_length 1;
+    return 200 "priority priority priority priority priority\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: br, gzip
+--- response_headers
+Content-Encoding: gzip
+--- error_code: 200
+
+=== TEST 9: higher identity quality overrides server priority
+--- config
+location = /t {
+    compress on;
+    compress_gzip on;
+    compress_priority gzip;
+    compress_min_length 1;
+    return 200 "identity wins identity wins identity wins\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: gzip;q=0.5, identity;q=0.8
+--- response_headers
+! Content-Encoding
+--- response_body
+identity wins identity wins identity wins
+--- error_code: 200
+
+=== TEST 10: explicit q=0 remains excluded despite server priority
+--- config
+location = /t {
+    compress on;
+    compress_gzip on;
+    compress_brotli on;
+    compress_priority gzip br;
+    compress_min_length 1;
+    return 200 "explicit exclusion explicit exclusion explicit exclusion\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: gzip;q=0, br;q=1, identity;q=0
+--- response_headers
+Content-Encoding: br
+--- error_code: 200
+
+=== TEST 11: no acceptable representation returns 406
+--- config
+location = /t {
+    compress on;
+    compress_gzip on;
+    compress_min_length 1;
+    return 200 "not acceptable not acceptable not acceptable\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: *;q=0
+--- response_headers
+! Content-Encoding
+--- error_code: 406
+
+=== TEST 12: fast profile default prefers gzip over brotli on equal q
+--- config
+location = /t {
+    compress fast;
+    compress_min_length 1;
+    return 200 "fast profile priority fast profile priority fast profile priority\n";
+}
+--- request
+GET /t
+--- more_headers
+Accept-Encoding: br, gzip
+--- response_headers
+Content-Encoding: gzip
+--- error_code: 200

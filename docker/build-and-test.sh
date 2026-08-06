@@ -203,11 +203,22 @@ http {
             compress off;
             compress_static always;
         }
+        location /astatic-fast/ {
+            alias $WWW/astatic/;
+            compress fast;
+            compress_static always;
+        }
         location /static-novary/ {
             alias $WWW/static/;
             compress off;
             compress_static on;
             compress_vary off;
+        }
+        location /static-priority/ {
+            alias $WWW/static/;
+            compress off;
+            compress_static on;
+            compress_priority gzip br;
         }
     }
 }
@@ -456,6 +467,48 @@ check_static() {
     cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
         || { echo "FAIL [$1 static vary-off identity]: original not served intact"; return 1; }
     echo "PASS [$1 static vary-off]: Vary suppressed for both variants"
+
+    # 7) Equal q uses the configured server order, but a higher client q wins.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br, gzip' -D "$RUN_DIR/h.txt" \
+        -o "$RUN_DIR/c.bin" "http://127.0.0.1:$PORT/static-priority/asset.txt"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static configured priority]: expected gzip"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - /tmp/sgz.txt \
+        || { echo "FAIL [$1 static configured priority]: invalid gzip sidecar"; return 1; }
+
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip;q=0.5, br;q=1, identity;q=0' \
+        -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-priority/asset.txt"
+    grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static client quality]: expected br"; return 1; }
+    brotli -dc < "$RUN_DIR/c.bin" | cmp -s - /tmp/sbr.txt \
+        || { echo "FAIL [$1 static client quality]: invalid br sidecar"; return 1; }
+    echo "PASS [$1 static priority]: q first, configured order only breaks ties"
+
+    # 8) identity participates in q selection; excluding every representation is 406.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip;q=0.5, identity;q=0.8' \
+        -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-priority/asset.txt"
+    if grep -qi '^content-encoding:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static identity quality]: unexpected Content-Encoding"; return 1
+    fi
+    cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
+        || { echo "FAIL [$1 static identity quality]: original not served"; return 1; }
+
+    status=$(curl -s --noproxy '*' -H 'Accept-Encoding: *;q=0' -o "$RUN_DIR/c.bin" \
+        -w '%{http_code}' "http://127.0.0.1:$PORT/static-priority/asset.txt")
+    [ "$status" = 406 ] \
+        || { echo "FAIL [$1 static not acceptable]: expected 406, got $status"; return 1; }
+    echo "PASS [$1 static identity]: identity q honored and empty set rejected"
+
+    # 9) `always` bypasses negotiation but still follows the active profile.
+    curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/astatic-fast/asset.txt"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static always fast]: expected gzip sidecar"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - /tmp/sgz.txt \
+        || { echo "FAIL [$1 static always fast]: invalid gzip sidecar"; return 1; }
+    echo "PASS [$1 static always profile]: fast order used while negotiation bypassed"
 }
 
 smoke() {

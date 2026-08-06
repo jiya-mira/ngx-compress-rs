@@ -6,15 +6,7 @@
 use super::{CodecKey, CodecPool, CodecSelection, CodecSelectionFailure, SelectedCodec};
 use crate::Resolved;
 use crate::fault::{self, Point};
-use ngx_compress_core::{AcceptEncoding, ContentCoding, StreamingCodec};
-
-/// Default tie-break order for equal client quality (no server standard exists).
-const PRIORITY: [ContentCoding; 4] = [
-    ContentCoding::Zstd,
-    ContentCoding::Brotli,
-    ContentCoding::Gzip,
-    ContentCoding::Deflate,
-];
+use ngx_compress_core::{AcceptEncoding, ContentCoding, Negotiation, StreamingCodec};
 
 /// Selects a coding and provides its codec (reused from the worker pool when
 /// possible) with the key needed to return it on cleanup, or `None` for
@@ -24,20 +16,13 @@ impl CodecSelection for CodecKey {
         resolved: &Resolved<'_>,
         accept: &AcceptEncoding,
     ) -> Result<Option<SelectedCodec>, CodecSelectionFailure> {
-        let coding = PRIORITY
-            .iter()
-            .copied()
-            .filter(|&coding| available(resolved, coding))
-            .fold(None, |best: Option<(ContentCoding, u16)>, coding| {
-                let quality = accept.quality(coding);
-                match best {
-                    Some((_, best_quality)) if quality <= best_quality => best,
-                    _ if quality > 0 => Some((coding, quality)),
-                    _ => best,
-                }
-            })
-            .map(|(coding, _)| coding);
-        coding.map_or(Ok(None), |coding| build(resolved, coding).map(Some))
+        match accept.negotiate_available(&resolved.priority, |coding| {
+            coding == ContentCoding::Identity || available(resolved, coding)
+        }) {
+            Negotiation::Selected(ContentCoding::Identity) => Ok(None),
+            Negotiation::Selected(coding) => build(resolved, coding).map(Some),
+            Negotiation::NotAcceptable => Err(CodecSelectionFailure::NotAcceptable),
+        }
     }
 }
 
