@@ -144,6 +144,7 @@ events { worker_connections 64; }
 http {
     default_type text/plain;
     sendfile on;
+    log_format compress_stats '\$compress_coding|\$compress_level|\$compress_input_bytes|\$compress_output_bytes|\$compress_ratio|\$compress_time_ms';
     access_log off;
     server {
         listen $PORT;
@@ -229,6 +230,15 @@ http {
             compress_min_length 1;
             compress_static on;
         }
+        location = /stats {
+            alias $WWW/index.txt;
+            compress on;
+            compress_gzip on;
+            compress_min_length 1;
+            compress_buffers 1 1k;
+            compress_stats server_timing;
+            access_log $RUN_DIR/logs/stats.log compress_stats;
+        }
     }
 }
 EOF
@@ -267,6 +277,36 @@ check_identity() {
     cmp -s "$RUN_DIR/c.bin" "$WWW/index.txt" \
         || { echo "FAIL [$1 identity]: body altered"; return 1; }
     echo "PASS [$1 identity]: served uncompressed intact"
+}
+
+check_stats() {
+    label=$1
+    : > "$RUN_DIR/logs/stats.log"
+    curl -sf --http1.1 --noproxy '*' -H 'TE: trailers' -H 'Accept-Encoding: gzip' \
+        -D "$RUN_DIR/stats.h" -o "$RUN_DIR/stats.gz" \
+        "http://127.0.0.1:$PORT/stats" \
+        || { echo "FAIL [$label stats]: request failed"; return 1; }
+    gzip -dc < "$RUN_DIR/stats.gz" | cmp -s - "$WWW/index.txt" \
+        || { echo "FAIL [$label stats]: invalid gzip body"; return 1; }
+
+    line=$(tail -n 1 "$RUN_DIR/logs/stats.log")
+    coding=$(printf '%s' "$line" | cut -d'|' -f1)
+    level=$(printf '%s' "$line" | cut -d'|' -f2)
+    input=$(printf '%s' "$line" | cut -d'|' -f3)
+    output=$(printf '%s' "$line" | cut -d'|' -f4)
+    ratio=$(printf '%s' "$line" | cut -d'|' -f5)
+    time_ms=$(printf '%s' "$line" | cut -d'|' -f6)
+    expected_input=$(wc -c < "$WWW/index.txt" | tr -d ' ')
+    expected_output=$(wc -c < "$RUN_DIR/stats.gz" | tr -d ' ')
+    if [ "$coding" != gzip ] || [ "$level" != 6 ] \
+        || [ "$input" != "$expected_input" ] || [ "$output" != "$expected_output" ] \
+        || [ -z "$ratio" ] || [ -z "$time_ms" ]; then
+        echo "FAIL [$label stats]: invalid variables: $line"; return 1
+    fi
+    grep -Eqi '^server-timing: *compress;dur=[0-9.]+;desc="gzip";level=6;input=' \
+        "$RUN_DIR/stats.h" \
+        || { echo "FAIL [$label stats]: Server-Timing trailer missing"; cat "$RUN_DIR/stats.h"; return 1; }
+    echo "PASS [$label stats]: final variables and Server-Timing trailer"
 }
 
 check_buffer_source() {
@@ -558,6 +598,7 @@ smoke() {
         check "$2" "$coding" || rc=1
     done
     check_identity "$2" || rc=1
+    check_stats "$2" || rc=1
     check_buffer_sources "$2" || rc=1
     check_representation_headers "$2" || rc=1
     check_static "$2" || rc=1
