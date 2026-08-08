@@ -369,14 +369,14 @@ dependencies = [
 
 [[package]]
 name = "ngx-compress-brotli-sys"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ngx-compress-core",
 ]
 
 [[package]]
 name = "ngx-compress-codecs"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "brotli",
  "flate2",
@@ -387,21 +387,21 @@ dependencies = [
 
 [[package]]
 name = "ngx-compress-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "ngx-compress-ffi"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ngx",
 ]
 
 [[package]]
 name = "ngx-compress-module"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "nginx-sys",
  "ngx",

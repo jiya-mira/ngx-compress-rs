@@ -1,7 +1,7 @@
 # Installation
 
 `ngx-compress-rs` is distributed as source during the technical-preview phase.
-The v0.1.1 supported baseline is NGINX 1.30.4 on Debian Bookworm/Linux x86_64.
+The v0.2.0 supported baseline is NGINX 1.30.4 on Ubuntu 24.04/Linux x86_64 and ARM64.
 Build dynamic or static against the exact NGINX build signature that will run
 it; the release does not include a generic `.so`.
 
@@ -212,7 +212,7 @@ Profiles are the smallest useful setup:
 
 ```nginx
 http {
-    compress fast;       # or balanced / max
+    compress fast;       # or balanced
 }
 ```
 
@@ -298,7 +298,7 @@ curl --http3-only --fail --show-error \
   -H 'Accept-Encoding: zstd, br, gzip' https://example.test/resource
 ```
 
-NGINX HTTP/3 is experimental upstream. The v0.1.1 contract covers ordinary
+NGINX HTTP/3 is experimental upstream. The v0.2.0 contract covers ordinary
 QUIC/HTTP/3 only and excludes 0-RTT. The repository's pinned client uses curl's
 non-experimental ngtcp2 backend and asserts the negotiated protocol is HTTP/3.
 The supported Linux baseline enables `quic_bpf on` so `reuseport` keeps an

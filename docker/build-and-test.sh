@@ -16,6 +16,7 @@ RUN_DIR=/tmp/ngx-run
 WWW=/tmp/www
 PORT=8080
 BACKEND=8091
+MEMORY_PAYLOAD='MEMORY BUFFER PAYLOAD 0123456789 abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ repeated repeated repeated repeated repeated repeated'
 
 log() { printf '\n=== %s ===\n' "$1"; }
 
@@ -75,6 +76,7 @@ setup_www() {
     printf 'HEAD\n<!--#include virtual="/inc.txt" -->\nTAIL\n' > "$WWW/page.shtml"
     printf 'ADDITION BEFORE\n' > "$WWW/before.txt"
     printf 'ADDITION AFTER\n' > "$WWW/after.txt"
+    printf '%s' "$MEMORY_PAYLOAD" > "$WWW/memory.txt"
     cp "$WWW/index.txt" /tmp/upstream.txt
 
     # Precompressed-sidecar fixtures. The sidecars decode to payloads DISTINCT
@@ -141,6 +143,8 @@ pid $RUN_DIR/nginx.pid;
 events { worker_connections 64; }
 http {
     default_type text/plain;
+    sendfile on;
+    log_format compress_stats '\$compress_coding|\$compress_level|\$compress_input_bytes|\$compress_output_bytes|\$compress_ratio|\$compress_time_ms';
     access_log off;
     server {
         listen $PORT;
@@ -152,8 +156,19 @@ http {
             compress_brotli on;
             compress_zstd on;
             compress_min_length 20;
-            compress_buffers 16 8k;
+            # One small output buffer forces the module to yield to the next
+            # filter, reclaim it, and resume the unconsumed input suffix.
+            compress_buffers 1 1k;
             compress_types text/plain application/json text/html;
+        }
+        location = /memory {
+            compress on;
+            compress_gzip on;
+            compress_deflate on;
+            compress_brotli on;
+            compress_zstd on;
+            compress_min_length 20;
+            return 200 '$MEMORY_PAYLOAD';
         }
         location = /page.shtml {
             default_type text/html;
@@ -169,6 +184,8 @@ http {
             add_after_body /after.txt;
             compress on;
             compress_gzip on;
+            compress_brotli on;
+            compress_zstd on;
             compress_min_length 20;
             alias $WWW/index.txt;
         }
@@ -189,11 +206,38 @@ http {
             compress off;
             compress_static always;
         }
+        location /astatic-fast/ {
+            alias $WWW/astatic/;
+            compress fast;
+            compress_static always;
+        }
         location /static-novary/ {
             alias $WWW/static/;
             compress off;
             compress_static on;
             compress_vary off;
+        }
+        location /static-priority/ {
+            alias $WWW/static/;
+            compress off;
+            compress_static on;
+            compress_priority gzip br;
+        }
+        location /static-runtime/ {
+            alias $WWW/static/;
+            compress on;
+            compress_gzip on;
+            compress_min_length 1;
+            compress_static on;
+        }
+        location = /stats {
+            alias $WWW/index.txt;
+            compress on;
+            compress_gzip on;
+            compress_min_length 1;
+            compress_buffers 1 1k;
+            compress_stats server_timing;
+            access_log $RUN_DIR/logs/stats.log compress_stats;
         }
     }
 }
@@ -233,6 +277,88 @@ check_identity() {
     cmp -s "$RUN_DIR/c.bin" "$WWW/index.txt" \
         || { echo "FAIL [$1 identity]: body altered"; return 1; }
     echo "PASS [$1 identity]: served uncompressed intact"
+}
+
+check_stats() {
+    label=$1
+    : > "$RUN_DIR/logs/stats.log"
+    curl -sf --http1.1 --noproxy '*' -H 'TE: trailers' -H 'Accept-Encoding: gzip' \
+        -D "$RUN_DIR/stats.h" -o "$RUN_DIR/stats.gz" \
+        "http://127.0.0.1:$PORT/stats" \
+        || { echo "FAIL [$label stats]: request failed"; return 1; }
+    gzip -dc < "$RUN_DIR/stats.gz" | cmp -s - "$WWW/index.txt" \
+        || { echo "FAIL [$label stats]: invalid gzip body"; return 1; }
+
+    line=$(tail -n 1 "$RUN_DIR/logs/stats.log")
+    coding=$(printf '%s' "$line" | cut -d'|' -f1)
+    level=$(printf '%s' "$line" | cut -d'|' -f2)
+    input=$(printf '%s' "$line" | cut -d'|' -f3)
+    output=$(printf '%s' "$line" | cut -d'|' -f4)
+    ratio=$(printf '%s' "$line" | cut -d'|' -f5)
+    time_ms=$(printf '%s' "$line" | cut -d'|' -f6)
+    expected_input=$(wc -c < "$WWW/index.txt" | tr -d ' ')
+    expected_output=$(wc -c < "$RUN_DIR/stats.gz" | tr -d ' ')
+    if [ "$coding" != gzip ] || [ "$level" != 6 ] \
+        || [ "$input" != "$expected_input" ] || [ "$output" != "$expected_output" ] \
+        || [ -z "$ratio" ] || [ -z "$time_ms" ]; then
+        echo "FAIL [$label stats]: invalid variables: $line"; return 1
+    fi
+    grep -Eqi '^server-timing: *compress;dur=[0-9.]+;desc="gzip";level=6;input=' \
+        "$RUN_DIR/stats.h" \
+        || { echo "FAIL [$label stats]: Server-Timing trailer missing"; cat "$RUN_DIR/stats.h"; return 1; }
+    echo "PASS [$label stats]: final variables and Server-Timing trailer"
+}
+
+check_buffer_source() {
+    # $1 = mode label, $2 = source kind, $3 = URI, $4 = expected bytes,
+    # $5 = coding. Every case decodes bytes and compares them with the identity
+    # representation, rather than accepting Content-Encoding as sufficient.
+    curl -sf --noproxy '*' -H "Accept-Encoding: $5" \
+        -D "$RUN_DIR/source.h" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT$3" \
+        || { echo "FAIL [$1 $2 $5]: request failed"; return 1; }
+    grep -qi "^content-encoding: *$5" "$RUN_DIR/source.h" \
+        || { echo "FAIL [$1 $2 $5]: Content-Encoding missing"; cat "$RUN_DIR/source.h"; return 1; }
+    decode "$5"
+    cmp -s "$RUN_DIR/d.txt" "$4" \
+        || { echo "FAIL [$1 $2 $5]: decoded body != identity bytes"; return 1; }
+    echo "PASS [$1 $2 $5]: decoded bytes match"
+}
+
+check_buffer_sources() {
+    # Static-file output is an in-file buffer when sendfile is enabled. The
+    # return directive supplies a memory buffer. Addition combines the main
+    # file with before/after subrequest chains and exercises mixed input.
+    curl -sf --noproxy '*' -o "$RUN_DIR/addition.ref" \
+        "http://127.0.0.1:$PORT/addition"
+
+    for coding in gzip br zstd; do
+        check_buffer_source "$1" file /index.txt "$WWW/index.txt" "$coding" || return 1
+        check_buffer_source "$1" memory /memory "$WWW/memory.txt" "$coding" || return 1
+        check_buffer_source "$1" mixed-chain /addition "$RUN_DIR/addition.ref" "$coding" || return 1
+    done
+}
+
+check_representation_headers() {
+    # A transformed representation has no stable byte range or original
+    # content length. Its static-file ETag must be weakened, and cache variance
+    # must name Accept-Encoding.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip' \
+        -D "$RUN_DIR/representation.h" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/index.txt" \
+        || { echo "FAIL [$1 headers]: request failed"; return 1; }
+    if grep -qi '^content-length:\|^accept-ranges:' "$RUN_DIR/representation.h"; then
+        echo "FAIL [$1 headers]: stale length or range metadata retained"
+        cat "$RUN_DIR/representation.h"
+        return 1
+    fi
+    grep -qi '^etag: *W/"' "$RUN_DIR/representation.h" \
+        || { echo "FAIL [$1 headers]: ETag missing or not weak"; cat "$RUN_DIR/representation.h"; return 1; }
+    grep -qi '^vary:.*Accept-Encoding' "$RUN_DIR/representation.h" \
+        || { echo "FAIL [$1 headers]: Vary lacks Accept-Encoding"; cat "$RUN_DIR/representation.h"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - "$WWW/index.txt" \
+        || { echo "FAIL [$1 headers]: transformed bytes damaged"; return 1; }
+    echo "PASS [$1 headers]: transformed representation metadata is coherent"
 }
 
 check_ssi() {
@@ -390,6 +516,58 @@ check_static() {
     cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
         || { echo "FAIL [$1 static vary-off identity]: original not served intact"; return 1; }
     echo "PASS [$1 static vary-off]: Vary suppressed for both variants"
+
+    # 7) Equal q uses the configured server order, but a higher client q wins.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: br, gzip' -D "$RUN_DIR/h.txt" \
+        -o "$RUN_DIR/c.bin" "http://127.0.0.1:$PORT/static-priority/asset.txt"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static configured priority]: expected gzip"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - /tmp/sgz.txt \
+        || { echo "FAIL [$1 static configured priority]: invalid gzip sidecar"; return 1; }
+
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip;q=0.5, br;q=1, identity;q=0' \
+        -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-priority/asset.txt"
+    grep -qi '^content-encoding: *br' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static client quality]: expected br"; return 1; }
+    brotli -dc < "$RUN_DIR/c.bin" | cmp -s - /tmp/sbr.txt \
+        || { echo "FAIL [$1 static client quality]: invalid br sidecar"; return 1; }
+    echo "PASS [$1 static priority]: q first, configured order only breaks ties"
+
+    # 8) identity participates in q selection; excluding every representation is 406.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip;q=0.5, identity;q=0.8' \
+        -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-priority/asset.txt"
+    if grep -qi '^content-encoding:' "$RUN_DIR/h.txt"; then
+        echo "FAIL [$1 static identity quality]: unexpected Content-Encoding"; return 1
+    fi
+    cmp -s "$RUN_DIR/c.bin" "$WWW/static/asset.txt" \
+        || { echo "FAIL [$1 static identity quality]: original not served"; return 1; }
+
+    status=$(curl -s --noproxy '*' -H 'Accept-Encoding: *;q=0' -o "$RUN_DIR/c.bin" \
+        -w '%{http_code}' "http://127.0.0.1:$PORT/static-priority/asset.txt")
+    [ "$status" = 406 ] \
+        || { echo "FAIL [$1 static not acceptable]: expected 406, got $status"; return 1; }
+    echo "PASS [$1 static identity]: identity q honored and empty set rejected"
+
+    # 9) A missing sidecar must fall through to an acceptable dynamic coding.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip, identity;q=0' \
+        -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-runtime/plain.txt"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static runtime fallback]: expected dynamic gzip"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - "$WWW/static/plain.txt" \
+        || { echo "FAIL [$1 static runtime fallback]: invalid dynamic gzip"; return 1; }
+    echo "PASS [$1 static runtime fallback]: missing sidecar reaches dynamic coding"
+
+    # 10) `always` bypasses negotiation but still follows the active profile.
+    curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/astatic-fast/asset.txt"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static always fast]: expected gzip sidecar"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - /tmp/sgz.txt \
+        || { echo "FAIL [$1 static always fast]: invalid gzip sidecar"; return 1; }
+    echo "PASS [$1 static always profile]: fast order used while negotiation bypassed"
 }
 
 smoke() {
@@ -398,6 +576,15 @@ smoke() {
     write_conf "$3"
     "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" -t \
         || { echo "FAIL [$2]: nginx -t"; return 1; }
+    cp "$RUN_DIR/nginx.conf" "$RUN_DIR/nginx-valid.conf"
+    sed '0,/compress on;/s//compress max;/' "$RUN_DIR/nginx-valid.conf" > "$RUN_DIR/nginx.conf"
+    if "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" -t >"$RUN_DIR/max.log" 2>&1; then
+        echo "FAIL [$2]: removed max profile was accepted"; return 1
+    fi
+    grep -q 'invalid value for compress directive' "$RUN_DIR/max.log" \
+        || { echo "FAIL [$2]: max rejection lacked configuration error"; return 1; }
+    mv "$RUN_DIR/nginx-valid.conf" "$RUN_DIR/nginx.conf"
+    echo "PASS [$2]: removed max profile rejected by nginx -t"
     "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" &
     ngx_pid=$!
     i=0
@@ -411,6 +598,9 @@ smoke() {
         check "$2" "$coding" || rc=1
     done
     check_identity "$2" || rc=1
+    check_stats "$2" || rc=1
+    check_buffer_sources "$2" || rc=1
+    check_representation_headers "$2" || rc=1
     check_static "$2" || rc=1
 
     # Worker-local codec reuse: with master_process off there is a single worker,

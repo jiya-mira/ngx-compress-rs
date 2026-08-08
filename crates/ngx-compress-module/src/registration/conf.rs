@@ -3,7 +3,7 @@
 use core::ffi::{c_char, c_void};
 
 use ngx::core::{NGX_CONF_ERROR, NGX_CONF_OK};
-use ngx::ffi::{NGX_LOG_EMERG, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
+use ngx::ffi::{NGX_LOG_EMERG, NGX_LOG_WARN, ngx_command_t, ngx_conf_t, ngx_parse_size, ngx_str_t};
 use ngx::ngx_conf_log_error;
 
 use crate::observability::{self, Callback, FailureClass};
@@ -69,6 +69,26 @@ impl DirectiveCallbacks for Module {
             },
         )
     }
+
+    extern "C" fn set_priority(
+        cf: *mut ngx_conf_t,
+        _cmd: *mut ngx_command_t,
+        conf: *mut c_void,
+    ) -> *mut c_char {
+        ngx_compress_ffi::guard::callback(
+            NGX_CONF_ERROR,
+            || {
+                // SAFETY: nginx supplied the live configuration pointer.
+                unsafe {
+                    observability::config(cf, Callback::SetDirective, FailureClass::RustPanic);
+                }
+            },
+            || {
+                // SAFETY: nginx supplies valid configuration pointers to this setter.
+                unsafe { set_priority_inner(cf, conf) }
+            },
+        )
+    }
 }
 
 unsafe fn set_directive_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_char {
@@ -88,10 +108,51 @@ unsafe fn set_directive_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_
     };
     // SAFETY: nginx allocated and initialized this module configuration.
     let config = unsafe { &mut *conf.cast::<CompressConfig>() };
+    let warn_static_always = name == "compress_static" && value.eq_ignore_ascii_case("always");
     if config.apply(ConfigUpdate::Named { name, value }) {
+        if warn_static_always {
+            ngx_conf_log_error!(
+                NGX_LOG_WARN,
+                cf,
+                "compress_static always bypasses Accept-Encoding negotiation; use only behind a decoding intermediary"
+            );
+        }
         NGX_CONF_OK
     } else {
         ngx_conf_log_error!(NGX_LOG_EMERG, cf, "invalid value for compress directive");
+        NGX_CONF_ERROR
+    }
+}
+
+unsafe fn set_priority_inner(cf: *mut ngx_conf_t, conf: *mut c_void) -> *mut c_char {
+    // SAFETY: 1MORE guarantees at least one coding; copy all arguments before
+    // leaving the FFI prefetch scope.
+    let values = unsafe {
+        let args: &[ngx_str_t] = (*(*cf).args).as_slice(); // style:allow-explicit-type
+        args.get(1..)
+            .filter(|values| !values.is_empty())
+            .map(|values| {
+                values
+                    .iter()
+                    .map(|coding| ngx_compress_ffi::string::copy_string(coding).ok_or(()))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()
+    };
+    let Ok(Some(values)) = values else {
+        ngx_conf_log_error!(NGX_LOG_EMERG, cf, "compress_priority value is not UTF-8");
+        return NGX_CONF_ERROR;
+    };
+    // SAFETY: nginx allocated and initialized this module configuration.
+    let config = unsafe { &mut *conf.cast::<CompressConfig>() };
+    if config.apply(ConfigUpdate::Priority(values)) {
+        NGX_CONF_OK
+    } else {
+        ngx_conf_log_error!(
+            NGX_LOG_EMERG,
+            cf,
+            "compress_priority accepts each of zstd, br, gzip, deflate at most once; identity is implicit"
+        );
         NGX_CONF_ERROR
     }
 }

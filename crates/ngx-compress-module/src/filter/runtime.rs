@@ -11,9 +11,11 @@ use crate::registration::ngx_http_compress_module;
 use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig};
 
 use super::{
-    CompressChain, CompressionFailure, HeaderDecision, Plan, RequestContext, RequestCtx,
-    RuntimeCallbacks, Snapshot,
+    CodecSelectionFailure, CompressChain, CompressionFailure, HeaderDecision, Plan, RequestContext,
+    RequestCtx, RuntimeCallbacks, Snapshot,
 };
+
+const NOT_ACCEPTABLE: ngx_int_t = 406;
 
 impl RuntimeCallbacks for Module {
     // Installed into the header filter chain by the parent filter module.
@@ -87,7 +89,10 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
     let plan = match Plan::decide(&resolved, &snapshot) {
         Ok(Some(plan)) => plan,
         Ok(None) => return pass(),
-        Err(_) => {
+        Err(CodecSelectionFailure::NotAcceptable) => {
+            return unsafe { reject_not_acceptable(request, resolved.vary) };
+        }
+        Err(CodecSelectionFailure::Initialization) => {
             // SAFETY: request remains live and no response headers were changed.
             unsafe {
                 observability::request(
@@ -147,11 +152,23 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         return pass();
     }
     // SAFETY: require in-memory input (materialize file buffers first, like the
-    // gzip module), clear the invalid length, and install request state.
+    // gzip module), clear representation-specific metadata, and install request
+    // state before the downstream header filters observe the response.
     unsafe {
-        (*request).set_main_filter_need_in_memory(1);
-        clear_content_length(request);
-        if RequestCtx::install(request, plan.codec, plan.key, plan.buffer_size).is_none() {
+        ngx_compress_ffi::request::prepare_encoded_response(request);
+        if plan.stats_mode == crate::StatsMode::ServerTiming {
+            (*request).set_expect_trailers(1);
+        }
+        if RequestCtx::install(
+            request,
+            plan.codec,
+            plan.key,
+            plan.buffer_size,
+            plan.stats_mode,
+            plan.buffer_count,
+        )
+        .is_none()
+        {
             observability::request(
                 request,
                 Callback::HeaderFilter,
@@ -161,6 +178,15 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         }
         super::downstream::header(request)
     }
+}
+
+unsafe fn reject_not_acceptable(request: *mut ngx_http_request_t, vary: bool) -> ngx_int_t {
+    if vary {
+        // Preserve cache correctness because 406 depends on Accept-Encoding.
+        let req = unsafe { Request::from_ngx_http_request(request) };
+        let _ = req.add_header_out("Vary", "Accept-Encoding");
+    }
+    NOT_ACCEPTABLE
 }
 
 // SAFETY: nginx must supply a valid request and input chain for this callback.
@@ -190,21 +216,47 @@ unsafe fn body_filter_with_ctx(
     ctx: &mut RequestCtx,
 ) -> ngx_int_t {
     // SAFETY: walks the input chain, feeding each buffer to the codec.
-    if let Err(error) = unsafe { ctx.compress(request, chain) } {
-        let class = match error {
-            CompressionFailure::OutputAllocation => FailureClass::OutputAllocation,
-            CompressionFailure::InvalidFfiState => FailureClass::InvalidFfiState,
-            CompressionFailure::InvalidCodecProgress => FailureClass::InvalidCodecProgress,
-            CompressionFailure::CodecBackend => FailureClass::CodecBackend,
-        };
-        // SAFETY: request remains live in this body callback.
-        unsafe { observability::request(request, Callback::BodyFilter, class) };
-        return Status::NGX_ERROR.0;
+    let pending = match unsafe { ctx.compress(request, chain) } {
+        Ok(pending) => pending,
+        Err(error) => {
+            let class = match error {
+                CompressionFailure::OutputAllocation => FailureClass::OutputAllocation,
+                CompressionFailure::InvalidFfiState => FailureClass::InvalidFfiState,
+                CompressionFailure::InvalidCodecProgress => FailureClass::InvalidCodecProgress,
+                CompressionFailure::CodecBackend => FailureClass::CodecBackend,
+            };
+            // SAFETY: request remains live in this body callback.
+            unsafe { observability::request(request, Callback::BodyFilter, class) };
+            return Status::NGX_ERROR.0;
+        }
+    };
+    // SAFETY: nginx supplied a live request and connection. Preserve every
+    // other filter's buffered flags while controlling only our reserved bit.
+    unsafe { mark_buffered(request, pending) };
+
+    if ctx.done && ctx.server_timing && !ctx.trailer_sent {
+        // SAFETY: request and its output trailer list remain live for this callback.
+        if unsafe { super::variables::add_server_timing(request, ctx) }.is_err() {
+            unsafe {
+                observability::request(
+                    request,
+                    Callback::BodyFilter,
+                    FailureClass::OutputAllocation,
+                );
+            }
+        }
+        ctx.trailer_sent = true;
     }
 
     // Nothing produced yet and nothing pending: the codec buffered this input.
-    // Return OK without invoking the next filter, or it would see an empty chain.
+    // The connection buffered bit makes NGINX's standard writer re-enter the
+    // body-filter chain with NULL input when work remains. Returning NGX_OK here
+    // matches the built-in gzip filter and avoids replacing or manually posting
+    // the request's write handler.
     if ctx.out.is_null() && ctx.busy.is_null() {
+        // SAFETY: no downstream filter is blocked, so defer one standard write
+        // event. Finalization installs ngx_http_writer before that event runs.
+        unsafe { schedule_continuation(request, pending, Status::NGX_OK.0) };
         return Status::NGX_OK.0;
     }
 
@@ -220,7 +272,30 @@ unsafe fn body_filter_with_ctx(
             ptr::addr_of!(ngx_http_compress_module).cast_mut().cast(),
         );
     }
+    // SAFETY: if downstream accepted the batch without retaining a connection
+    // buffer, defer the remaining bounded work to the next event-loop turn.
+    unsafe { schedule_continuation(request, pending, rc) };
     rc
+}
+
+unsafe fn schedule_continuation(
+    request: *mut ngx_http_request_t,
+    pending: bool,
+    downstream_rc: ngx_int_t,
+) {
+    if !pending || downstream_rc != Status::NGX_OK.0 {
+        return;
+    }
+    // SAFETY: caller guarantees a live request and connection. The C boundary
+    // checks native bitfields and posts only when no downstream buffer owns the
+    // wakeup, avoiding a busy loop against backpressure.
+    unsafe { ngx_compress_ffi::event::post_write_if_ready(request) }
+}
+
+unsafe fn mark_buffered(request: *mut ngx_http_request_t, pending: bool) {
+    // SAFETY: caller guarantees a live request and connection. The C boundary
+    // mutates the native connection bitfield while preserving every other bit.
+    unsafe { ngx_compress_ffi::event::set_buffered(request, pending) }
 }
 
 /// Copies policy inputs out of nginx before safe-core decision making.
@@ -245,17 +320,5 @@ unsafe fn prefetch_header(request: *mut ngx_http_request_t) -> Option<Snapshot> 
             },
             accept_encoding: Module::accept_encoding(request),
         })
-    }
-}
-
-unsafe fn clear_content_length(request: *mut ngx_http_request_t) {
-    // SAFETY: removes the length so nginx re-frames the compressed body.
-    unsafe {
-        (*request).headers_out.content_length_n = -1;
-        let length = (*request).headers_out.content_length;
-        if !length.is_null() {
-            (*length).hash = 0;
-            (*request).headers_out.content_length = ptr::null_mut();
-        }
     }
 }

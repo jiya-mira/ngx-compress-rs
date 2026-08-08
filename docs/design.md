@@ -40,6 +40,13 @@ Runs the streaming state machine over the NGINX buffer chain:
 - Backpressure is modeled explicitly through the saved/free/busy/output chains.
   Input not fully accepted downstream stays request-owned and is retried;
   `NGX_AGAIN` is never treated as success or as consumed data.
+- One body-filter callback may consume at most 64 KiB of input and invoke a
+  codec at most 32 times. Budget exhaustion preserves the unconsumed suffix and
+  pending flush/finish operation, marks the connection buffered, and resumes
+  through NGINX's standard writer with NULL input on a later event-loop turn.
+- `compress_buffers` is a hard per-request output-buffer count as well as a
+  buffer-size setting. Exhausting the free buffers is resumable backpressure,
+  not an allocation or codec failure.
 
 ## 2. Crate structure
 
@@ -143,10 +150,11 @@ compresses fast (good for dynamic responses), `br` reaches smaller sizes at
 high quality (good for cacheable/static), `gzip`/`deflate` are the
 compatibility floor, `identity` is the implicit fallback.
 
-The v0.1 order is fixed. Only codecs that are enabled and pass eligibility
-participate. `identity` is always an implicit final candidate and is never
-listed. `compress_priority` is not registered in v0.1.0, but is scheduled as the
-second post-v0.1 phase; see [roadmap.md](roadmap.md).
+Only codecs that are enabled and pass eligibility participate. `identity` is
+always an implicit final candidate and is never listed. `compress_priority`
+sets a server-order prefix for equal client q values; omitted codings are
+completed from the active profile. The `fast` profile places gzip before
+Brotli, while `on` and `balanced` retain the order above.
 
 ## 5. Configuration schema
 
@@ -183,7 +191,7 @@ The `compress` directive is both the master gate and the profile selector:
 | --- | --- |
 | `off` | module disabled (default) |
 | `on` | enabled, *custom* mode — no preset; only explicit `compress_*` directives and built-in defaults apply (backward compatible with pre-profile configs) |
-| `fast` \| `balanced` \| `max` | enabled with a named preset (see §4.2.1) |
+| `fast` \| `balanced` | enabled with a named preset (see §4.2.1) |
 
 So the minimal turnkey config is a single line — `compress balanced;` — which
 enables the compiled-in codecs at that tier and sets a sensible `min_length`.
@@ -191,7 +199,7 @@ The manual path is `compress on;` plus at least one per-codec toggle below.
 
 | Directive | Type | Default | Upstream analog |
 | --- | --- | --- | --- |
-| `compress off\|on\|fast\|balanced\|max` | enum | `off` | `gzip` (master gate) + preset |
+| `compress off\|on\|fast\|balanced` | enum | `off` | `gzip` (master gate) + preset |
 | `compress_gzip on\|off` | bool | `off` | `gzip` |
 | `compress_deflate on\|off` | bool | `off` | — (raw deflate) |
 | `compress_brotli on\|off` | bool | `off` | `brotli` |
@@ -210,23 +218,23 @@ naturally mean the "custom" (no-preset) mode.
 | --- | --- | --- | --- |
 | `fast` | gzip, br, zstd | high-QPS dynamic, CPU-frugal | gzip 4 / br 4 w18 / zstd 3, min_length 256 |
 | `balanced` | gzip, br, zstd | general default | gzip 6 / br 5 w22 / zstd 6, min_length 256 |
-| `max` | gzip, br, zstd | cacheable/precompressed, CPU offline | gzip 9 / br 11 w24 / zstd 19, min_length 128 |
 
 Calibration basis (HTML/CSS/JS/JSON, x86-64): brotli has a sharp speed cliff at
 q4→q5 (q5 buys ~1–2% ratio for ~40–60% throughput) and again at q9→q10 (q10/q11
 drop to 1–6 MB/s — offline only); gzip ratio is converged by L6 (L7–9 add ≈0);
 zstd stays fast through L6 (>130 MB/s) but L19 is offline-only. So `fast` stops
-before each knee, `balanced` takes the first (still online-fast), `max` uses the
-ceilings.
+before each knee and `balanced` takes the first (still online-fast). The former
+`max` profile is rejected; explicit codec levels remain available for offline
+tuning without presenting unbounded settings as a runtime-safe preset.
 
 - **Precedence:** explicit `compress_*` directive > profile preset > built-in
-  default, independent of directive order. `compress max; compress_zstd off;`
-  runs the `max` tier with zstd disabled.
+  default, independent of directive order. `compress balanced; compress_zstd off;`
+  runs the `balanced` tier with zstd disabled.
 - **Codec availability:** a preset only enables codecs compiled into the build;
   `deflate` is never enabled by a preset (clients rarely request raw deflate) —
   turn it on explicitly if needed.
 - **Stability:** tier *names* express intent, so re-tuning a tier's numbers after
-  later evidence is not a breaking change. The table records the v0.1.0 values.
+  later evidence is not a breaking change. The table records the v0.2.0 values.
 
 ### 4.3 Per-codec parameters
 
@@ -253,19 +261,19 @@ These shipped directives apply to all enabled codecs.
 | `compress_types <mime>...` | set | text/html (always), text/\*, application/json, application/javascript, … | `*` = all types |
 | `compress_min_length <n>` | size | 20 | only when Content-Length known; 256+ recommended |
 | `compress_vary on\|off` | bool | `on` | adds `Vary: Accept-Encoding`; on by default because a multi-codec module serving different encodings must mark shared-cache variance |
-| `compress_buffers <n> <size>` | (count, size) | `16 8k` | per-request output buffer pool |
+| `compress_buffers <n> <size>` | (count, size) | `16 8k` | hard per-request output-buffer count and buffer size |
 
 Per-codec MIME, minimum-length, and buffer overrides are not registered. The
-per-codec controls in v0.1 are enablement and compression level, plus the
+per-codec controls in v0.2 are enablement and compression level, plus the
 Brotli window.
 
-#### 4.4.1 Planned v0.2.0 proxied policy
+#### 4.4.1 Deferred proxied policy
 
 `compress_proxied <flags>...` will mirror the policy vocabulary and default of
 `gzip_proxied`: `off`, `expired`, `no-cache`, `no-store`, `private`,
 `no_last_modified`, `no_etag`, `auth`, and `any`. It will apply to all runtime
 codings and to `compress_static on`; `compress_static always` will bypass it.
-The directive is planned and is not accepted by v0.1.0.
+The directive is deferred and is not accepted by v0.2.0.
 
 ### 4.5 Typed configuration model
 
@@ -445,13 +453,12 @@ ordering, sidecar serving, named profiles, worker-local codec reuse, and the
 ratio/throughput calibration harness. These are maintained by the release gates
 rather than carried as open planning items.
 
-The canonical post-v0.1 sequence is maintained in
-[the development plan](roadmap.md):
+The first two items were delivered in v0.2.0; later items remain deferred:
 
-1. remove the `max` profile without another keep/retune experiment, then measure
+1. removed the `max` profile without another keep/retune experiment, then measure
    the remaining runtime profiles and add a bounded, resumable safe-core work
    contract;
-2. add inherited `compress_priority` as the server tie-break among codings with
+2. added inherited `compress_priority` as the server tie-break among codings with
    equal effective client quality, consistently for runtime and static paths;
 3. design and, if the ownership/lifecycle gate passes, implement asynchronous
    compression with no cross-thread NGINX pointers;
@@ -470,8 +477,8 @@ block this engineering sequence.
   scope.
 - Per-response-class automatic priority (for example, a different implicit
   order for dynamic versus cacheable responses) remains deferred.
-  `compress_priority` itself is scheduled as a near-term explicit server
-  tie-break and must preserve client `q` semantics.
+  `compress_priority` is the explicit server tie-break and preserves client
+  `q` semantics.
 - A runtime cache of the module's *own* compressed output — explicitly **not
   built**. Static content is served from precompressed sidecars (the filesystem
   is the cache); "compress once, reuse" for dynamic content is delegated to

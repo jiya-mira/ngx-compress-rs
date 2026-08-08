@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use ngx_compress_core::{MimeTypes, StaticMode};
 
-use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile};
+use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile, StatsMode};
 
 impl ApplyConfig for CompressConfig {
     /// Applies one validated, Rust-owned update from the configuration boundary.
@@ -19,6 +19,7 @@ impl ApplyConfig for CompressConfig {
                 self.types = Some(Arc::new(MimeTypes::new(values)));
                 true
             }
+            ConfigUpdate::Priority(values) => self.set_priority(values),
         }
     }
 }
@@ -33,6 +34,7 @@ impl CompressConfig {
             "compress_brotli" => set_flag(&mut self.brotli, value),
             "compress_zstd" => set_flag(&mut self.zstd, value),
             "compress_vary" => set_flag(&mut self.vary, value),
+            "compress_stats" => set_stats_mode(&mut self.stats_mode, value),
             "compress_gzip_comp_level" => set_u32(&mut self.gzip_level, value, 1, 9),
             "compress_deflate_comp_level" => set_u32(&mut self.deflate_level, value, 1, 9),
             "compress_brotli_comp_level" => set_u32(&mut self.brotli_level, value, 0, 11),
@@ -59,6 +61,46 @@ impl CompressConfig {
             false
         }
     }
+
+    fn set_priority(&mut self, values: Vec<String>) -> bool {
+        let mut parsed = Vec::with_capacity(values.len());
+        for value in values {
+            let coding = if value.eq_ignore_ascii_case("gzip") {
+                ngx_compress_core::ContentCoding::Gzip
+            } else if value.eq_ignore_ascii_case("deflate") {
+                ngx_compress_core::ContentCoding::Deflate
+            } else if value.eq_ignore_ascii_case("br") {
+                ngx_compress_core::ContentCoding::Brotli
+            } else if value.eq_ignore_ascii_case("zstd") {
+                ngx_compress_core::ContentCoding::Zstd
+            } else {
+                return false;
+            };
+            if parsed.contains(&coding) {
+                return false;
+            }
+            parsed.push(coding);
+        }
+        if parsed.is_empty() || parsed.len() > 4 {
+            return false;
+        }
+        self.priority = Some(parsed.into());
+        true
+    }
+}
+
+fn set_stats_mode(slot: &mut Option<StatsMode>, value: &str) -> bool {
+    let mode = if value.eq_ignore_ascii_case("off") {
+        StatsMode::Off
+    } else if value.eq_ignore_ascii_case("variables") {
+        StatsMode::Variables
+    } else if value.eq_ignore_ascii_case("server_timing") {
+        StatsMode::ServerTiming
+    } else {
+        return false;
+    };
+    *slot = Some(mode);
+    true
 }
 
 impl Profile {
@@ -67,8 +109,6 @@ impl Profile {
             Some(Self::Fast)
         } else if value.eq_ignore_ascii_case("balanced") {
             Some(Self::Balanced)
-        } else if value.eq_ignore_ascii_case("max") {
-            Some(Self::Max)
         } else {
             None
         }
@@ -128,5 +168,48 @@ fn set_usize(slot: &mut Option<usize>, value: &str) -> bool {
             true
         }
         Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ngx_compress_core::ContentCoding;
+
+    use crate::{ApplyConfig, CompressConfig, ConfigUpdate};
+
+    #[test]
+    fn priority_accepts_partial_unique_runtime_codings() {
+        let mut config = CompressConfig::default();
+
+        assert!(config.apply(ConfigUpdate::Priority(vec!["gzip".into(), "zstd".into(),])));
+        assert_eq!(
+            config.priority.as_deref(),
+            Some([ContentCoding::Gzip, ContentCoding::Zstd].as_slice())
+        );
+    }
+
+    #[test]
+    fn priority_rejects_duplicates_identity_and_unknown_codings() {
+        for values in [
+            vec!["gzip".into(), "GZIP".into()],
+            vec!["identity".into()],
+            vec!["dcz".into()],
+        ] {
+            let mut config = CompressConfig::default();
+            assert!(!config.apply(ConfigUpdate::Priority(values)));
+            assert!(config.priority.is_none());
+        }
+    }
+
+    #[test]
+    fn removed_max_profile_is_a_hard_configuration_error() {
+        let mut config = CompressConfig::default();
+
+        assert!(!config.apply(ConfigUpdate::Named {
+            name: "compress".to_owned(),
+            value: "max".to_owned(),
+        }));
+        assert_eq!(config.enable, None);
+        assert_eq!(config.profile, None);
     }
 }

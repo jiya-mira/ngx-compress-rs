@@ -1,6 +1,6 @@
 //! Defaults-applied request-path configuration snapshots.
 
-use ngx_compress_core::StaticMode;
+use ngx_compress_core::{ContentCoding, StaticMode};
 
 use crate::{CompressConfig, Profile, ResolveConfig, Resolved};
 
@@ -50,17 +50,6 @@ impl Profile {
                 zstd_level: 6,
                 min_length: 256,
             },
-            Self::Max => Preset {
-                gzip: true,
-                brotli: true,
-                zstd: true,
-                gzip_level: 9,
-                deflate_level: 9,
-                brotli_level: 11,
-                brotli_window: 24,
-                zstd_level: 19,
-                min_length: 128,
-            },
         };
         Some(preset)
     }
@@ -76,7 +65,11 @@ impl ResolveConfig for CompressConfig {
                 .or(preset.map(|p| p.min_length))
                 .unwrap_or(DEFAULT_MIN_LENGTH),
             vary: self.vary.unwrap_or(true),
+            stats_mode: self.stats_mode.unwrap_or_default(),
             buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
+            buffer_count: self
+                .buffers
+                .map_or(super::DEFAULT_BUFFER_COUNT, |(count, _)| count),
             static_mode: self.static_mode.unwrap_or(StaticMode::Off),
             types: self.types.as_deref(),
             gzip: on_level(
@@ -112,10 +105,119 @@ impl ResolveConfig for CompressConfig {
                         .or(preset.map(|p| p.zstd_level))
                         .unwrap_or(DEFAULT_ZSTD_LEVEL)
                 }),
+            priority: resolve_priority(self.profile, self.priority.as_deref()),
         }
     }
 }
 
+const FAST_PRIORITY: [ContentCoding; 4] = [
+    ContentCoding::Zstd,
+    ContentCoding::Gzip,
+    ContentCoding::Brotli,
+    ContentCoding::Deflate,
+];
+const BALANCED_PRIORITY: [ContentCoding; 4] = [
+    ContentCoding::Zstd,
+    ContentCoding::Brotli,
+    ContentCoding::Gzip,
+    ContentCoding::Deflate,
+];
+
+fn resolve_priority(
+    profile: Option<Profile>,
+    explicit: Option<&[ContentCoding]>,
+) -> [ContentCoding; 5] {
+    let defaults = if profile == Some(Profile::Fast) {
+        FAST_PRIORITY
+    } else {
+        BALANCED_PRIORITY
+    };
+    let mut resolved = [ContentCoding::Identity; 5];
+    let mut len = 0;
+    for coding in explicit.into_iter().flatten().copied().chain(defaults) {
+        if coding != ContentCoding::Identity && !resolved[..len].contains(&coding) {
+            resolved[len] = coding;
+            len += 1;
+        }
+    }
+    resolved
+}
+
 fn on_level(on: Option<bool>, level: Option<u32>, default: u32) -> Option<u32> {
     on.unwrap_or(false).then(|| level.unwrap_or(default))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use ngx_compress_core::ContentCoding;
+
+    use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile, ResolveConfig};
+
+    #[test]
+    fn profiles_supply_documented_default_priority() {
+        let fast = CompressConfig {
+            profile: Some(Profile::Fast),
+            ..CompressConfig::default()
+        };
+        let balanced = CompressConfig {
+            profile: Some(Profile::Balanced),
+            ..CompressConfig::default()
+        };
+
+        assert_eq!(
+            fast.resolve().priority,
+            [
+                ContentCoding::Zstd,
+                ContentCoding::Gzip,
+                ContentCoding::Brotli,
+                ContentCoding::Deflate,
+                ContentCoding::Identity,
+            ]
+        );
+        assert_eq!(
+            balanced.resolve().priority,
+            [
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Deflate,
+                ContentCoding::Identity,
+            ]
+        );
+    }
+
+    #[test]
+    fn explicit_priority_is_a_prefix_completed_by_profile() {
+        let config = CompressConfig {
+            profile: Some(Profile::Fast),
+            priority: Some(Arc::from([ContentCoding::Brotli, ContentCoding::Deflate])),
+            ..CompressConfig::default()
+        };
+
+        assert_eq!(
+            config.resolve().priority,
+            [
+                ContentCoding::Brotli,
+                ContentCoding::Deflate,
+                ContentCoding::Zstd,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ]
+        );
+    }
+
+    #[test]
+    fn resolves_both_output_buffer_dimensions() {
+        let mut config = CompressConfig::default();
+        assert!(config.apply(ConfigUpdate::Buffers {
+            count: 3,
+            size: 4_096,
+        }));
+
+        let resolved = config.resolve();
+        assert_eq!(resolved.buffer_count, 3);
+        assert_eq!(resolved.buffer_size, 4_096);
+    }
 }

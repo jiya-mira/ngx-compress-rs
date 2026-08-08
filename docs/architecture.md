@@ -24,9 +24,11 @@ The protocol core is independent of Nginx. It parses content negotiation, select
 
 ## Encoding policy
 
-Selection first honors client quality values and explicit exclusions. Server policy then breaks ties using request properties such as MIME type, body length, cacheability, and available dictionaries.
+Selection first honors client quality values and explicit exclusions. Server
+policy breaks only equal-quality ties using the resolved profile order or an
+inherited `compress_priority` prefix.
 
-Initial default order for equal client quality:
+Default order for equal client quality in `on` and `balanced`:
 
 1. `zstd` for dynamic responses
 2. `br` for cacheable or precompressed responses
@@ -34,9 +36,10 @@ Initial default order for equal client quality:
 4. `deflate`
 5. `identity`
 
-The v0.1 tie-break order is fixed. An inherited `compress_priority` directive is
-the second post-v0.1 phase. Adaptive response-class selection remains deferred
-and requires benchmark evidence before it becomes a release commitment.
+The `fast` profile moves gzip ahead of Brotli. `compress_priority` replaces the
+inherited prefix as a whole, and missing codings are completed from the active
+profile. It never overrides a higher client q value. Adaptive response-class
+selection remains deferred and requires benchmark evidence.
 
 ## Streaming contract
 
@@ -50,6 +53,11 @@ A step with available input and output capacity that consumes and produces nothi
 
 This contract prevents the unbounded `redo` loops seen in older third-party Nginx compression filters.
 
+Each body-filter callback has a fixed 64 KiB input and 32 codec-step budget.
+Exhausting either allowance returns a typed resumable state; request-owned input
+and flush/finish boundaries survive until NGINX's writer re-enters the filter
+with NULL input on a later event-loop turn.
+
 ## Memory and concurrency
 
 - Borrow Nginx input buffers instead of copying them into intermediate `Vec` values.
@@ -57,7 +65,8 @@ This contract prevents the unbounded `redo` loops seen in older third-party Ngin
 - Reuse codec contexts within a worker after request cleanup.
 - Do not share mutable codec state between workers or requests.
 - Avoid locks on the request path; Nginx workers are event-loop processes.
-- Add bounded work and output budgets before enabling high compression levels.
+- Limit module-owned output buffers to the configured `compress_buffers` count;
+  a busy pool pauses and resumes compression instead of allocating past it.
 
 ## Rust and NGINX integration research
 
@@ -151,7 +160,7 @@ not the planning authority.
 ### M3: Static and profile optimization
 
 - precompressed static variants (`.gz`/`.br`/`.zst` sidecar content handler)
-- named profiles (`compress fast|balanced|max`) — turnkey presets over the
+- named profiles (`compress fast|balanced`) — turnkey presets over the
   per-codec knobs, explicit directives override
 - worker-local context reuse (reset a per-worker codec instead of reallocating)
 - benchmark-driven compression profiles (calibrate the preset tiers and fixed
@@ -163,18 +172,20 @@ has it and the gain does not justify the config surface. A runtime cache of the
 module's own compressed output is a non-goal (precompressed sidecars + upstream
 `proxy_cache` cover it).
 
-### Post-v0.1 phase 1: remove `max` and bound event-loop work
+### v0.2.0: remove `max` and bound event-loop work
 
-- remove the `max` profile from the active configuration surface without
+- removed the `max` profile from the active configuration surface without
   spending another round deciding whether to retain or retune it;
 - measure callback latency, codec iterations, throughput, and worker RSS for the
   remaining profiles and representative explicit levels;
-- add a resumable safe-core work budget without losing input, flush/finish
+- added a resumable safe-core work budget without losing input, flush/finish
   state, or NGINX chain ownership.
 
-### Post-v0.1 phase 2: configurable server priority
+Callback p99 calibration across the release targets remains a release gate.
 
-- add inherited `compress_priority` for equal-client-quality tie-breaking;
+### v0.2.0: configurable server priority
+
+- added inherited `compress_priority` for equal-client-quality tie-breaking;
 - keep client `q=0`, wildcard, identity, and duplicate-coding semantics
   authoritative;
 - apply the configured order consistently to runtime codecs and precompressed

@@ -17,7 +17,7 @@ compiled-in codecs at a sensible tier.
 
 | Directive | Syntax | Default | Description |
 | --- | --- | --- | --- |
-| `compress` | `off \| on \| fast \| balanced \| max` | `off` | Master switch and profile selector (see below). |
+| `compress` | `off \| on \| fast \| balanced` | `off` | Master switch and profile selector (see below). |
 
 `compress` values:
 
@@ -27,7 +27,6 @@ compiled-in codecs at a sensible tier.
 | `on` | Enabled, **custom** mode — no preset; only explicit `compress_*` directives and built-in defaults apply. |
 | `fast` | Preset: high-QPS dynamic content, CPU-frugal. |
 | `balanced` | Preset: general-purpose default. |
-| `max` | Preset: cacheable / precompressed content, offline CPU budget. |
 
 Profile presets (the tier *names* are stable; the numeric values may be
 re-tuned by later evidence without being a breaking change):
@@ -36,7 +35,6 @@ re-tuned by later evidence without being a breaking change):
 | --- | --- | --- | --- | --- | --- |
 | `fast` | gzip, br, zstd | level 4 | level 4, window 18 | level 3 | 256 |
 | `balanced` | gzip, br, zstd | level 6 | level 5, window 22 | level 6 | 256 |
-| `max` | gzip, br, zstd | level 9 | level 11, window 24 | level 19 | 128 |
 
 A preset only enables codecs compiled into the build. `deflate` is never enabled
 by a preset — turn it on explicitly if a client needs raw deflate.
@@ -73,10 +71,46 @@ These apply to all enabled runtime codecs.
 | `compress_types` | `mime-type ...` | `text/html` (always), plus `text/*`, `application/json`, `application/javascript`, … | MIME allowlist for runtime compression. `text/html` is always included; `*` matches all types. |
 | `compress_min_length` | `length` | 20 | Minimum response size (bytes) eligible for runtime compression; applied only when Content-Length is known. 256+ is recommended. |
 | `compress_vary` | `on \| off` | `on` | Add `Vary: Accept-Encoding`. On by default so shared caches record that the module serves different encodings. |
-| `compress_buffers` | `number size` | `16 8k` | Per-request output buffer pool (buffer count and size). |
+| `compress_buffers` | `number size` | `16 8k` | Hard per-request output-buffer count and buffer size. When all buffers are downstream-busy, compression resumes after NGINX reclaims one. |
+| `compress_priority` | `coding ...` | profile-dependent | Server tie-break order for equally preferred acceptable codings. |
+
+`compress_priority` accepts each of `zstd`, `br`, `gzip`, and `deflate` at most
+once. The configured list is a priority prefix; omitted codings are appended in
+the active profile's default order. `identity` is always an implicit final
+candidate and cannot be configured. A child value replaces the inherited value
+as a whole.
+
+Default equal-quality order:
+
+| Profile | Order |
+| --- | --- |
+| `fast` | `zstd` > `gzip` > `br` > `deflate` > `identity` |
+| `on`, `balanced` | `zstd` > `br` > `gzip` > `deflate` > `identity` |
+
+Client quality values are authoritative. The module first removes unavailable
+and `q=0` representations, then selects the highest remaining quality, and only
+uses `compress_priority` to break an equal-quality tie. If `identity` has a
+higher quality than every enabled coding, the response is left uncompressed. An
+eligible module response with no acceptable coding and unacceptable identity is
+rejected with `406 Not Acceptable`. A missing or empty `Accept-Encoding` is
+handled conservatively as identity.
 
 Per-codec `types`, `min_length`, and buffer overrides are not registered in
-v0.1; the per-codec controls are enablement, level, and the Brotli window.
+v0.2; the per-codec controls are enablement, level, and the Brotli window.
+
+## Statistics
+
+| Directive | Syntax | Default | Description |
+| --- | --- | --- | --- |
+| `compress_stats` | `off \| variables \| server_timing` | `off` | Collect final compression variables and optionally emit a `Server-Timing` trailer. |
+
+`variables` populates `$compress_coding`, `$compress_level`,
+`$compress_input_bytes`, `$compress_output_bytes`, `$compress_ratio`, and
+`$compress_time_ms` only for actually compressed responses. A zero-input ratio
+is empty. `server_timing` includes the same values and adds one best-effort
+`compress` metric trailer; failure to send the trailer does not fail the
+response or remove the variables. Time is cumulative compression callback work,
+not total request latency.
 
 ## Precompressed static
 
@@ -94,10 +128,13 @@ compressing at runtime. It is independent of the runtime `compress` switch.
 | --- | --- |
 | `off` | Never serve sidecars (default). |
 | `on` | Serve a sidecar only when the client accepts that coding. |
-| `always` | Serve the highest-priority existing sidecar even without a matching `Accept-Encoding` (e.g. behind a decompressing proxy). |
+| `always` | Serve the highest-priority existing sidecar even without a matching `Accept-Encoding` (e.g. behind a decompressing proxy). This explicitly bypasses negotiation and emits a configuration warning. |
 
-Sidecars are probed in server-priority order (`.zst` > `.br` > `.gz`) among the
-codings the client accepts, serving the first that exists with the matching
+With `on`, sidecars are ranked by client quality and then `compress_priority`,
+serving the first existing representation that is at least as preferred as
+identity. With `always`, sidecars are probed only in server-priority order and
+the client's header is ignored; use it only behind an intermediary known to
+decode the response. Sidecars are served with the matching
 `Content-Encoding`, `Last-Modified`, and `ETag`. deflate has no conventional
 sidecar extension and is not probed. When both runtime `compress` and
 `compress_static` are on, serving a sidecar sets `Content-Encoding` before the
@@ -109,8 +146,9 @@ Effective values are resolved as:
 
 **explicit `compress_*` directive > profile preset > built-in default**,
 
-independent of directive order. For example, `compress max; compress_zstd off;`
-runs the `max` tier with zstd disabled.
+independent of directive order. For example, `compress balanced; compress_zstd off;`
+runs the `balanced` tier with zstd disabled. The former `max` profile is rejected
+as an invalid configuration; use explicit per-codec levels for offline tuning.
 
 ## Coexistence with built-in gzip
 

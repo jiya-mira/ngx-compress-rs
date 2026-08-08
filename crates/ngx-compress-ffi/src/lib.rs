@@ -6,7 +6,9 @@
 //! panic unwind across the C ABI.
 
 pub mod buffer;
+pub mod event;
 pub mod filter;
 pub mod guard;
 pub mod module_conf;
+pub mod request;
 pub mod string;

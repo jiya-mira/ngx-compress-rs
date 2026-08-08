@@ -32,18 +32,16 @@ pub struct StaticCandidate {
     pub accepted: bool,
 }
 
-const CANDIDATES: [(ContentCoding, &str); 3] = [
-    (ContentCoding::Zstd, ".zst"),
-    (ContentCoding::Brotli, ".br"),
-    (ContentCoding::Gzip, ".gz"),
-];
-
 /// Returns every sidecar to probe, with client acceptance recorded separately.
 ///
 /// `On` deliberately retains unacceptable candidates: finding one means the
 /// eventual identity response still varies on `Accept-Encoding`.
 #[must_use]
-pub fn static_candidates(mode: StaticMode, facts: &StaticRequestFacts) -> Vec<StaticCandidate> {
+pub fn static_candidates(
+    mode: StaticMode,
+    facts: &StaticRequestFacts,
+    server_preference: &[ContentCoding],
+) -> Vec<StaticCandidate> {
     if mode == StaticMode::Off
         || !facts.method_supported
         || facts.uri.is_empty()
@@ -52,14 +50,36 @@ pub fn static_candidates(mode: StaticMode, facts: &StaticRequestFacts) -> Vec<St
         return Vec::new();
     }
 
-    CANDIDATES
+    let identity_quality = facts.accept_encoding.quality(ContentCoding::Identity);
+    let mut candidates: Vec<_> = server_preference
         .iter()
-        .map(|&(coding, extension)| StaticCandidate {
-            coding,
-            extension,
-            accepted: mode == StaticMode::Always || facts.accept_encoding.quality(coding) > 0,
+        .copied()
+        .filter_map(|coding| extension(coding).map(|extension| (coding, extension)))
+        .map(|(coding, extension)| {
+            let quality = facts.accept_encoding.quality(coding);
+            StaticCandidate {
+                coding,
+                extension,
+                accepted: mode == StaticMode::Always
+                    || (quality > 0 && quality >= identity_quality),
+            }
         })
-        .collect()
+        .collect();
+    if mode == StaticMode::On {
+        candidates.sort_by_key(|candidate| {
+            core::cmp::Reverse(facts.accept_encoding.quality(candidate.coding))
+        });
+    }
+    candidates
+}
+
+fn extension(coding: ContentCoding) -> Option<&'static str> {
+    match coding {
+        ContentCoding::Zstd => Some(".zst"),
+        ContentCoding::Brotli => Some(".br"),
+        ContentCoding::Gzip => Some(".gz"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -78,23 +98,41 @@ mod tests {
     #[test]
     fn on_retains_unacceptable_candidates_for_vary_detection() {
         let facts = facts(AcceptEncoding::parse("br, gzip;q=0"));
-        let selected = static_candidates(StaticMode::On, &facts);
+        let selected = static_candidates(
+            StaticMode::On,
+            &facts,
+            &[
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ],
+        );
 
         assert_eq!(selected.len(), 3);
-        assert_eq!(selected[0].coding, ContentCoding::Zstd);
-        assert!(!selected[0].accepted);
-        assert_eq!(selected[1].coding, ContentCoding::Brotli);
-        assert!(selected[1].accepted);
+        assert_eq!(selected[0].coding, ContentCoding::Brotli);
+        assert!(selected[0].accepted);
+        assert_eq!(selected[1].coding, ContentCoding::Zstd);
+        assert!(!selected[1].accepted);
         assert_eq!(selected[2].coding, ContentCoding::Gzip);
         assert!(!selected[2].accepted);
     }
 
     #[test]
     fn always_keeps_server_priority_without_accept_header() {
-        let selected = static_candidates(StaticMode::Always, &facts(AcceptEncoding::absent()));
+        let selected = static_candidates(
+            StaticMode::Always,
+            &facts(AcceptEncoding::absent()),
+            &[
+                ContentCoding::Gzip,
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Identity,
+            ],
+        );
 
         assert_eq!(selected.len(), 3);
-        assert_eq!(selected[0].coding, ContentCoding::Zstd);
+        assert_eq!(selected[0].coding, ContentCoding::Gzip);
         assert!(selected.iter().all(|candidate| candidate.accepted));
     }
 
@@ -102,10 +140,39 @@ mod tests {
     fn rejects_directory_and_unsupported_method() {
         let mut request = facts(AcceptEncoding::parse("gzip"));
         request.uri.push(b'/');
-        assert!(static_candidates(StaticMode::On, &request).is_empty());
+        assert!(static_candidates(StaticMode::On, &request, &[ContentCoding::Identity]).is_empty());
 
         request.uri.pop();
         request.method_supported = false;
-        assert!(static_candidates(StaticMode::On, &request).is_empty());
+        assert!(static_candidates(StaticMode::On, &request, &[ContentCoding::Identity]).is_empty());
+    }
+
+    #[test]
+    fn on_orders_by_quality_before_server_priority() {
+        let selected = static_candidates(
+            StaticMode::On,
+            &facts(AcceptEncoding::parse("gzip;q=1, br;q=0.5, identity;q=0")),
+            &[
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ],
+        );
+
+        assert_eq!(selected[0].coding, ContentCoding::Gzip);
+        assert_eq!(selected[1].coding, ContentCoding::Brotli);
+        assert!(selected.iter().all(|candidate| candidate.accepted));
+    }
+
+    #[test]
+    fn identity_with_higher_quality_blocks_lower_quality_sidecars() {
+        let selected = static_candidates(
+            StaticMode::On,
+            &facts(AcceptEncoding::parse("gzip;q=0.5, identity;q=0.8")),
+            &[ContentCoding::Gzip, ContentCoding::Identity],
+        );
+
+        assert_eq!(selected.len(), 1);
+        assert!(!selected[0].accepted);
     }
 }

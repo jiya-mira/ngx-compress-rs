@@ -16,6 +16,8 @@ use crate::observability::{self, Callback, FailureClass};
 
 use super::{DECLINED, ERROR, OK};
 
+const NOT_ACCEPTABLE: ngx_int_t = 406;
+
 /// Checked mapped-path buffer with room reserved for one sidecar extension.
 struct MappedPath(ngx_str_t);
 
@@ -74,10 +76,11 @@ struct OpenedSidecar {
 /// Probes all configured representations, marks cache variance once any
 /// sidecar exists, and sends the first acceptable sidecar.
 // SAFETY: `request` must be a valid NGINX request for the full probe and submit.
-pub(super) unsafe fn probe_and_serve(
+pub(in crate::static_file) unsafe fn probe_and_serve(
     request: *mut ngx_http_request_t,
     candidates: Vec<ngx_compress_core::StaticCandidate>,
     vary: bool,
+    fallback_acceptable: bool,
 ) -> ngx_int_t {
     let mut vary_added = false;
     for candidate in candidates {
@@ -103,7 +106,18 @@ pub(super) unsafe fn probe_and_serve(
             return unsafe { send_file(request, opened.coding, opened.path, &opened.of) };
         }
     }
-    DECLINED
+    if fallback_acceptable {
+        DECLINED
+    } else {
+        if vary && !vary_added {
+            // Even without an existing sidecar, the 406 outcome depends on the
+            // request's Accept-Encoding and must not poison a shared cache.
+            if unsafe { add_header(request, "Vary", "Accept-Encoding") }.is_null() {
+                return unsafe { fail(request, FailureClass::OutputAllocation) };
+            }
+        }
+        NOT_ACCEPTABLE
+    }
 }
 
 /// Attempts to open one sidecar without deciding whether the client accepts it.

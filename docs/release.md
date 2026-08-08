@@ -1,6 +1,6 @@
 # Release, tag, and rollback runbook
 
-This runbook is for the source-only v0.1.1 Technical Preview patch release.
+This runbook is for the source-only v0.2.0 Technical Preview release.
 Tagging and GitHub Release creation require explicit final authorization.
 
 ## 1. Freeze the candidate
@@ -25,22 +25,21 @@ gh workflow run security-release.yml -f target_sha="$(git rev-parse HEAD)"
 
 ```sh
 scripts/package-release.sh
-unzip -t dist/ngx-compress-rs-0.1.1-source.zip
-cat dist/ngx-compress-rs-0.1.1-source.zip.sha256
+unzip -t dist/ngx-compress-rs-0.2.0-source.zip
+cat dist/ngx-compress-rs-0.2.0-source.zip.sha256
 ```
 
 Download the successful `supply-chain-<sha>` artifact.
 The release bundle must contain:
 
-- `ngx-compress-rs-0.1.1-source.zip`;
+- `ngx-compress-rs-0.2.0-source.zip`;
 - its `.sha256` and `.contents.txt` files;
 - vendored and system CycloneDX JSON SBOMs;
 - toolchain manifest.
 
-The patch does not change codec parameters, default buffer sizes, or the
-supported build baseline, so the committed v0.1.0 five-round benchmark remains
-the applicable performance calibration. The exact v0.1.1 commit must still pass
-the ordinary HTTP/3 matrix and sanitizer gate.
+The exact release commit must include the bounded callback calibration on the
+supported x86_64 and ARM64 matrix and the isolated `oc.ams` canary. It must also
+pass the ordinary HTTP/3 matrix and sanitizer gate.
 
 ## 3. Fresh-checkout rehearsal
 
@@ -57,11 +56,11 @@ After the user explicitly authorizes the final gate:
 2. create and push the annotated tag:
 
 ```sh
-git tag -a v0.1.1 -m 'ngx-compress-rs v0.1.1 Technical Preview'
-git push origin v0.1.1
+git tag -a v0.2.0 -m 'ngx-compress-rs v0.2.0 Technical Preview'
+git push origin v0.2.0
 ```
 
-1. create the GitHub Release from [releases/v0.1.1.md](releases/v0.1.1.md) and
+1. create the GitHub prerelease from [releases/v0.2.0.md](releases/v0.2.0.md) and
    attach all release evidence;
 2. repeat the public source download and installation smoke.
 

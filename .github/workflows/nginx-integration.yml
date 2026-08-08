@@ -14,9 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  integration:
-    name: NGINX integration / integration
-    runs-on: ubuntu-24.04
+  integration_matrix:
+    name: NGINX integration / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     steps:
       - name: Check out source
@@ -61,6 +69,17 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: nginx-integration-diagnostics-${{ github.sha }}
+          name: nginx-integration-diagnostics-${{ matrix.arch }}-${{ github.sha }}
           path: artifacts/
           if-no-files-found: error
+
+  integration:
+    name: NGINX integration / integration
+    if: ${{ always() }}
+    needs: integration_matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every architecture
+        env:
+          MATRIX_RESULT: ${{ needs.integration_matrix.result }}
+        run: test "$MATRIX_RESULT" = success

@@ -2,7 +2,7 @@
 # Build the source-only Technical Preview artifact from tracked files.
 set -eu
 
-version=${VERSION:-0.1.1}
+version=${VERSION:-0.2.0}
 prefix=ngx-compress-rs-$version
 output_dir=${OUTPUT_DIR:-dist}
 archive=$output_dir/$prefix-source.zip

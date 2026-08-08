@@ -1,10 +1,12 @@
 //! Callback-scoped NGINX buffer views and output-chain management.
 
 use core::{ptr, slice};
+use std::time::Instant;
 
 use ngx::ffi::{ngx_buf_t, ngx_chain_get_free_buf, ngx_chain_t, ngx_http_request_t, ngx_palloc};
 use ngx_compress_core::{
-    DriveError, OutputAction, OutputBoundary, OutputProvider, OutputUse, StepError, drive_input,
+    DriveError, DriveState, OutputAction, OutputBoundary, OutputProvider, OutputUse, StepError,
+    WorkBudget, drive_input,
 };
 
 use crate::{fault, fault::Point, registration::ngx_http_compress_module};
@@ -71,6 +73,10 @@ struct NgxOutput<'a> {
     out: &'a mut *mut ngx_chain_t,
     free: &'a mut *mut ngx_chain_t,
     buffer_size: usize,
+    produced: usize,
+    track_produced: bool,
+    buffer_count: usize,
+    allocated_buffers: &'a mut usize,
 }
 
 impl OutputProvider for NgxOutput<'_> {
@@ -83,10 +89,13 @@ impl OutputProvider for NgxOutput<'_> {
         // SAFETY: provider construction is callback-scoped and guarantees a
         // valid request plus unique access to its out/free chains.
         unsafe {
-            let link = free_buf(self.request, self.free, self.buffer_size);
-            if link.is_null() {
-                return Err(OutputFailure::Allocation);
-            }
+            let link = free_buf(
+                self.request,
+                self.free,
+                self.buffer_size,
+                self.buffer_count,
+                self.allocated_buffers,
+            )?;
             let buf = (*link).buf.as_mut().ok_or(OutputFailure::InvalidFfiState)?;
             let mut output = OutputBuffer::new(buf)?;
             let used = use_output(output.capacity());
@@ -94,6 +103,9 @@ impl OutputProvider for NgxOutput<'_> {
                 OutputAction::Recycle => recycle(self.free, link),
                 OutputAction::Emit { produced, boundary } => {
                     output.commit(produced, boundary)?;
+                    if self.track_produced {
+                        self.produced = self.produced.saturating_add(produced);
+                    }
                     append(self.out, link);
                 }
             }
@@ -102,8 +114,8 @@ impl OutputProvider for NgxOutput<'_> {
     }
 }
 
-/// Drives the codec over the whole input chain, appending output buffers to
-/// `ctx.out`. Marks each input buffer consumed as it is accepted.
+/// Copies incoming chain links into request-owned pending state, then drives no
+/// more than one callback budget. Returns true when work remains.
 ///
 /// # Safety
 ///
@@ -113,52 +125,202 @@ impl CompressChain for RequestCtx {
     unsafe fn compress(
         &mut self,
         request: *mut ngx_http_request_t,
-        mut chain: *mut ngx_chain_t,
-    ) -> Result<(), CompressionFailure> {
-        while !chain.is_null() {
+        chain: *mut ngx_chain_t,
+    ) -> Result<bool, CompressionFailure> {
+        unsafe { append_input(self, request, chain)? };
+        let mut budget = WorkBudget::per_callback();
+        if let Some(pending) = resume_operation(self, request, &mut budget)? {
+            return Ok(pending);
+        }
+        while !self.input.is_null() {
+            let current = self.input;
             // SAFETY: `chain` is a valid link and its buffer remains live while the
             // callback-scoped view is used.
             let input = unsafe {
-                let buf = (*chain)
+                let buf = (*current)
                     .buf
                     .as_mut()
                     .ok_or(CompressionFailure::InvalidFfiState)?;
                 InputBuffer::new(buf).map_err(|()| CompressionFailure::InvalidFfiState)?
             };
+            let operation = input.operation();
             let outcome = {
+                let started = self.stats.as_ref().map(|_| Instant::now());
                 let mut output = NgxOutput {
                     request,
                     out: &mut self.out,
                     free: &mut self.free,
                     buffer_size: self.buffer_size,
+                    produced: 0,
+                    track_produced: started.is_some(),
+                    buffer_count: self.buffer_count,
+                    allocated_buffers: &mut self.allocated_buffers,
                 };
-                drive_input(
+                let outcome = drive_input(
                     &mut *self.codec,
-                    input.operation(),
+                    operation,
                     input.bytes(),
                     &mut output,
-                )
-                .map_err(|error| match error {
-                    DriveError::Step(StepError::Codec(_)) => CompressionFailure::CodecBackend,
-                    DriveError::Step(StepError::InvalidProgress(_)) => {
-                        CompressionFailure::InvalidCodecProgress
-                    }
-                    DriveError::Output(OutputFailure::Allocation) => {
-                        CompressionFailure::OutputAllocation
-                    }
-                    DriveError::Output(OutputFailure::InvalidFfiState) => {
-                        CompressionFailure::InvalidFfiState
-                    }
-                })?
+                    &mut budget,
+                );
+                if let (Some(stats), Some(started)) = (&mut self.stats, started) {
+                    let consumed = outcome
+                        .as_ref()
+                        .map_or_else(|failure| failure.consumed, |success| success.consumed);
+                    stats.record(consumed, output.produced, started.elapsed());
+                }
+                outcome
             };
-            self.done = outcome.finished;
+            let outcome = match outcome {
+                Ok(outcome) => outcome,
+                Err(failure) => {
+                    let fully_consumed = input
+                        .consume(failure.consumed)
+                        .map_err(|()| CompressionFailure::InvalidFfiState)?;
+                    if fully_consumed {
+                        // SAFETY: current is the request-owned pending head.
+                        self.input = unsafe { (*current).next };
+                    }
+                    if fully_consumed
+                        && matches!(failure.error, DriveError::Output(OutputFailure::Exhausted))
+                    {
+                        self.pending_operation = Some(operation);
+                    }
+                    return map_failure(failure.error);
+                }
+            };
+            let fully_consumed = input
+                .consume(outcome.consumed)
+                .map_err(|()| CompressionFailure::InvalidFfiState)?;
+            if fully_consumed {
+                // SAFETY: current is the request-owned pending head.
+                self.input = unsafe { (*current).next };
+            }
+            if fully_consumed && outcome.state == DriveState::BudgetExhausted {
+                self.pending_operation = Some(operation);
+            }
+            self.done = outcome.state == DriveState::Finished;
 
-            input.consume();
-            // SAFETY: input is consumed and `chain` remains a valid link.
-            chain = unsafe { (*chain).next };
+            if outcome.state == DriveState::BudgetExhausted {
+                return Ok(true);
+            }
+            if !fully_consumed {
+                return Err(CompressionFailure::InvalidCodecProgress);
+            }
+            if self.done {
+                self.input = ptr::null_mut();
+                return Ok(false);
+            }
         }
-        Ok(())
+        Ok(false)
     }
+}
+
+fn resume_operation(
+    ctx: &mut RequestCtx,
+    request: *mut ngx_http_request_t,
+    budget: &mut WorkBudget,
+) -> Result<Option<bool>, CompressionFailure> {
+    let Some(operation) = ctx.pending_operation else {
+        return Ok(None);
+    };
+    let outcome = {
+        let started = ctx.stats.as_ref().map(|_| Instant::now());
+        let mut output = NgxOutput {
+            request,
+            out: &mut ctx.out,
+            free: &mut ctx.free,
+            buffer_size: ctx.buffer_size,
+            produced: 0,
+            track_produced: started.is_some(),
+            buffer_count: ctx.buffer_count,
+            allocated_buffers: &mut ctx.allocated_buffers,
+        };
+        let outcome = drive_input(&mut *ctx.codec, operation, &[], &mut output, budget);
+        if let (Some(stats), Some(started)) = (&mut ctx.stats, started) {
+            let consumed = outcome
+                .as_ref()
+                .map_or_else(|failure| failure.consumed, |success| success.consumed);
+            stats.record(consumed, output.produced, started.elapsed());
+        }
+        outcome
+    };
+    match outcome {
+        Ok(outcome) => {
+            ctx.done = outcome.state == DriveState::Finished;
+            if outcome.state == DriveState::BudgetExhausted {
+                return Ok(Some(true));
+            }
+            ctx.pending_operation = None;
+            if ctx.done {
+                ctx.input = ptr::null_mut();
+                return Ok(Some(false));
+            }
+            Ok(None)
+        }
+        Err(failure) => {
+            debug_assert_eq!(failure.consumed, 0);
+            map_failure(failure.error).map(Some)
+        }
+    }
+}
+
+fn map_failure(error: DriveError<OutputFailure>) -> Result<bool, CompressionFailure> {
+    match error {
+        DriveError::Output(OutputFailure::Exhausted) => Ok(true),
+        DriveError::Step(StepError::Codec(_)) => Err(CompressionFailure::CodecBackend),
+        DriveError::Step(StepError::InvalidProgress(_)) => {
+            Err(CompressionFailure::InvalidCodecProgress)
+        }
+        DriveError::Output(OutputFailure::Allocation) => Err(CompressionFailure::OutputAllocation),
+        DriveError::Output(OutputFailure::InvalidFfiState) => {
+            Err(CompressionFailure::InvalidFfiState)
+        }
+    }
+}
+
+/// Appends request-pool chain-link copies without copying buffer storage.
+unsafe fn append_input(
+    ctx: &mut RequestCtx,
+    request: *mut ngx_http_request_t,
+    mut chain: *mut ngx_chain_t,
+) -> Result<(), CompressionFailure> {
+    if chain.is_null() {
+        return Ok(());
+    }
+    let mut tail = &raw mut ctx.input;
+    // SAFETY: ctx.input is a request-owned chain.
+    unsafe {
+        while !(*tail).is_null() {
+            tail = &raw mut (**tail).next;
+        }
+        while !chain.is_null() {
+            let mut pending = ctx.input;
+            let mut duplicate = false;
+            while !pending.is_null() {
+                if (*pending).buf == (*chain).buf {
+                    duplicate = true;
+                    break;
+                }
+                pending = (*pending).next;
+            }
+            if duplicate {
+                chain = (*chain).next;
+                continue;
+            }
+            let link = ngx_palloc((*request).pool, core::mem::size_of::<ngx_chain_t>())
+                .cast::<ngx_chain_t>();
+            if link.is_null() {
+                return Err(CompressionFailure::OutputAllocation);
+            }
+            (*link).buf = (*chain).buf;
+            (*link).next = ptr::null_mut();
+            *tail = link;
+            tail = &raw mut (*link).next;
+            chain = (*chain).next;
+        }
+    }
+    Ok(())
 }
 
 unsafe fn append(out: &mut *mut ngx_chain_t, link: *mut ngx_chain_t) {
@@ -187,29 +349,35 @@ unsafe fn free_buf(
     request: *mut ngx_http_request_t,
     free: &mut *mut ngx_chain_t,
     buffer_size: usize,
-) -> *mut ngx_chain_t {
+    buffer_count: usize,
+    allocated_buffers: &mut usize,
+) -> Result<*mut ngx_chain_t, OutputFailure> {
     if fault::take(Point::OutputAllocation) {
-        return ptr::null_mut();
+        return Err(OutputFailure::Allocation);
+    }
+    if (*free).is_null() && *allocated_buffers >= buffer_count {
+        return Err(OutputFailure::Exhausted);
     }
     // SAFETY: pool is valid; ngx_chain_get_free_buf reuses or allocates a link.
     unsafe {
         let pool = (*request).pool;
         let link = ngx_chain_get_free_buf(pool, free);
         if link.is_null() {
-            return ptr::null_mut();
+            return Err(OutputFailure::Allocation);
         }
         let buf = (*link).buf;
         if (*buf).start.is_null() {
             let memory = ngx_palloc(pool, buffer_size).cast::<u8>();
             if memory.is_null() {
-                return ptr::null_mut();
+                return Err(OutputFailure::Allocation);
             }
             (*buf).start = memory;
             (*buf).end = memory.add(buffer_size);
             (*buf).tag = ptr::addr_of!(ngx_http_compress_module).cast_mut().cast();
+            *allocated_buffers += 1;
         }
         ngx_compress_ffi::buffer::prepare_output(&mut *buf);
-        link
+        Ok(link)
     }
 }
 

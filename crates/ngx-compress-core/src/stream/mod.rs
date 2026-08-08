@@ -55,16 +55,75 @@ pub trait OutputProvider {
     ) -> Result<T, Self::Error>;
 }
 
-/// Result of driving one complete upstream input buffer.
+/// Fixed work allowance shared by all input buffers in one server callback.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorkBudget {
+    input_bytes: usize,
+    codec_steps: usize,
+}
+
+impl WorkBudget {
+    /// Creates a callback-local allowance.
+    #[must_use]
+    pub const fn new(input_bytes: usize, codec_steps: usize) -> Self {
+        Self {
+            input_bytes,
+            codec_steps,
+        }
+    }
+
+    /// Production callback allowance: at most 64 KiB and 32 codec calls.
+    #[must_use]
+    pub const fn per_callback() -> Self {
+        Self::new(64 * 1024, 32)
+    }
+
+    fn can_step(self, has_input: bool) -> bool {
+        self.codec_steps > 0 && (!has_input || self.input_bytes > 0)
+    }
+
+    fn input_limit(self, available: usize) -> usize {
+        available.min(self.input_bytes)
+    }
+
+    fn record_step(&mut self, consumed: usize) {
+        self.codec_steps -= 1;
+        self.input_bytes -= consumed;
+    }
+}
+
+/// Why the driver returned control to its caller.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DriveState {
+    /// The codec accepted the complete supplied input and needs another buffer.
+    NeedsInput,
+    /// A flush operation completed.
+    Flushed,
+    /// A finish operation completed the response stream.
+    Finished,
+    /// The callback allowance was consumed; retry only the unconsumed suffix.
+    BudgetExhausted,
+}
+
+/// Result of driving part or all of one upstream input buffer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DriveOutcome {
     /// Total input bytes consumed by the codec.
     pub consumed: usize,
-    /// Whether a finish operation completed the response stream.
-    pub finished: bool,
+    /// Reason control returned to the caller.
+    pub state: DriveState,
 }
 
 /// Error from the codec/progress contract or the output provider.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DriveFailure<E> {
+    /// Input accepted before the failure. Callers must never retry this prefix.
+    pub consumed: usize,
+    /// Underlying failure.
+    pub error: DriveError<E>,
+}
+
+/// Kind of streaming driver failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DriveError<E> {
     /// Codec backend failure or invalid progress report.
@@ -87,21 +146,37 @@ pub fn drive_input<C, P>(
     operation: Operation,
     input: &[u8],
     output: &mut P,
-) -> Result<DriveOutcome, DriveError<P::Error>>
+    budget: &mut WorkBudget,
+) -> Result<DriveOutcome, DriveFailure<P::Error>>
 where
     C: StreamingCodec + ?Sized,
     P: OutputProvider,
 {
     let mut offset = 0;
     loop {
+        if !budget.can_step(offset < input.len()) {
+            return Ok(DriveOutcome {
+                consumed: offset,
+                state: DriveState::BudgetExhausted,
+            });
+        }
+        let limit = budget.input_limit(input.len() - offset);
+        let end = offset + limit;
+        // A flush/finish boundary may only be presented with the final input
+        // suffix. A budget-truncated prefix is always an ordinary continuation.
+        let step_operation = if end == input.len() {
+            operation
+        } else {
+            Operation::Continue
+        };
         let stepped = output
             .with_output(|capacity| {
-                match checked_step(codec, operation, &input[offset..], capacity) {
+                match checked_step(codec, step_operation, &input[offset..end], capacity) {
                     Ok(step) => {
                         let complete = step.state == StepState::Complete;
-                        let boundary = if operation == Operation::Finish && complete {
+                        let boundary = if step_operation == Operation::Finish && complete {
                             OutputBoundary::Finish
-                        } else if operation == Operation::Flush && complete {
+                        } else if step_operation == Operation::Flush && complete {
                             OutputBoundary::Flush
                         } else {
                             OutputBoundary::None
@@ -125,20 +200,33 @@ where
                     },
                 }
             })
-            .map_err(DriveError::Output)?;
-        let (step, boundary) = stepped.map_err(DriveError::Step)?;
+            .map_err(|error| DriveFailure {
+                consumed: offset,
+                error: DriveError::Output(error),
+            })?;
+        let (step, boundary) = stepped.map_err(|error| DriveFailure {
+            consumed: offset,
+            error: DriveError::Step(error),
+        })?;
         offset += step.consumed;
+        budget.record_step(step.consumed);
 
         if boundary == OutputBoundary::Finish {
             return Ok(DriveOutcome {
                 consumed: offset,
-                finished: true,
+                state: DriveState::Finished,
             });
         }
-        if boundary == OutputBoundary::Flush || step.state == StepState::NeedsInput {
+        if boundary == OutputBoundary::Flush {
             return Ok(DriveOutcome {
                 consumed: offset,
-                finished: false,
+                state: DriveState::Flushed,
+            });
+        }
+        if step.state == StepState::NeedsInput && offset == input.len() {
+            return Ok(DriveOutcome {
+                consumed: offset,
+                state: DriveState::NeedsInput,
             });
         }
     }

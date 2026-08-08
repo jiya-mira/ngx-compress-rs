@@ -13,6 +13,15 @@ pub enum ContentCoding {
     Identity,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Result of selecting among the server's actually available representations.
+pub enum Negotiation {
+    /// The selected acceptable representation, including `identity`.
+    Selected(ContentCoding),
+    /// Every available representation has an effective quality of zero.
+    NotAcceptable,
+}
+
 impl ContentCoding {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -137,10 +146,15 @@ impl AcceptEncoding {
     }
 
     #[must_use]
-    pub fn select(self, server_preference: &[ContentCoding]) -> Option<ContentCoding> {
+    pub fn negotiate_available(
+        self,
+        server_preference: &[ContentCoding],
+        mut available: impl FnMut(ContentCoding) -> bool,
+    ) -> Negotiation {
         server_preference
             .iter()
             .copied()
+            .filter(|&coding| available(coding))
             .fold(None, |selected: Option<(ContentCoding, u16)>, coding| {
                 let quality = self.quality(coding);
                 match selected {
@@ -149,7 +163,17 @@ impl AcceptEncoding {
                     _ => selected,
                 }
             })
-            .map(|(coding, _)| coding)
+            .map_or(Negotiation::NotAcceptable, |(coding, _)| {
+                Negotiation::Selected(coding)
+            })
+    }
+
+    #[must_use]
+    pub fn select(self, server_preference: &[ContentCoding]) -> Option<ContentCoding> {
+        match self.negotiate_available(server_preference, |_| true) {
+            Negotiation::Selected(coding) => Some(coding),
+            Negotiation::NotAcceptable => None,
+        }
     }
 }
 
@@ -176,31 +200,38 @@ fn parse_quality(value: &str) -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AcceptEncoding, ContentCoding};
+    use super::{AcceptEncoding, ContentCoding, Negotiation};
 
     #[test]
     fn negotiates_common_browser_header_without_allocation() {
         let accepted = AcceptEncoding::parse("gzip, deflate, br, zstd");
-        let selected = accepted.select(&[
-            ContentCoding::Zstd,
-            ContentCoding::Brotli,
-            ContentCoding::Gzip,
-            ContentCoding::Identity,
-        ]);
+        let selected = accepted.negotiate_available(
+            &[
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ],
+            |_| true,
+        );
 
-        assert_eq!(selected, Some(ContentCoding::Zstd));
+        assert_eq!(selected, Negotiation::Selected(ContentCoding::Zstd));
     }
 
     #[test]
     fn client_quality_overrides_server_order() {
         let accepted = AcceptEncoding::parse("gzip;q=0.5, br;q=1, zstd;q=0.8");
-        let selected = accepted.select(&[
-            ContentCoding::Zstd,
-            ContentCoding::Brotli,
-            ContentCoding::Gzip,
-        ]);
+        let selected = accepted.negotiate_available(
+            &[
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ],
+            |_| true,
+        );
 
-        assert_eq!(selected, Some(ContentCoding::Brotli));
+        assert_eq!(selected, Negotiation::Selected(ContentCoding::Brotli));
     }
 
     #[test]
@@ -213,31 +244,47 @@ mod tests {
 
     #[test]
     fn absent_header_selects_identity_only() {
-        let selected = AcceptEncoding::absent().select(&[
-            ContentCoding::Zstd,
-            ContentCoding::Gzip,
-            ContentCoding::Identity,
-        ]);
+        let selected = AcceptEncoding::absent().negotiate_available(
+            &[
+                ContentCoding::Zstd,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ],
+            |_| true,
+        );
 
-        assert_eq!(selected, Some(ContentCoding::Identity));
+        assert_eq!(selected, Negotiation::Selected(ContentCoding::Identity));
     }
 
     #[test]
     fn dictionary_coding_requires_server_eligibility() {
         let accepted = AcceptEncoding::parse("dcz, zstd, br");
-        let without_dictionary = accepted.select(&[
-            ContentCoding::Zstd,
-            ContentCoding::Brotli,
-            ContentCoding::Identity,
-        ]);
-        let with_dictionary = accepted.select(&[
-            ContentCoding::DictionaryZstd,
-            ContentCoding::Zstd,
-            ContentCoding::Brotli,
-        ]);
+        let without_dictionary = accepted.negotiate_available(
+            &[
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Identity,
+            ],
+            |_| true,
+        );
+        let with_dictionary = accepted.negotiate_available(
+            &[
+                ContentCoding::DictionaryZstd,
+                ContentCoding::Zstd,
+                ContentCoding::Brotli,
+                ContentCoding::Identity,
+            ],
+            |_| true,
+        );
 
-        assert_eq!(without_dictionary, Some(ContentCoding::Zstd));
-        assert_eq!(with_dictionary, Some(ContentCoding::DictionaryZstd));
+        assert_eq!(
+            without_dictionary,
+            Negotiation::Selected(ContentCoding::Zstd)
+        );
+        assert_eq!(
+            with_dictionary,
+            Negotiation::Selected(ContentCoding::DictionaryZstd)
+        );
     }
 
     #[test]
@@ -245,5 +292,56 @@ mod tests {
         let accepted = AcceptEncoding::parse("br;q=0.2, br;q=0.9");
 
         assert_eq!(accepted.quality(ContentCoding::Brotli), 900);
+    }
+
+    #[test]
+    fn identity_quality_participates_in_selection() {
+        let accepted = AcceptEncoding::parse("gzip;q=0.5, identity;q=0.8");
+        let selected =
+            accepted.negotiate_available(&[ContentCoding::Gzip, ContentCoding::Identity], |_| true);
+
+        assert_eq!(selected, Negotiation::Selected(ContentCoding::Identity));
+    }
+
+    #[test]
+    fn equal_quality_uses_server_order() {
+        let accepted = AcceptEncoding::parse("gzip, br, identity");
+        let selected = accepted.negotiate_available(
+            &[
+                ContentCoding::Brotli,
+                ContentCoding::Gzip,
+                ContentCoding::Identity,
+            ],
+            |_| true,
+        );
+
+        assert_eq!(selected, Negotiation::Selected(ContentCoding::Brotli));
+    }
+
+    #[test]
+    fn unavailable_and_excluded_representations_are_not_acceptable() {
+        let accepted = AcceptEncoding::parse("gzip, identity;q=0");
+        let selected = accepted
+            .negotiate_available(&[ContentCoding::Gzip, ContentCoding::Identity], |coding| {
+                coding == ContentCoding::Identity
+            });
+
+        assert_eq!(selected, Negotiation::NotAcceptable);
+    }
+
+    #[test]
+    fn empty_field_value_selects_identity() {
+        let selected = AcceptEncoding::parse("")
+            .negotiate_available(&[ContentCoding::Gzip, ContentCoding::Identity], |_| true);
+
+        assert_eq!(selected, Negotiation::Selected(ContentCoding::Identity));
+    }
+
+    #[test]
+    fn wildcard_zero_excludes_identity_without_an_override() {
+        let selected = AcceptEncoding::parse("*;q=0")
+            .negotiate_available(&[ContentCoding::Gzip, ContentCoding::Identity], |_| true);
+
+        assert_eq!(selected, Negotiation::NotAcceptable);
     }
 }
