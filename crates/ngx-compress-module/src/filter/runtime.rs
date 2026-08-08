@@ -90,12 +90,7 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         Ok(Some(plan)) => plan,
         Ok(None) => return pass(),
         Err(CodecSelectionFailure::NotAcceptable) => {
-            if resolved.vary {
-                // Preserve cache correctness because 406 depends on Accept-Encoding.
-                let req = unsafe { Request::from_ngx_http_request(request) };
-                let _ = req.add_header_out("Vary", "Accept-Encoding");
-            }
-            return NOT_ACCEPTABLE;
+            return unsafe { reject_not_acceptable(request, resolved.vary) };
         }
         Err(CodecSelectionFailure::Initialization) => {
             // SAFETY: request remains live and no response headers were changed.
@@ -182,6 +177,15 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         }
         super::downstream::header(request)
     }
+}
+
+unsafe fn reject_not_acceptable(request: *mut ngx_http_request_t, vary: bool) -> ngx_int_t {
+    if vary {
+        // Preserve cache correctness because 406 depends on Accept-Encoding.
+        let req = unsafe { Request::from_ngx_http_request(request) };
+        let _ = req.add_header_out("Vary", "Accept-Encoding");
+    }
+    NOT_ACCEPTABLE
 }
 
 // SAFETY: nginx must supply a valid request and input chain for this callback.
