@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  integration:
+  integration_matrix:
     name: NGINX integration / ${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -72,3 +72,14 @@ jobs:
           name: nginx-integration-diagnostics-${{ matrix.arch }}-${{ github.sha }}
           path: artifacts/
           if-no-files-found: error
+
+  integration:
+    name: NGINX integration / integration
+    if: ${{ always() }}
+    needs: integration_matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every architecture
+        env:
+          MATRIX_RESULT: ${{ needs.integration_matrix.result }}
+        run: test "$MATRIX_RESULT" = success
