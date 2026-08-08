@@ -91,8 +91,7 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
         Ok(None) => return pass(),
         Err(CodecSelectionFailure::NotAcceptable) => {
             if resolved.vary {
-                // The status depends on Accept-Encoding even though no content
-                // coding can be selected; preserve cache correctness on 406.
+                // Preserve cache correctness because 406 depends on Accept-Encoding.
                 let req = unsafe { Request::from_ngx_http_request(request) };
                 let _ = req.add_header_out("Vary", "Accept-Encoding");
             }

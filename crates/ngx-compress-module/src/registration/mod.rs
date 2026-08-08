@@ -57,7 +57,7 @@ type SetFn = extern "C" fn(
     *mut core::ffi::c_void,
 ) -> *mut core::ffi::c_char;
 
-static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 17] = [
+static mut NGX_HTTP_COMPRESS_COMMANDS: [ngx_command_t; 18] = [
     directive(ngx_string!("compress")),
     directive(ngx_string!("compress_static")),
     directive(ngx_string!("compress_gzip")),
