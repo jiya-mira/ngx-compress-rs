@@ -14,7 +14,9 @@ use ngx::ffi::{
     ngx_http_phases_NGX_HTTP_CONTENT_PHASE, ngx_http_request_t, ngx_int_t, ngx_uint_t,
 };
 use ngx::http::{HttpModuleLocationConf, Request};
-use ngx_compress_core::{StaticMode, StaticRequestFacts, static_candidates};
+use ngx_compress_core::{
+    ContentCoding, Negotiation, StaticMode, StaticRequestFacts, static_candidates,
+};
 
 use crate::observability::{self, Callback, FailureClass};
 use crate::{BuiltinGzip, FilterModule, Module, ResolveConfig, StaticModule};
@@ -93,10 +95,14 @@ unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
         return DECLINED;
     }
 
-    let identity_acceptable = snapshot
-        .accept_encoding
-        .quality(ngx_compress_core::ContentCoding::Identity)
-        > 0;
+    let identity_acceptable = snapshot.accept_encoding.quality(ContentCoding::Identity) > 0;
+    let runtime_acceptable = resolved.enabled
+        && matches!(
+            snapshot
+                .accept_encoding
+                .negotiate_available(&resolved.priority, |coding| runtime_available(&resolved, coding)),
+            Negotiation::Selected(coding) if coding != ContentCoding::Identity
+        );
     let candidates = static_candidates(resolved.static_mode, &snapshot, &resolved.priority);
     // Only `on` selects a representation from Accept-Encoding. `always` sends
     // the same highest-priority sidecar to every client and therefore does not vary.
@@ -107,8 +113,19 @@ unsafe fn serve(request: *mut ngx_http_request_t) -> ngx_int_t {
             request,
             candidates,
             vary,
-            resolved.static_mode == StaticMode::Always || identity_acceptable,
+            resolved.static_mode == StaticMode::Always || identity_acceptable || runtime_acceptable,
         )
+    }
+}
+
+fn runtime_available(resolved: &crate::Resolved<'_>, coding: ContentCoding) -> bool {
+    match coding {
+        ContentCoding::Identity => true,
+        ContentCoding::Gzip => cfg!(feature = "gzip") && resolved.gzip.is_some(),
+        ContentCoding::Deflate => cfg!(feature = "deflate") && resolved.deflate.is_some(),
+        ContentCoding::Brotli => cfg!(feature = "brotli") && resolved.brotli.is_some(),
+        ContentCoding::Zstd => cfg!(feature = "zstd") && resolved.zstd.is_some(),
+        _ => false,
     }
 }
 

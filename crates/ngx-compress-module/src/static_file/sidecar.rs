@@ -80,7 +80,7 @@ pub(super) unsafe fn probe_and_serve(
     request: *mut ngx_http_request_t,
     candidates: Vec<ngx_compress_core::StaticCandidate>,
     vary: bool,
-    identity_acceptable: bool,
+    fallback_acceptable: bool,
 ) -> ngx_int_t {
     let mut vary_added = false;
     for candidate in candidates {
@@ -106,7 +106,7 @@ pub(super) unsafe fn probe_and_serve(
             return unsafe { send_file(request, opened.coding, opened.path, &opened.of) };
         }
     }
-    if identity_acceptable {
+    if fallback_acceptable {
         DECLINED
     } else {
         if vary && !vary_added {

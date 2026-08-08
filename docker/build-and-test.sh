@@ -220,6 +220,13 @@ http {
             compress_static on;
             compress_priority gzip br;
         }
+        location /static-runtime/ {
+            alias $WWW/static/;
+            compress on;
+            compress_gzip on;
+            compress_min_length 1;
+            compress_static on;
+        }
     }
 }
 EOF
@@ -501,7 +508,17 @@ check_static() {
         || { echo "FAIL [$1 static not acceptable]: expected 406, got $status"; return 1; }
     echo "PASS [$1 static identity]: identity q honored and empty set rejected"
 
-    # 9) `always` bypasses negotiation but still follows the active profile.
+    # 9) A missing sidecar must fall through to an acceptable dynamic coding.
+    curl -sf --noproxy '*' -H 'Accept-Encoding: gzip, identity;q=0' \
+        -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
+        "http://127.0.0.1:$PORT/static-runtime/plain.txt"
+    grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
+        || { echo "FAIL [$1 static runtime fallback]: expected dynamic gzip"; return 1; }
+    gzip -dc < "$RUN_DIR/c.bin" | cmp -s - "$WWW/static/plain.txt" \
+        || { echo "FAIL [$1 static runtime fallback]: invalid dynamic gzip"; return 1; }
+    echo "PASS [$1 static runtime fallback]: missing sidecar reaches dynamic coding"
+
+    # 10) `always` bypasses negotiation but still follows the active profile.
     curl -sf --noproxy '*' -D "$RUN_DIR/h.txt" -o "$RUN_DIR/c.bin" \
         "http://127.0.0.1:$PORT/astatic-fast/asset.txt"
     grep -qi '^content-encoding: *gzip' "$RUN_DIR/h.txt" \
