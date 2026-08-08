@@ -155,7 +155,9 @@ http {
             compress_brotli on;
             compress_zstd on;
             compress_min_length 20;
-            compress_buffers 16 8k;
+            # One small output buffer forces the module to yield to the next
+            # filter, reclaim it, and resume the unconsumed input suffix.
+            compress_buffers 1 1k;
             compress_types text/plain application/json text/html;
         }
         location = /memory {
@@ -534,6 +536,15 @@ smoke() {
     write_conf "$3"
     "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" -t \
         || { echo "FAIL [$2]: nginx -t"; return 1; }
+    cp "$RUN_DIR/nginx.conf" "$RUN_DIR/nginx-valid.conf"
+    sed '0,/compress on;/s//compress max;/' "$RUN_DIR/nginx-valid.conf" > "$RUN_DIR/nginx.conf"
+    if "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" -t >"$RUN_DIR/max.log" 2>&1; then
+        echo "FAIL [$2]: removed max profile was accepted"; return 1
+    fi
+    grep -q 'invalid value for compress directive' "$RUN_DIR/max.log" \
+        || { echo "FAIL [$2]: max rejection lacked configuration error"; return 1; }
+    mv "$RUN_DIR/nginx-valid.conf" "$RUN_DIR/nginx.conf"
+    echo "PASS [$2]: removed max profile rejected by nginx -t"
     "$1" -p "$RUN_DIR" -c "$RUN_DIR/nginx.conf" &
     ngx_pid=$!
     i=0

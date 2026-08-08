@@ -50,6 +50,11 @@ A step with available input and output capacity that consumes and produces nothi
 
 This contract prevents the unbounded `redo` loops seen in older third-party Nginx compression filters.
 
+Each body-filter callback has a fixed 64 KiB input and 32 codec-step budget.
+Exhausting either allowance returns a typed resumable state; request-owned input
+and flush/finish boundaries survive until NGINX's writer re-enters the filter
+with NULL input on a later event-loop turn.
+
 ## Memory and concurrency
 
 - Borrow Nginx input buffers instead of copying them into intermediate `Vec` values.
@@ -57,7 +62,8 @@ This contract prevents the unbounded `redo` loops seen in older third-party Ngin
 - Reuse codec contexts within a worker after request cleanup.
 - Do not share mutable codec state between workers or requests.
 - Avoid locks on the request path; Nginx workers are event-loop processes.
-- Add bounded work and output budgets before enabling high compression levels.
+- Limit module-owned output buffers to the configured `compress_buffers` count;
+  a busy pool pauses and resumes compression instead of allocating past it.
 
 ## Rust and NGINX integration research
 
@@ -151,7 +157,7 @@ not the planning authority.
 ### M3: Static and profile optimization
 
 - precompressed static variants (`.gz`/`.br`/`.zst` sidecar content handler)
-- named profiles (`compress fast|balanced|max`) — turnkey presets over the
+- named profiles (`compress fast|balanced`) — turnkey presets over the
   per-codec knobs, explicit directives override
 - worker-local context reuse (reset a per-worker codec instead of reallocating)
 - benchmark-driven compression profiles (calibrate the preset tiers and fixed

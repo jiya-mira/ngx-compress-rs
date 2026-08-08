@@ -17,7 +17,7 @@ compiled-in codecs at a sensible tier.
 
 | Directive | Syntax | Default | Description |
 | --- | --- | --- | --- |
-| `compress` | `off \| on \| fast \| balanced \| max` | `off` | Master switch and profile selector (see below). |
+| `compress` | `off \| on \| fast \| balanced` | `off` | Master switch and profile selector (see below). |
 
 `compress` values:
 
@@ -27,7 +27,6 @@ compiled-in codecs at a sensible tier.
 | `on` | Enabled, **custom** mode — no preset; only explicit `compress_*` directives and built-in defaults apply. |
 | `fast` | Preset: high-QPS dynamic content, CPU-frugal. |
 | `balanced` | Preset: general-purpose default. |
-| `max` | Preset: cacheable / precompressed content, offline CPU budget. |
 
 Profile presets (the tier *names* are stable; the numeric values may be
 re-tuned by later evidence without being a breaking change):
@@ -36,7 +35,6 @@ re-tuned by later evidence without being a breaking change):
 | --- | --- | --- | --- | --- | --- |
 | `fast` | gzip, br, zstd | level 4 | level 4, window 18 | level 3 | 256 |
 | `balanced` | gzip, br, zstd | level 6 | level 5, window 22 | level 6 | 256 |
-| `max` | gzip, br, zstd | level 9 | level 11, window 24 | level 19 | 128 |
 
 A preset only enables codecs compiled into the build. `deflate` is never enabled
 by a preset — turn it on explicitly if a client needs raw deflate.
@@ -73,7 +71,7 @@ These apply to all enabled runtime codecs.
 | `compress_types` | `mime-type ...` | `text/html` (always), plus `text/*`, `application/json`, `application/javascript`, … | MIME allowlist for runtime compression. `text/html` is always included; `*` matches all types. |
 | `compress_min_length` | `length` | 20 | Minimum response size (bytes) eligible for runtime compression; applied only when Content-Length is known. 256+ is recommended. |
 | `compress_vary` | `on \| off` | `on` | Add `Vary: Accept-Encoding`. On by default so shared caches record that the module serves different encodings. |
-| `compress_buffers` | `number size` | `16 8k` | Per-request output buffer pool (buffer count and size). |
+| `compress_buffers` | `number size` | `16 8k` | Hard per-request output-buffer count and buffer size. When all buffers are downstream-busy, compression resumes after NGINX reclaims one. |
 | `compress_priority` | `coding ...` | profile-dependent | Server tie-break order for equally preferred acceptable codings. |
 
 `compress_priority` accepts each of `zstd`, `br`, `gzip`, and `deflate` at most
@@ -87,7 +85,7 @@ Default equal-quality order:
 | Profile | Order |
 | --- | --- |
 | `fast` | `zstd` > `gzip` > `br` > `deflate` > `identity` |
-| `on`, `balanced`, `max` | `zstd` > `br` > `gzip` > `deflate` > `identity` |
+| `on`, `balanced` | `zstd` > `br` > `gzip` > `deflate` > `identity` |
 
 Client quality values are authoritative. The module first removes unavailable
 and `q=0` representations, then selects the highest remaining quality, and only
@@ -134,8 +132,9 @@ Effective values are resolved as:
 
 **explicit `compress_*` directive > profile preset > built-in default**,
 
-independent of directive order. For example, `compress max; compress_zstd off;`
-runs the `max` tier with zstd disabled.
+independent of directive order. For example, `compress balanced; compress_zstd off;`
+runs the `balanced` tier with zstd disabled. The former `max` profile is rejected
+as an invalid configuration; use explicit per-codec levels for offline tuning.
 
 ## Coexistence with built-in gzip
 

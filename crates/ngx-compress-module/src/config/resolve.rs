@@ -50,17 +50,6 @@ impl Profile {
                 zstd_level: 6,
                 min_length: 256,
             },
-            Self::Max => Preset {
-                gzip: true,
-                brotli: true,
-                zstd: true,
-                gzip_level: 9,
-                deflate_level: 9,
-                brotli_level: 11,
-                brotli_window: 24,
-                zstd_level: 19,
-                min_length: 128,
-            },
         };
         Some(preset)
     }
@@ -78,6 +67,9 @@ impl ResolveConfig for CompressConfig {
             vary: self.vary.unwrap_or(true),
             stats_mode: self.stats_mode.unwrap_or_default(),
             buffer_size: self.buffers.map_or(DEFAULT_BUFFER_SIZE, |(_, size)| size),
+            buffer_count: self
+                .buffers
+                .map_or(super::DEFAULT_BUFFER_COUNT, |(count, _)| count),
             static_mode: self.static_mode.unwrap_or(StaticMode::Off),
             types: self.types.as_deref(),
             gzip: on_level(
@@ -161,7 +153,7 @@ mod tests {
 
     use ngx_compress_core::ContentCoding;
 
-    use crate::{CompressConfig, Profile, ResolveConfig};
+    use crate::{ApplyConfig, CompressConfig, ConfigUpdate, Profile, ResolveConfig};
 
     #[test]
     fn profiles_supply_documented_default_priority() {
@@ -214,5 +206,18 @@ mod tests {
                 ContentCoding::Identity,
             ]
         );
+    }
+
+    #[test]
+    fn resolves_both_output_buffer_dimensions() {
+        let mut config = CompressConfig::default();
+        assert!(config.apply(ConfigUpdate::Buffers {
+            count: 3,
+            size: 4_096,
+        }));
+
+        let resolved = config.resolve();
+        assert_eq!(resolved.buffer_count, 3);
+        assert_eq!(resolved.buffer_size, 4_096);
     }
 }

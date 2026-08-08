@@ -17,7 +17,7 @@ signature — see [Deploy into your NGINX](#deploy-into-your-nginx).
 - RFC-aware `Accept-Encoding` negotiation, including quality values, wildcard,
   duplicate coding, explicit `q=0`, and identity handling.
 - Precompressed `.gz`, `.br`, and `.zst` sidecar serving.
-- `fast`, `balanced`, and `max` configuration profiles with explicit directive
+- `fast` and `balanced` configuration profiles with explicit directive
   overrides.
 - Worker-local codec reuse and streaming progress validation.
 - A narrow NGINX FFI boundary around a safe Rust protocol and policy core.
@@ -81,7 +81,7 @@ All directives are valid in the `http`, `server`, and `location` contexts.
 
 | Directive | Default | Description |
 | --- | --- | --- |
-| `compress off\|on\|fast\|balanced\|max` | `off` | Master switch and profile selector. `fast`/`balanced`/`max` are presets; `on` is custom mode. |
+| `compress off\|on\|fast\|balanced` | `off` | Master switch and profile selector. `fast`/`balanced` are presets; `on` is custom mode. |
 | `compress_gzip on\|off` | `off` | Enable the gzip codec. |
 | `compress_deflate on\|off` | `off` | Enable the raw deflate codec. |
 | `compress_brotli on\|off` | `off` | Enable the Brotli (`br`) codec. |
@@ -94,11 +94,11 @@ All directives are valid in the `http`, `server`, and `location` contexts.
 | `compress_types <mime>...` | `text/html`, `text/*`, `application/json`, … | MIME allowlist; `*` matches all. |
 | `compress_min_length <n>` | `20` | Minimum response size (bytes) to compress at runtime. |
 | `compress_vary on\|off` | `on` | Add `Vary: Accept-Encoding`. |
-| `compress_buffers <n> <size>` | `16 8k` | Per-request output buffer pool. |
+| `compress_buffers <n> <size>` | `16 8k` | Hard per-request output-buffer limit and buffer size. |
 | `compress_static off\|on\|always` | `off` | Serve precompressed `.zst`/`.br`/`.gz` sidecars. |
 
 Precedence is **explicit directive > profile preset > built-in default**,
-independent of order (`compress max; compress_zstd off;` runs `max` without zstd).
+independent of order (`compress balanced; compress_zstd off;` runs `balanced` without zstd).
 
 Full syntax, contexts, ranges, and behaviour for every directive are in
 [docs/directives.md](docs/directives.md).

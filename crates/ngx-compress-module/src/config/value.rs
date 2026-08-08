@@ -109,8 +109,6 @@ impl Profile {
             Some(Self::Fast)
         } else if value.eq_ignore_ascii_case("balanced") {
             Some(Self::Balanced)
-        } else if value.eq_ignore_ascii_case("max") {
-            Some(Self::Max)
         } else {
             None
         }
@@ -201,5 +199,17 @@ mod tests {
             assert!(!config.apply(ConfigUpdate::Priority(values)));
             assert!(config.priority.is_none());
         }
+    }
+
+    #[test]
+    fn removed_max_profile_is_a_hard_configuration_error() {
+        let mut config = CompressConfig::default();
+
+        assert!(!config.apply(ConfigUpdate::Named {
+            name: "compress".to_owned(),
+            value: "max".to_owned(),
+        }));
+        assert_eq!(config.enable, None);
+        assert_eq!(config.profile, None);
     }
 }

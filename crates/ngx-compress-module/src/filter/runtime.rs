@@ -165,6 +165,7 @@ unsafe fn header_filter_inner(request: *mut ngx_http_request_t) -> ngx_int_t {
             plan.key,
             plan.buffer_size,
             plan.stats_mode,
+            plan.buffer_count,
         )
         .is_none()
         {
@@ -215,17 +216,23 @@ unsafe fn body_filter_with_ctx(
     ctx: &mut RequestCtx,
 ) -> ngx_int_t {
     // SAFETY: walks the input chain, feeding each buffer to the codec.
-    if let Err(error) = unsafe { ctx.compress(request, chain) } {
-        let class = match error {
-            CompressionFailure::OutputAllocation => FailureClass::OutputAllocation,
-            CompressionFailure::InvalidFfiState => FailureClass::InvalidFfiState,
-            CompressionFailure::InvalidCodecProgress => FailureClass::InvalidCodecProgress,
-            CompressionFailure::CodecBackend => FailureClass::CodecBackend,
-        };
-        // SAFETY: request remains live in this body callback.
-        unsafe { observability::request(request, Callback::BodyFilter, class) };
-        return Status::NGX_ERROR.0;
-    }
+    let pending = match unsafe { ctx.compress(request, chain) } {
+        Ok(pending) => pending,
+        Err(error) => {
+            let class = match error {
+                CompressionFailure::OutputAllocation => FailureClass::OutputAllocation,
+                CompressionFailure::InvalidFfiState => FailureClass::InvalidFfiState,
+                CompressionFailure::InvalidCodecProgress => FailureClass::InvalidCodecProgress,
+                CompressionFailure::CodecBackend => FailureClass::CodecBackend,
+            };
+            // SAFETY: request remains live in this body callback.
+            unsafe { observability::request(request, Callback::BodyFilter, class) };
+            return Status::NGX_ERROR.0;
+        }
+    };
+    // SAFETY: nginx supplied a live request and connection. Preserve every
+    // other filter's buffered flags while controlling only our reserved bit.
+    unsafe { mark_buffered(request, pending) };
 
     if ctx.done && ctx.server_timing && !ctx.trailer_sent {
         // SAFETY: request and its output trailer list remain live for this callback.
@@ -242,8 +249,14 @@ unsafe fn body_filter_with_ctx(
     }
 
     // Nothing produced yet and nothing pending: the codec buffered this input.
-    // Return OK without invoking the next filter, or it would see an empty chain.
+    // The connection buffered bit makes NGINX's standard writer re-enter the
+    // body-filter chain with NULL input when work remains. Returning NGX_OK here
+    // matches the built-in gzip filter and avoids replacing or manually posting
+    // the request's write handler.
     if ctx.out.is_null() && ctx.busy.is_null() {
+        // SAFETY: no downstream filter is blocked, so defer one standard write
+        // event. Finalization installs ngx_http_writer before that event runs.
+        unsafe { schedule_continuation(request, pending, Status::NGX_OK.0) };
         return Status::NGX_OK.0;
     }
 
@@ -259,7 +272,30 @@ unsafe fn body_filter_with_ctx(
             ptr::addr_of!(ngx_http_compress_module).cast_mut().cast(),
         );
     }
+    // SAFETY: if downstream accepted the batch without retaining a connection
+    // buffer, defer the remaining bounded work to the next event-loop turn.
+    unsafe { schedule_continuation(request, pending, rc) };
     rc
+}
+
+unsafe fn schedule_continuation(
+    request: *mut ngx_http_request_t,
+    pending: bool,
+    downstream_rc: ngx_int_t,
+) {
+    if !pending || downstream_rc != Status::NGX_OK.0 {
+        return;
+    }
+    // SAFETY: caller guarantees a live request and connection. The C boundary
+    // checks native bitfields and posts only when no downstream buffer owns the
+    // wakeup, avoiding a busy loop against backpressure.
+    unsafe { ngx_compress_ffi::event::post_write_if_ready(request) }
+}
+
+unsafe fn mark_buffered(request: *mut ngx_http_request_t, pending: bool) {
+    // SAFETY: caller guarantees a live request and connection. The C boundary
+    // mutates the native connection bitfield while preserving every other bit.
+    unsafe { ngx_compress_ffi::event::set_buffered(request, pending) }
 }
 
 /// Copies policy inputs out of nginx before safe-core decision making.

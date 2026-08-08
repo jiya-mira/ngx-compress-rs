@@ -2,7 +2,7 @@
 //! profile tiers (M3 "benchmark-driven profiles").
 //!
 //! For each codec and level it reports the compression ratio and encode
-//! throughput over a corpus, so the `fast`/`balanced`/`max` tier levels (and the
+//! throughput over a corpus, so the `fast`/`balanced` tier levels (and the
 //! per-response-class priority order) can be chosen from data instead of guesses.
 //!
 //! Usage:
@@ -60,7 +60,7 @@ fn main() {
 
     report.push_str(
         "\nCalibrated tiers — fast: gzip 4 / br 4 w18 / zstd 3; \
-         balanced: gzip 6 / br 5 w22 / zstd 6; max: gzip 9 / br 11 w24 / zstd 19.\n",
+         balanced: gzip 6 / br 5 w22 / zstd 6. Explicit levels remain available.\n",
     );
     println!("{report}"); // style:allow-stdio-log
 }

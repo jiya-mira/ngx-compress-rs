@@ -87,10 +87,10 @@ Content-Encoding: gzip
 Vary: Accept-Encoding
 --- error_code: 200
 
-=== TEST 6: explicit `compress_zstd off` overrides the `max` profile
+=== TEST 6: explicit `compress_zstd off` overrides the `balanced` profile
 --- config
 location = /t {
-    compress max;
+    compress balanced;
     compress_zstd off;
     return 200 "compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload compressible payload\n";
 }

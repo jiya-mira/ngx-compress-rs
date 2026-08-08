@@ -212,7 +212,7 @@ Profiles are the smallest useful setup:
 
 ```nginx
 http {
-    compress fast;       # or balanced / max
+    compress fast;       # or balanced
 }
 ```
 

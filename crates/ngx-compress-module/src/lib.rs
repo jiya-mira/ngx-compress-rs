@@ -21,7 +21,6 @@ enum Profile {
     Custom,
     Fast,
     Balanced,
-    Max,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -71,6 +70,7 @@ struct Resolved<'a> {
     vary: bool,
     buffer_size: usize,
     stats_mode: StatsMode,
+    buffer_count: usize,
     static_mode: StaticMode,
     types: Option<&'a MimeTypes>,
     gzip: Option<u32>,

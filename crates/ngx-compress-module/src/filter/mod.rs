@@ -25,7 +25,11 @@ struct RequestCtx {
     out: *mut ngx_chain_t,
     busy: *mut ngx_chain_t,
     free: *mut ngx_chain_t,
+    input: *mut ngx_chain_t,
     buffer_size: usize,
+    buffer_count: usize,
+    allocated_buffers: usize,
+    pending_operation: Option<Operation>,
     done: bool,
     stats: Option<CompressionStats>,
     server_timing: bool,
@@ -44,6 +48,7 @@ struct Plan {
     vary: bool,
     buffer_size: usize,
     stats_mode: StatsMode,
+    buffer_count: usize,
     reset_recovered: bool,
 }
 
@@ -79,6 +84,7 @@ struct InputBuffer<'a> {
 #[derive(Clone, Copy)]
 enum OutputFailure {
     Allocation,
+    Exhausted,
     InvalidFfiState,
 }
 
@@ -113,6 +119,7 @@ trait RequestContext {
         key: CodecKey,
         buffer_size: usize,
         stats_mode: StatsMode,
+        buffer_count: usize,
     ) -> Option<()>;
     // SAFETY: `request` must own a live, uniquely callback-borrowed context.
     unsafe fn with<R>(
@@ -127,7 +134,7 @@ trait CompressChain {
         &mut self,
         request: *mut ngx_http_request_t,
         chain: *mut ngx_chain_t,
-    ) -> Result<(), CompressionFailure>;
+    ) -> Result<bool, CompressionFailure>;
 }
 
 trait InputView<'a>: Sized {
@@ -135,7 +142,7 @@ trait InputView<'a>: Sized {
     unsafe fn new(raw: &'a mut ngx_buf_t) -> Result<Self, ()>;
     fn operation(&self) -> Operation;
     fn bytes(&self) -> &[u8];
-    fn consume(self);
+    fn consume(self, bytes: usize) -> Result<bool, ()>;
 }
 
 trait HeaderDecision: Sized {

@@ -43,8 +43,13 @@ impl<'a> InputView<'a> for InputBuffer<'a> {
         self.bytes
     }
 
-    fn consume(self) {
-        self.raw.pos = self.raw.last;
+    fn consume(self, bytes: usize) -> Result<bool, ()> {
+        if bytes > self.bytes.len() {
+            return Err(());
+        }
+        // SAFETY: bytes was checked against the live pos..last view.
+        self.raw.pos = unsafe { self.raw.pos.add(bytes) };
+        Ok(self.raw.pos == self.raw.last)
     }
 }
 
@@ -55,5 +60,30 @@ fn operation_for(buf: &ngx::ffi::ngx_buf_t) -> Operation {
         Operation::Flush
     } else {
         Operation::Continue
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::mem::MaybeUninit;
+
+    use ngx::ffi::ngx_buf_t;
+
+    use super::{InputBuffer, InputView};
+
+    #[test]
+    fn advances_only_the_consumed_prefix() {
+        let mut storage = *b"abcdef";
+        // SAFETY: ngx_buf_t is a C data holder whose zero state is nginx's
+        // allocation default; live test pointers are installed below.
+        let mut raw = unsafe { MaybeUninit::<ngx_buf_t>::zeroed().assume_init() };
+        raw.pos = storage.as_mut_ptr();
+        raw.last = raw.pos.wrapping_add(storage.len());
+
+        // SAFETY: pos..last points to live storage for this scope.
+        let input = unsafe { InputBuffer::new(&mut raw) }.expect("valid input");
+        assert_eq!(input.consume(2), Ok(false));
+        // SAFETY: pos was advanced within the same live allocation.
+        assert_eq!(unsafe { raw.last.offset_from(raw.pos) }, 4);
     }
 }

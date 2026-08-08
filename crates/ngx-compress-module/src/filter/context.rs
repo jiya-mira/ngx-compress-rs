@@ -34,6 +34,7 @@ impl RequestContext for RequestCtx {
         key: CodecKey,
         buffer_size: usize,
         stats_mode: StatsMode,
+        buffer_count: usize,
     ) -> Option<()> {
         // SAFETY: allocates a cleanup handler tied to the request pool.
         unsafe {
@@ -47,7 +48,11 @@ impl RequestContext for RequestCtx {
                 out: core::ptr::null_mut(),
                 busy: core::ptr::null_mut(),
                 free: core::ptr::null_mut(),
+                input: core::ptr::null_mut(),
                 buffer_size,
+                buffer_count,
+                allocated_buffers: 0,
+                pending_operation: None,
                 done: false,
                 stats: (stats_mode != StatsMode::Off)
                     .then(|| CompressionStats::new(key.coding, key.level)),

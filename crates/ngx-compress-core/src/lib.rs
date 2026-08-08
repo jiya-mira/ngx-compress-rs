@@ -17,5 +17,6 @@ pub use progress::{Operation, ProgressError, StepResult, StepState, validate_pro
 pub use static_policy::{StaticCandidate, StaticMode, StaticRequestFacts, static_candidates};
 pub use stats::{CompressionStats, StatsField};
 pub use stream::{
-    DriveError, DriveOutcome, OutputAction, OutputBoundary, OutputProvider, OutputUse, drive_input,
+    DriveError, DriveFailure, DriveOutcome, DriveState, OutputAction, OutputBoundary,
+    OutputProvider, OutputUse, WorkBudget, drive_input,
 };
