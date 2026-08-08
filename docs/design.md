@@ -150,10 +150,11 @@ compresses fast (good for dynamic responses), `br` reaches smaller sizes at
 high quality (good for cacheable/static), `gzip`/`deflate` are the
 compatibility floor, `identity` is the implicit fallback.
 
-The v0.1 order is fixed. Only codecs that are enabled and pass eligibility
-participate. `identity` is always an implicit final candidate and is never
-listed. `compress_priority` is not registered in v0.1.0, but is scheduled as the
-second post-v0.1 phase; see [roadmap.md](roadmap.md).
+Only codecs that are enabled and pass eligibility participate. `identity` is
+always an implicit final candidate and is never listed. `compress_priority`
+sets a server-order prefix for equal client q values; omitted codings are
+completed from the active profile. The `fast` profile places gzip before
+Brotli, while `on` and `balanced` retain the order above.
 
 ## 5. Configuration schema
 
@@ -263,16 +264,16 @@ These shipped directives apply to all enabled codecs.
 | `compress_buffers <n> <size>` | (count, size) | `16 8k` | hard per-request output-buffer count and buffer size |
 
 Per-codec MIME, minimum-length, and buffer overrides are not registered. The
-per-codec controls in v0.1 are enablement and compression level, plus the
+per-codec controls in v0.2 are enablement and compression level, plus the
 Brotli window.
 
-#### 4.4.1 Planned v0.2.0 proxied policy
+#### 4.4.1 Deferred proxied policy
 
 `compress_proxied <flags>...` will mirror the policy vocabulary and default of
 `gzip_proxied`: `off`, `expired`, `no-cache`, `no-store`, `private`,
 `no_last_modified`, `no_etag`, `auth`, and `any`. It will apply to all runtime
 codings and to `compress_static on`; `compress_static always` will bypass it.
-The directive is planned and is not accepted by v0.1.0.
+The directive is deferred and is not accepted by v0.2.0.
 
 ### 4.5 Typed configuration model
 
@@ -452,13 +453,12 @@ ordering, sidecar serving, named profiles, worker-local codec reuse, and the
 ratio/throughput calibration harness. These are maintained by the release gates
 rather than carried as open planning items.
 
-The canonical post-v0.1 sequence is maintained in
-[the development plan](roadmap.md):
+The first two items were delivered in v0.2.0; later items remain deferred:
 
-1. remove the `max` profile without another keep/retune experiment, then measure
+1. removed the `max` profile without another keep/retune experiment, then measure
    the remaining runtime profiles and add a bounded, resumable safe-core work
    contract;
-2. add inherited `compress_priority` as the server tie-break among codings with
+2. added inherited `compress_priority` as the server tie-break among codings with
    equal effective client quality, consistently for runtime and static paths;
 3. design and, if the ownership/lifecycle gate passes, implement asynchronous
    compression with no cross-thread NGINX pointers;
@@ -477,8 +477,8 @@ block this engineering sequence.
   scope.
 - Per-response-class automatic priority (for example, a different implicit
   order for dynamic versus cacheable responses) remains deferred.
-  `compress_priority` itself is scheduled as a near-term explicit server
-  tie-break and must preserve client `q` semantics.
+  `compress_priority` is the explicit server tie-break and preserves client
+  `q` semantics.
 - A runtime cache of the module's *own* compressed output — explicitly **not
   built**. Static content is served from precompressed sidecars (the filesystem
   is the cache); "compress once, reuse" for dynamic content is delegated to

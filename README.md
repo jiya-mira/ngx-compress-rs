@@ -4,7 +4,7 @@
 on top of the official [`nginx/ngx-rust`](https://github.com/nginx/ngx-rust)
 integration layer.
 
-The project is a source-only **v0.1.1 Technical Preview**: you build it from
+The project is a source-only **v0.2.0 Technical Preview**: you build it from
 source, and no universal binary module is distributed. Trying it out takes only
 the [Quick start](#quick-start) below. Deploying it into an NGINX you already run
 additionally requires building against that binary's exact version and configure
@@ -19,7 +19,8 @@ signature — see [Deploy into your NGINX](#deploy-into-your-nginx).
 - Precompressed `.gz`, `.br`, and `.zst` sidecar serving.
 - `fast` and `balanced` configuration profiles with explicit directive
   overrides.
-- Worker-local codec reuse and streaming progress validation.
+- Worker-local codec reuse, validated progress, and bounded resumable callbacks.
+- Compression log variables and an optional `Server-Timing` trailer.
 - A narrow NGINX FFI boundary around a safe Rust protocol and policy core.
 - Vendored and system-library codec backends.
 - HTTP/1.1, HTTP/2, and experimental NGINX HTTP/3 interoperability.
@@ -95,6 +96,8 @@ All directives are valid in the `http`, `server`, and `location` contexts.
 | `compress_min_length <n>` | `20` | Minimum response size (bytes) to compress at runtime. |
 | `compress_vary on\|off` | `on` | Add `Vary: Accept-Encoding`. |
 | `compress_buffers <n> <size>` | `16 8k` | Hard per-request output-buffer limit and buffer size. |
+| `compress_priority <coding>...` | profile-dependent | Server order used only to break equal client q values. |
+| `compress_stats off\|variables\|server_timing` | `off` | Compression variables and optional timing trailer. |
 | `compress_static off\|on\|always` | `off` | Serve precompressed `.zst`/`.br`/`.gz` sidecars. |
 
 Precedence is **explicit directive > profile preset > built-in default**,
@@ -120,7 +123,7 @@ NGINX version, configure arguments, compiler/ABI, and distribution patches as
 the target binary. `--with-compat` helps with compatible builds but does not make
 one `.so` universal.
 
-The v0.1.1 support baseline is **NGINX 1.30.4, Debian Bookworm, Linux x86_64**,
+The v0.2.0 support baseline is **NGINX 1.30.4, Ubuntu 24.04, Linux x86_64 and ARM64**,
 using either dynamic/static linking and vendored/system codec libraries. Other
 versions, distributions, architectures, and signatures are unverified. HTTP/3
 inherits NGINX upstream's experimental status and does not include 0-RTT.
@@ -148,8 +151,10 @@ Report suspected vulnerabilities privately as described in
 - [Post-v0.1 development plan](docs/roadmap.md)
 - [Compression Dictionary Transport design direction](docs/dictionary-transport.md)
 - [Unsafe-boundary refactor](docs/unsafe-boundary-refactor.md)
-- [v0.1.1 release-readiness checklist](docs/release-readiness-v0.1.1.md)
+- [v0.2.0 migration guide](docs/migration-v0.2.0.md)
+- [v0.2.0 release-readiness checklist](docs/release-readiness-v0.2.0.md)
 - [Release, tag, and rollback runbook](docs/release.md)
+- [v0.2.0 release notes](docs/releases/v0.2.0.md)
 - [v0.1.1 release notes](docs/releases/v0.1.1.md)
 - [v0.1.0 release notes](docs/releases/v0.1.0.md)
 

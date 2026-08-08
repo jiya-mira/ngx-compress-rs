@@ -24,9 +24,11 @@ The protocol core is independent of Nginx. It parses content negotiation, select
 
 ## Encoding policy
 
-Selection first honors client quality values and explicit exclusions. Server policy then breaks ties using request properties such as MIME type, body length, cacheability, and available dictionaries.
+Selection first honors client quality values and explicit exclusions. Server
+policy breaks only equal-quality ties using the resolved profile order or an
+inherited `compress_priority` prefix.
 
-Initial default order for equal client quality:
+Default order for equal client quality in `on` and `balanced`:
 
 1. `zstd` for dynamic responses
 2. `br` for cacheable or precompressed responses
@@ -34,9 +36,10 @@ Initial default order for equal client quality:
 4. `deflate`
 5. `identity`
 
-The v0.1 tie-break order is fixed. An inherited `compress_priority` directive is
-the second post-v0.1 phase. Adaptive response-class selection remains deferred
-and requires benchmark evidence before it becomes a release commitment.
+The `fast` profile moves gzip ahead of Brotli. `compress_priority` replaces the
+inherited prefix as a whole, and missing codings are completed from the active
+profile. It never overrides a higher client q value. Adaptive response-class
+selection remains deferred and requires benchmark evidence.
 
 ## Streaming contract
 
@@ -169,18 +172,20 @@ has it and the gain does not justify the config surface. A runtime cache of the
 module's own compressed output is a non-goal (precompressed sidecars + upstream
 `proxy_cache` cover it).
 
-### Post-v0.1 phase 1: remove `max` and bound event-loop work
+### v0.2.0: remove `max` and bound event-loop work
 
-- remove the `max` profile from the active configuration surface without
+- removed the `max` profile from the active configuration surface without
   spending another round deciding whether to retain or retune it;
 - measure callback latency, codec iterations, throughput, and worker RSS for the
   remaining profiles and representative explicit levels;
-- add a resumable safe-core work budget without losing input, flush/finish
+- added a resumable safe-core work budget without losing input, flush/finish
   state, or NGINX chain ownership.
 
-### Post-v0.1 phase 2: configurable server priority
+Callback p99 calibration across the release targets remains a release gate.
 
-- add inherited `compress_priority` for equal-client-quality tie-breaking;
+### v0.2.0: configurable server priority
+
+- added inherited `compress_priority` for equal-client-quality tie-breaking;
 - keep client `q=0`, wildcard, identity, and duplicate-coding semantics
   authoritative;
 - apply the configured order consistently to runtime codecs and precompressed

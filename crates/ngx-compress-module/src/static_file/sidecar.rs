@@ -76,7 +76,7 @@ struct OpenedSidecar {
 /// Probes all configured representations, marks cache variance once any
 /// sidecar exists, and sends the first acceptable sidecar.
 // SAFETY: `request` must be a valid NGINX request for the full probe and submit.
-pub(super) unsafe fn probe_and_serve(
+pub(in crate::static_file) unsafe fn probe_and_serve(
     request: *mut ngx_http_request_t,
     candidates: Vec<ngx_compress_core::StaticCandidate>,
     vary: bool,

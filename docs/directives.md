@@ -96,7 +96,21 @@ rejected with `406 Not Acceptable`. A missing or empty `Accept-Encoding` is
 handled conservatively as identity.
 
 Per-codec `types`, `min_length`, and buffer overrides are not registered in
-v0.1; the per-codec controls are enablement, level, and the Brotli window.
+v0.2; the per-codec controls are enablement, level, and the Brotli window.
+
+## Statistics
+
+| Directive | Syntax | Default | Description |
+| --- | --- | --- | --- |
+| `compress_stats` | `off \| variables \| server_timing` | `off` | Collect final compression variables and optionally emit a `Server-Timing` trailer. |
+
+`variables` populates `$compress_coding`, `$compress_level`,
+`$compress_input_bytes`, `$compress_output_bytes`, `$compress_ratio`, and
+`$compress_time_ms` only for actually compressed responses. A zero-input ratio
+is empty. `server_timing` includes the same values and adds one best-effort
+`compress` metric trailer; failure to send the trailer does not fail the
+response or remove the variables. Time is cumulative compression callback work,
+not total request latency.
 
 ## Precompressed static
 

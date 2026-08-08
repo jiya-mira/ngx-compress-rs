@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{Resolved, StatsMode};
 
-pub(super) trait RuntimeCallbacks {
+pub(in crate::filter) trait RuntimeCallbacks {
     // SAFETY: NGINX must supply a live request pointer.
     unsafe extern "C" fn header_filter(request: *mut ngx_http_request_t) -> ngx_int_t;
     // SAFETY: NGINX must supply a live request and input chain.
@@ -18,7 +18,7 @@ pub(super) trait RuntimeCallbacks {
     ) -> ngx_int_t;
 }
 
-pub(super) trait RequestContext {
+pub(in crate::filter) trait RequestContext {
     // SAFETY: `request` must be live and have no existing module context.
     unsafe fn install(
         request: *mut ngx_http_request_t,
@@ -35,7 +35,7 @@ pub(super) trait RequestContext {
     ) -> Option<R>;
 }
 
-pub(super) trait CompressChain {
+pub(in crate::filter) trait CompressChain {
     // SAFETY: request and chain must be live while `self` is uniquely borrowed.
     unsafe fn compress(
         &mut self,
@@ -44,7 +44,7 @@ pub(super) trait CompressChain {
     ) -> Result<bool, CompressionFailure>;
 }
 
-pub(super) trait InputView<'a>: Sized {
+pub(in crate::filter) trait InputView<'a>: Sized {
     // SAFETY: non-empty `pos..last` must be one live allocation for `'a`.
     unsafe fn new(raw: &'a mut ngx_buf_t) -> Result<Self, ()>;
     fn operation(&self) -> Operation;
@@ -52,21 +52,21 @@ pub(super) trait InputView<'a>: Sized {
     fn consume(self, bytes: usize) -> Result<bool, ()>;
 }
 
-pub(super) trait HeaderDecision: Sized {
+pub(in crate::filter) trait HeaderDecision: Sized {
     fn decide(
         resolved: &Resolved<'_>,
         snapshot: &Snapshot,
     ) -> Result<Option<Self>, CodecSelectionFailure>;
 }
 
-pub(super) trait CodecSelection {
+pub(in crate::filter) trait CodecSelection {
     fn choose(
         resolved: &Resolved<'_>,
         accept: &AcceptEncoding,
     ) -> Result<Option<SelectedCodec>, CodecSelectionFailure>;
 }
 
-pub(super) trait CodecPool: Sized {
+pub(in crate::filter) trait CodecPool: Sized {
     fn acquire(self) -> Result<Option<Box<dyn StreamingCodec>>, CodecError>;
     fn release(self, codec: Box<dyn StreamingCodec>);
 }
